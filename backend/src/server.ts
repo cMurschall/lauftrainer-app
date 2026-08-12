@@ -5,6 +5,10 @@ export interface Env {
   GEMINI_API_KEY: string
   GEMINI_MODEL?: string
   ALLOWED_ORIGIN?: string
+  FRONTEND_URL?: string
+  POLAR_CLIENT_ID?: string
+  POLAR_CLIENT_SECRET?: string
+  POLAR_REDIRECT_URI?: string
 }
 
 const trainingRequestSchema = z.object({
@@ -34,8 +38,58 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
     'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
     'Vary': 'Origin'
   }
+}
+
+function cookieValue(request: Request, name: string): string | undefined {
+  const cookies = request.headers.get('Cookie')?.split(';') || []
+  const entry = cookies.map(cookie => cookie.trim()).find(cookie => cookie.startsWith(`${name}=`))
+  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : undefined
+}
+
+function cookie(name: string, value: string, maxAge: number): string {
+  return `${name}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; Secure; HttpOnly; SameSite=None`
+}
+
+function polarRedirectUri(request: Request, env: Env): string {
+  return env.POLAR_REDIRECT_URI || `${new URL(request.url).origin}/api/polar/callback`
+}
+
+function requirePolarConfig(env: Env): string | Response {
+  if (!env.POLAR_CLIENT_ID || !env.POLAR_CLIENT_SECRET) return new Response('Polar ist im Backend noch nicht konfiguriert.', { status: 503 })
+  return env.POLAR_CLIENT_ID
+}
+
+function connectPolar(request: Request, env: Env): Response {
+  const clientId = requirePolarConfig(env)
+  if (clientId instanceof Response) return clientId
+  const state = crypto.randomUUID()
+  const params = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: polarRedirectUri(request, env), scope: 'accesslink.read_all', state })
+  const response = Response.redirect(`https://flow.polar.com/oauth2/authorization?${params}`, 302)
+  response.headers.append('Set-Cookie', cookie('polar_oauth_state', state, 600))
+  return response
+}
+
+async function polarCallback(request: Request, env: Env): Promise<Response> {
+  const clientId = requirePolarConfig(env)
+  if (clientId instanceof Response) return clientId
+  const url = new URL(request.url)
+  const code = url.searchParams.get('code')
+  const state = url.searchParams.get('state')
+  if (!code || !state || state !== cookieValue(request, 'polar_oauth_state')) return new Response('Ungültiger oder abgelaufener Polar-OAuth-Status.', { status: 400 })
+  const basic = btoa(`${clientId}:${env.POLAR_CLIENT_SECRET}`)
+  const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: polarRedirectUri(request, env) })
+  const tokenResponse = await fetch('https://polarremote.com/v2/oauth2/token', { method: 'POST', headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body })
+  if (!tokenResponse.ok) return new Response('Polar-Token konnte nicht abgerufen werden.', { status: 502 })
+  const token = await tokenResponse.json() as { access_token?: string; x_user_id?: string }
+  if (!token.access_token) return new Response('Polar lieferte keinen Access-Token.', { status: 502 })
+  const frontend = env.FRONTEND_URL || 'https://lauftrainer-app.pages.dev'
+  const response = Response.redirect(`${frontend}?polar=connected`, 302)
+  response.headers.append('Set-Cookie', cookie('polar_oauth_state', '', 0))
+  response.headers.append('Set-Cookie', cookie('polar_token', JSON.stringify(token), 31536000))
+  return response
 }
 
 function json(data: unknown, status: number, request: Request, env: Env): Response {
@@ -81,6 +135,9 @@ export default {
     const url = new URL(request.url)
     try {
       if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', version: packageJson.version }, 200, request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/connect') return connectPolar(request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/callback') return await polarCallback(request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/status') return json({ connected: Boolean(cookieValue(request, 'polar_token')) }, 200, request, env)
       if (request.method === 'POST' && url.pathname === '/api/training-plan') return await createTrainingPlan(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
