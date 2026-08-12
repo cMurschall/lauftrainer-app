@@ -11,8 +11,8 @@ export default defineConfig({
         name: 'LaufTrainer',
         short_name: 'LaufTrainer',
         description: 'Lokale Trainingsanalyse und KI-Trainingsplanung',
-        theme_color: '#0b1220',
-        background_color: '#0b1220',
+        theme_color: '#0d1117',
+        background_color: '#0d1117',
         display: 'standalone',
         lang: 'de'
       }

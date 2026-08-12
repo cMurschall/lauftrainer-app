@@ -8,7 +8,7 @@ const { t } = useI18n()
 const filteredWorkouts = computed(() => props.workouts.filter(workout => `${workout.name} ${workout.sport} ${workout.date}`.toLowerCase().includes(props.search.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date)))
 </script>
 <template>
-  <div class="page-heading"><div><p class="eyebrow">{{ t.dashboard }}</p><h1>{{ t.greeting }}</h1></div><label class="button primary">{{ t.importFiles }}<input type="file" multiple accept=".csv,.json,.tcx" @change="importFiles"></label></div>
+  <div class="page-heading"><h1>{{ t.greeting }}</h1><label class="button primary">{{ t.importFiles }}<input type="file" multiple accept=".csv,.json,.tcx" @change="importFiles"></label></div>
   <section class="hero"><div><h2>{{ t.heroTitle }}</h2><p>{{ t.heroText }}</p></div><span class="hero-orb">◌</span></section>
   <p v-if="message" class="notice">{{ message }}</p>
   <section class="stats"><article class="card"><span>{{ t.workouts }}</span><strong class="metric">{{ workouts.length }}</strong></article><article class="card"><span>{{ t.totalDistance }}</span><strong class="metric">{{ analysis.totalDistanceKm.toFixed(1) }} km</strong></article><article class="card"><span>{{ t.trainingTime }}</span><strong class="metric">{{ Math.round(analysis.totalDurationMinutes / 60) }} h</strong></article></section>
