@@ -19,7 +19,8 @@ Die lokale Übersicht berechnet bereits Gesamtzeit, Distanz, Wochenwerte, Traini
 ```powershell
 cd backend
 npm install
-$env:GEMINI_API_KEY = '...'
+Copy-Item .dev.vars.example .dev.vars
+# GEMINI_API_KEY in .dev.vars eintragen
 npm run dev
 ```
 
@@ -35,13 +36,14 @@ Für die lokale Entwicklung: `$env:VITE_AI_API_URL = 'http://localhost:8000/api'
 
 Das Backend speichert keine Trainingsdaten dauerhaft. Der Gemini-Key darf niemals im Frontend hinterlegt werden.
 
-### Produktionsbuild / Docker
+### Cloudflare Worker Deployment
 
 ```powershell
 cd backend
 npm run build
-docker build -t lauftrainer-backend .
-docker run --rm -p 8000:8000 -e GEMINI_API_KEY='...' lauftrainer-backend
+npx wrangler login
+npx wrangler secret put GEMINI_API_KEY
+npm run deploy
 ```
 
 Das Backend ist ein stateless Node-/TypeScript-Service. Die Endpunkte `/health` und `/api/training-plan` bleiben gegenüber der Vue-App unverändert.

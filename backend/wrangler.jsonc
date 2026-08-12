@@ -1,0 +1,7 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lauftrainer-backend",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-08-12",
+  "observability": { "enabled": true }
+}
