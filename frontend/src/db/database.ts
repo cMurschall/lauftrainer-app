@@ -1,4 +1,5 @@
 import type { UserConfig, Workout, TrainingPlanDay } from '../types/workout'
+import type { AppSettings } from '../types/settings'
 
 const DB_NAME = 'lauftrainer-local'
 const DB_VERSION = 2
@@ -33,6 +34,8 @@ export const workoutDb = {
   deleteAll: () => transaction<undefined>('workouts', 'readwrite', store => store.clear()),
   getConfig: () => transaction<UserConfig | undefined>('settings', 'readonly', store => store.get('config')),
   saveConfig: (config: UserConfig) => transaction<IDBValidKey>('settings', 'readwrite', store => store.put(config, 'config')),
+  getAppSettings: () => transaction<AppSettings | undefined>('settings', 'readonly', store => store.get('app')),
+  saveAppSettings: (settings: AppSettings) => transaction<IDBValidKey>('settings', 'readwrite', store => store.put(settings, 'app')),
   savePlan: (plan: TrainingPlanDay[]) => transaction<IDBValidKey>('plans', 'readwrite', store => store.put({ id: 'current', createdAt: new Date().toISOString(), plan }))
 }
 

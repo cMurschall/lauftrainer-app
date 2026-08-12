@@ -3,3 +3,4 @@ dist/
 .env
 __pycache__/
 backend/.dev.vars.example
+start-local.ps1
