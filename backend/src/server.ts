@@ -4,6 +4,7 @@ export interface Env {
   GEMINI_API_KEY: string
   GEMINI_MODEL?: string
   ALLOWED_ORIGIN?: string
+  BACKEND_VERSION?: string
 }
 
 const trainingRequestSchema = z.object({
@@ -79,7 +80,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, env) })
     const url = new URL(request.url)
     try {
-      if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok' }, 200, request, env)
+      if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', version: env.BACKEND_VERSION || '0.1.0' }, 200, request, env)
       if (request.method === 'POST' && url.pathname === '/api/training-plan') return await createTrainingPlan(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
@@ -88,4 +89,3 @@ export default {
     }
   }
 }
-
