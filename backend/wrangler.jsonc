@@ -8,5 +8,13 @@
     "FRONTEND_URL": "https://lauftrainer-app.pages.dev",
     "POLAR_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/polar/callback"
   },
-  "observability": { "enabled": true }
+  "kv_namespaces": [
+    {
+      "binding": "POLAR_SESSIONS",
+      "id": "1191571c9bd84094bbc10c8d884b03e1"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
 }

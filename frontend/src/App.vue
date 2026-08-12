@@ -4,7 +4,7 @@ import { calculateAnalysis } from './analysis/localAnalysis'
 import { exportBackup, importBackup, workoutDb } from './db/database'
 import { importWorkoutFile } from './services/importService'
 import { requestTrainingPlan } from './services/aiService'
-import { polarConnectUrl, polarStatus, syncPolarWorkouts } from './services/polarService'
+import { capturePolarSession, polarConnectUrl, polarStatus, syncPolarWorkouts } from './services/polarService'
 import { useI18n, type Locale } from './i18n'
 import type { TrainingPlanDay, UserConfig, Workout } from './types/workout'
 
@@ -15,7 +15,7 @@ const polarConnected = ref(false), polarLoading = ref(false)
 const config = ref<UserConfig>({ name:'Athlet', trainingFocus:'base_endurance', preferredTrainingDays:['monday','wednesday','friday'], hrZones:{ z1:[90,106], z2:[107,124], z3:[125,142], z4:[143,160], z5:[161,179] }, thresholds:{ lthr:160, hr_max:186 } })
 const analysis = computed(() => calculateAnalysis(workouts.value, config.value))
 const filteredWorkouts = computed(() => workouts.value.filter(workout => `${workout.name} ${workout.sport} ${workout.date}`.toLowerCase().includes(search.value.toLowerCase())).sort((a,b) => b.date.localeCompare(a.date)))
-onMounted(async () => { workouts.value = await workoutDb.list(); const stored = await workoutDb.getConfig(); if (stored) config.value = stored; await checkBackend(); polarConnected.value = await polarStatus().catch(() => false) })
+onMounted(async () => { workouts.value = await workoutDb.list(); const stored = await workoutDb.getConfig(); if (stored) config.value = stored; capturePolarSession(); await checkBackend(); polarConnected.value = await polarStatus().catch(() => false) })
 async function checkBackend() { try { const apiUrl = import.meta.env.VITE_AI_API_URL || '/api'; const response = await fetch(`${apiUrl.replace(/\/api\/?$/, '')}/health`, { signal:AbortSignal.timeout(8000) }); if (!response.ok) throw new Error(); const health = await response.json() as { status?:string; version?:string }; backendStatus.value = health.status === 'ok' ? 'online' : 'offline'; backendVersion.value = health.version || t.value.backendUnknown } catch { backendStatus.value='offline'; backendVersion.value='–' } finally { backendCheckedAt.value = formatTime(new Date()) } }
 async function importFiles(event: Event) { const files = Array.from((event.target as HTMLInputElement).files || []); let imported=0; for (const file of files) { try { await importWorkoutFile(file); imported++ } catch { message.value=t.value.importFailed } }; workouts.value=await workoutDb.list(); if (imported) message.value=t.value.importSuccess(imported) }
 async function createPlan() { if (!consent.value) { message.value=t.value.consent; return }; loading.value=true; try { plan.value=await requestTrainingPlan(workouts.value, config.value); await workoutDb.savePlan(plan.value); message.value=t.value.planSaved } catch { message.value=t.value.aiFailed } finally { loading.value=false } }

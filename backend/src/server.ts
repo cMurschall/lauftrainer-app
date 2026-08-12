@@ -9,6 +9,7 @@ export interface Env {
   POLAR_CLIENT_ID?: string
   POLAR_CLIENT_SECRET?: string
   POLAR_REDIRECT_URI?: string
+  POLAR_SESSIONS: KVNamespace
 }
 
 const trainingRequestSchema = z.object({
@@ -43,23 +44,15 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
   }
 }
 
-function cookieValue(request: Request, name: string): string | undefined {
-  const cookies = request.headers.get('Cookie')?.split(';') || []
-  const entry = cookies.map(cookie => cookie.trim()).find(cookie => cookie.startsWith(`${name}=`))
-  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : undefined
-}
-
-function polarToken(request: Request): { access_token: string; x_user_id?: string } | undefined {
-  const raw = cookieValue(request, 'polar_token')
+async function polarToken(request: Request, env: Env): Promise<{ access_token: string; x_user_id?: string } | undefined> {
+  const sessionId = request.headers.get('X-Polar-Session')
+  if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return undefined
+  const raw = await env.POLAR_SESSIONS.get(`polar-session:${sessionId}`)
   if (!raw) return undefined
   try {
     const parsed = JSON.parse(raw) as { access_token?: string; x_user_id?: string }
     return parsed.access_token ? parsed as { access_token: string; x_user_id?: string } : undefined
   } catch { return undefined }
-}
-
-function cookie(name: string, value: string, maxAge: number): string {
-  return `${name}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; Secure; HttpOnly; SameSite=None`
 }
 
 function polarRedirectUri(request: Request, env: Env): string {
@@ -71,14 +64,13 @@ function requirePolarConfig(env: Env): string | Response {
   return env.POLAR_CLIENT_ID
 }
 
-function connectPolar(request: Request, env: Env): Response {
+async function connectPolar(request: Request, env: Env): Promise<Response> {
   const clientId = requirePolarConfig(env)
   if (clientId instanceof Response) return clientId
   const state = crypto.randomUUID()
+  await env.POLAR_SESSIONS.put(`oauth-state:${state}`, '1', { expirationTtl: 600 })
   const params = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: polarRedirectUri(request, env), scope: 'accesslink.read_all', state })
-  const response = new Response(null, { status: 302, headers: { Location: `https://flow.polar.com/oauth2/authorization?${params}` } })
-  response.headers.append('Set-Cookie', cookie('polar_oauth_state', state, 600))
-  return response
+  return Response.redirect(`https://flow.polar.com/oauth2/authorization?${params}`, 302)
 }
 
 async function polarCallback(request: Request, env: Env): Promise<Response> {
@@ -87,7 +79,8 @@ async function polarCallback(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
-  if (!code || !state || state !== cookieValue(request, 'polar_oauth_state')) return new Response('Ungültiger oder abgelaufener Polar-OAuth-Status.', { status: 400 })
+  if (!code || !state || !(await env.POLAR_SESSIONS.get(`oauth-state:${state}`))) return new Response('Ungültiger oder abgelaufener Polar-OAuth-Status.', { status: 400 })
+  await env.POLAR_SESSIONS.delete(`oauth-state:${state}`)
   const basic = btoa(`${clientId}:${env.POLAR_CLIENT_SECRET}`)
   const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: polarRedirectUri(request, env) })
   const tokenResponse = await fetch('https://polarremote.com/v2/oauth2/token', { method: 'POST', headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body })
@@ -95,10 +88,9 @@ async function polarCallback(request: Request, env: Env): Promise<Response> {
   const token = await tokenResponse.json() as { access_token?: string; x_user_id?: string }
   if (!token.access_token) return new Response('Polar lieferte keinen Access-Token.', { status: 502 })
   const frontend = env.FRONTEND_URL || 'https://lauftrainer-app.pages.dev'
-  const response = new Response(null, { status: 302, headers: { Location: `${frontend}?polar=connected` } })
-  response.headers.append('Set-Cookie', cookie('polar_oauth_state', '', 0))
-  response.headers.append('Set-Cookie', cookie('polar_token', JSON.stringify(token), 31536000))
-  return response
+  const sessionId = crypto.randomUUID()
+  await env.POLAR_SESSIONS.put(`polar-session:${sessionId}`, JSON.stringify(token), { expirationTtl: 60 * 60 * 24 * 30 })
+  return Response.redirect(`${frontend}?polar=connected&polar_session=${encodeURIComponent(sessionId)}`, 302)
 }
 
 function isoDurationSeconds(value: unknown): number {
@@ -114,7 +106,7 @@ function polarNumber(value: unknown): number | undefined {
 }
 
 async function syncPolar(request: Request, env: Env): Promise<Response> {
-  const token = polarToken(request)
+  const token = await polarToken(request, env)
   if (!token) return json({ detail: 'Polar ist nicht verbunden.' }, 401, request, env)
   const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' }
   if (token.x_user_id) {
@@ -185,9 +177,9 @@ export default {
     const url = new URL(request.url)
     try {
       if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', version: packageJson.version }, 200, request, env)
-      if (request.method === 'GET' && url.pathname === '/api/polar/connect') return connectPolar(request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/connect') return await connectPolar(request, env)
       if (request.method === 'GET' && url.pathname === '/api/polar/callback') return await polarCallback(request, env)
-      if (request.method === 'GET' && url.pathname === '/api/polar/status') return json({ connected: Boolean(polarToken(request)) }, 200, request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/status') return json({ connected: Boolean(await polarToken(request, env)) }, 200, request, env)
       if (request.method === 'POST' && url.pathname === '/api/polar/sync') return await syncPolar(request, env)
       if (request.method === 'POST' && url.pathname === '/api/training-plan') return await createTrainingPlan(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
