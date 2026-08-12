@@ -20,11 +20,13 @@ export async function callback(request: Request, env: Env): Promise<Response> {
   if (!tokenResponse.ok) return new Response('Polar-Token konnte nicht abgerufen werden.', { status: 502 })
   const token = await tokenResponse.json() as { access_token?: string; x_user_id?: string }; if (!token.access_token) return new Response('Polar lieferte keinen Access-Token.', { status: 502 })
   const sessionId = crypto.randomUUID(); await env.POLAR_SESSIONS.put(`polar-session:${sessionId}`, JSON.stringify(token), { expirationTtl: 60 * 60 * 24 * 30 })
-  return Response.redirect(`${env.FRONTEND_URL || 'https://lauftrainer-app.pages.dev'}?polar=connected&polar_session=${sessionId}`, 302)
+  return Response.redirect(`${env.FRONTEND_URL || 'https://lauftrainer-app.pages.dev'}?connector=polar&connector_session=${sessionId}`, 302)
 }
 
 async function token(request: Request, env: Env): Promise<{ access_token: string; x_user_id?: string } | undefined> {
-  const sessionId = request.headers.get('X-Polar-Session'); if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return undefined
+  let sessionId = request.headers.get('X-Polar-Session')
+  try { const map = JSON.parse(request.headers.get('X-Connector-Sessions') || '{}') as Record<string, string>; sessionId = map.polar || sessionId } catch { /* use legacy header */ }
+  if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return undefined
   const raw = await env.POLAR_SESSIONS.get(`polar-session:${sessionId}`); if (!raw) return undefined
   try { const value = JSON.parse(raw) as { access_token?: string; x_user_id?: string }; return value.access_token ? value as { access_token: string; x_user_id?: string } : undefined } catch { return undefined }
 }

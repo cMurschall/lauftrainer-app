@@ -1,6 +1,7 @@
 import packageJson from '../package.json'
 import { corsHeaders, json } from './http'
 import { callback, connect, status, sync } from './polar'
+import { listStatus, syncAll } from './connectors'
 import { createTrainingPlan } from './training'
 import type { Env } from './types'
 
@@ -14,6 +15,10 @@ export default {
       if (request.method === 'GET' && path === '/api/polar/callback') return await callback(request, env)
       if (request.method === 'GET' && path === '/api/polar/status') return await status(request, env)
       if (request.method === 'POST' && path === '/api/polar/sync') return await sync(request, env)
+      if (request.method === 'GET' && path === '/api/connectors/status') return await listStatus(request, env)
+      if (request.method === 'GET' && path === '/api/connectors/polar/connect') return await connect(request, env)
+      if (request.method === 'GET' && path === '/api/connectors/polar/callback') return await callback(request, env)
+      if (request.method === 'POST' && path === '/api/connectors/sync') return await syncAll(request, env)
       if (request.method === 'POST' && path === '/api/training-plan') return await createTrainingPlan(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {

@@ -44,14 +44,16 @@ export interface LocalBackup {
   exportedAt: string
   workouts: Workout[]
   config?: UserConfig
+  appSettings?: AppSettings
 }
 
 export async function exportBackup(): Promise<LocalBackup> {
-  return { version: 1, exportedAt: new Date().toISOString(), workouts: await workoutDb.list(), config: await workoutDb.getConfig() }
+  return { version: 1, exportedAt: new Date().toISOString(), workouts: await workoutDb.list(), config: await workoutDb.getConfig(), appSettings: await workoutDb.getAppSettings() }
 }
 
 export async function importBackup(backup: LocalBackup): Promise<void> {
   if (backup.version !== 1 || !Array.isArray(backup.workouts)) throw new Error('Ungültiges LaufTrainer-Backup.')
   for (const workout of backup.workouts) await workoutDb.put(workout)
   if (backup.config) await workoutDb.saveConfig(backup.config)
+  if (backup.appSettings) await workoutDb.saveAppSettings(backup.appSettings)
 }
