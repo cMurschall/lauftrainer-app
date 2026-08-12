@@ -49,6 +49,15 @@ function cookieValue(request: Request, name: string): string | undefined {
   return entry ? decodeURIComponent(entry.slice(name.length + 1)) : undefined
 }
 
+function polarToken(request: Request): { access_token: string; x_user_id?: string } | undefined {
+  const raw = cookieValue(request, 'polar_token')
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw) as { access_token?: string; x_user_id?: string }
+    return parsed.access_token ? parsed as { access_token: string; x_user_id?: string } : undefined
+  } catch { return undefined }
+}
+
 function cookie(name: string, value: string, maxAge: number): string {
   return `${name}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; Secure; HttpOnly; SameSite=None`
 }
@@ -90,6 +99,47 @@ async function polarCallback(request: Request, env: Env): Promise<Response> {
   response.headers.append('Set-Cookie', cookie('polar_oauth_state', '', 0))
   response.headers.append('Set-Cookie', cookie('polar_token', JSON.stringify(token), 31536000))
   return response
+}
+
+function isoDurationSeconds(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (typeof value !== 'string') return 0
+  const match = value.match(/^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/i)
+  return match ? Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0) : 0
+}
+
+function polarNumber(value: unknown): number | undefined {
+  const result = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(result) ? result : undefined
+}
+
+async function syncPolar(request: Request, env: Env): Promise<Response> {
+  const token = polarToken(request)
+  if (!token) return json({ detail: 'Polar ist nicht verbunden.' }, 401, request, env)
+  const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' }
+  if (token.x_user_id) {
+    const registration = await fetch('https://www.polaraccesslink.com/v3/users', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ 'member-id': token.x_user_id }) })
+    if (!registration.ok && registration.status !== 409) return json({ detail: `Polar-Nutzer konnte nicht registriert werden (${registration.status}).` }, 502, request, env)
+  }
+  const exercisesResponse = await fetch('https://www.polaraccesslink.com/v3/exercises', { headers })
+  if (exercisesResponse.status === 204) return json({ workouts: [], count: 0 }, 200, request, env)
+  if (!exercisesResponse.ok) return json({ detail: `Polar-Trainings konnten nicht geladen werden (${exercisesResponse.status}).` }, 502, request, env)
+  const raw = await exercisesResponse.json() as unknown
+  const exercises = Array.isArray(raw) ? raw : (raw as { exercises?: unknown[] }).exercises || []
+  const workouts = exercises.map((exercise, index) => {
+    const item = exercise as Record<string, unknown>
+    const durationSeconds = isoDurationSeconds(item.duration ?? item['duration-seconds'])
+    const distanceMeters = polarNumber(item.distance)
+    const date = String(item['start-time'] || item.start_time || item.startTime || item.date || new Date().toISOString())
+    return {
+      id: `polar-${String(item.id || item['exercise-id'] || `${date}-${index}`)}`,
+      source: 'polar-json', name: String(item.name || item.sport || 'Polar workout'), sport: String(item.sport || 'RUNNING'), date,
+      durationSeconds, distanceKm: distanceMeters !== undefined && distanceMeters > 100 ? distanceMeters / 1000 : distanceMeters,
+      averageHeartRate: polarNumber(item['average-heart-rate'] ?? item.average_heart_rate ?? item.averageHeartRate),
+      calories: polarNumber(item.calories), records: [], importedAt: new Date().toISOString()
+    }
+  })
+  return json({ workouts, count: workouts.length }, 200, request, env)
 }
 
 function json(data: unknown, status: number, request: Request, env: Env): Response {
@@ -137,7 +187,8 @@ export default {
       if (request.method === 'GET' && url.pathname === '/health') return json({ status: 'ok', version: packageJson.version }, 200, request, env)
       if (request.method === 'GET' && url.pathname === '/api/polar/connect') return connectPolar(request, env)
       if (request.method === 'GET' && url.pathname === '/api/polar/callback') return await polarCallback(request, env)
-      if (request.method === 'GET' && url.pathname === '/api/polar/status') return json({ connected: Boolean(cookieValue(request, 'polar_token')) }, 200, request, env)
+      if (request.method === 'GET' && url.pathname === '/api/polar/status') return json({ connected: Boolean(polarToken(request)) }, 200, request, env)
+      if (request.method === 'POST' && url.pathname === '/api/polar/sync') return await syncPolar(request, env)
       if (request.method === 'POST' && url.pathname === '/api/training-plan') return await createTrainingPlan(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {

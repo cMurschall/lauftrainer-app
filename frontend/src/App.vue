@@ -4,16 +4,18 @@ import { calculateAnalysis } from './analysis/localAnalysis'
 import { exportBackup, importBackup, workoutDb } from './db/database'
 import { importWorkoutFile } from './services/importService'
 import { requestTrainingPlan } from './services/aiService'
+import { polarConnectUrl, polarStatus, syncPolarWorkouts } from './services/polarService'
 import { useI18n, type Locale } from './i18n'
 import type { TrainingPlanDay, UserConfig, Workout } from './types/workout'
 
 const { locale, t, setLocale, formatTime } = useI18n()
 const workouts = ref<Workout[]>([]), plan = ref<TrainingPlanDay[]>([]), message = ref(''), loading = ref(false), consent = ref(false), search = ref('')
 const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'), backendVersion = ref('–'), backendCheckedAt = ref('')
+const polarConnected = ref(false), polarLoading = ref(false)
 const config = ref<UserConfig>({ name:'Athlet', trainingFocus:'base_endurance', preferredTrainingDays:['monday','wednesday','friday'], hrZones:{ z1:[90,106], z2:[107,124], z3:[125,142], z4:[143,160], z5:[161,179] }, thresholds:{ lthr:160, hr_max:186 } })
 const analysis = computed(() => calculateAnalysis(workouts.value, config.value))
 const filteredWorkouts = computed(() => workouts.value.filter(workout => `${workout.name} ${workout.sport} ${workout.date}`.toLowerCase().includes(search.value.toLowerCase())).sort((a,b) => b.date.localeCompare(a.date)))
-onMounted(async () => { workouts.value = await workoutDb.list(); const stored = await workoutDb.getConfig(); if (stored) config.value = stored; await checkBackend() })
+onMounted(async () => { workouts.value = await workoutDb.list(); const stored = await workoutDb.getConfig(); if (stored) config.value = stored; await checkBackend(); polarConnected.value = await polarStatus().catch(() => false) })
 async function checkBackend() { try { const apiUrl = import.meta.env.VITE_AI_API_URL || '/api'; const response = await fetch(`${apiUrl.replace(/\/api\/?$/, '')}/health`, { signal:AbortSignal.timeout(8000) }); if (!response.ok) throw new Error(); const health = await response.json() as { status?:string; version?:string }; backendStatus.value = health.status === 'ok' ? 'online' : 'offline'; backendVersion.value = health.version || t.value.backendUnknown } catch { backendStatus.value='offline'; backendVersion.value='–' } finally { backendCheckedAt.value = formatTime(new Date()) } }
 async function importFiles(event: Event) { const files = Array.from((event.target as HTMLInputElement).files || []); let imported=0; for (const file of files) { try { await importWorkoutFile(file); imported++ } catch { message.value=t.value.importFailed } }; workouts.value=await workoutDb.list(); if (imported) message.value=t.value.importSuccess(imported) }
 async function createPlan() { if (!consent.value) { message.value=t.value.consent; return }; loading.value=true; try { plan.value=await requestTrainingPlan(workouts.value, config.value); await workoutDb.savePlan(plan.value); message.value=t.value.planSaved } catch { message.value=t.value.aiFailed } finally { loading.value=false } }
@@ -21,6 +23,8 @@ async function saveConfig() { await workoutDb.saveConfig(config.value); message.
 async function downloadBackup() { const blob=new Blob([JSON.stringify(await exportBackup(),null,2)],{type:'application/json'}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`lauftrainer-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(link.href); message.value=t.value.backupExported }
 async function restoreBackup(event: Event) { const file=(event.target as HTMLInputElement).files?.[0]; if (!file) return; try { await importBackup(JSON.parse(await file.text())); workouts.value=await workoutDb.list(); message.value=t.value.backupRestored } catch { message.value=t.value.backupFailed } }
 async function clearData() { if (!window.confirm(t.value.confirmDelete)) return; await workoutDb.deleteAll(); workouts.value=[]; plan.value=[]; message.value=t.value.dataDeleted }
+function connectPolar() { window.location.href = polarConnectUrl() }
+async function syncPolar() { polarLoading.value = true; try { const imported = await syncPolarWorkouts(); for (const workout of imported) await workoutDb.put(workout); workouts.value = await workoutDb.list(); polarConnected.value = true; message.value = `${imported.length} Polar-Training(s) lokal gespeichert.` } catch (error) { message.value = error instanceof Error ? error.message : 'Polar-Synchronisierung fehlgeschlagen.' } finally { polarLoading.value = false } }
 </script>
 
 <template>
@@ -32,5 +36,6 @@ async function clearData() { if (!window.confirm(t.value.confirmDelete)) return;
     <section class="card"><p class="eyebrow">{{ t.settings }}</p><div class="settings"><label>{{ t.name }}<input v-model="config.name" @change="saveConfig"></label><label>{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfig"></label><button class="button secondary" @click="downloadBackup">{{ t.exportBackup }}</button><label class="button secondary">{{ t.importBackup }}<input type="file" accept=".json" @change="restoreBackup"></label><button class="text-button" @click="clearData">{{ t.deleteData }}</button></div></section>
     <section class="card"><p class="eyebrow">{{ t.aiPlan }}</p><p>{{ t.aiDescription }}</p><label class="consent"><input v-model="consent" type="checkbox"> {{ t.consent }}</label><button class="button primary full" :disabled="loading || !workouts.length" @click="createPlan">{{ loading ? t.creatingPlan : t.createPlan }}</button><div v-if="plan.length" class="plan"><div v-for="day in plan" :key="day.day"><strong>{{ day.day }}</strong><span>{{ day.description }} · {{ day.total_duration_minutes }} min</span></div></div></section>
     <footer><span>{{ t.localUpload }}</span><button class="backend-status" :class="backendStatus" :title="t.checkBackend" @click="checkBackend"><i></i><span v-if="backendStatus==='checking'">{{ t.checking }}</span><span v-else-if="backendStatus==='online'">{{ t.online }} · v{{ backendVersion }}</span><span v-else>{{ t.offline }}</span><small v-if="backendCheckedAt">{{ backendCheckedAt }}</small></button></footer>
+    <section class="card polar-card"><p class="eyebrow">POLAR</p><button v-if="!polarConnected" class="button secondary" @click="connectPolar">{{ t.connectPolar }}</button><button v-else class="button primary" :disabled="polarLoading" @click="syncPolar">{{ polarLoading ? t.syncingPolar : t.syncPolar }}</button><span v-if="polarConnected" class="connected-label">{{ t.polarConnected }}</span></section>
   </main>
 </template>
