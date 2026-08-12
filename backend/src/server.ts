@@ -67,7 +67,7 @@ function connectPolar(request: Request, env: Env): Response {
   if (clientId instanceof Response) return clientId
   const state = crypto.randomUUID()
   const params = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: polarRedirectUri(request, env), scope: 'accesslink.read_all', state })
-  const response = Response.redirect(`https://flow.polar.com/oauth2/authorization?${params}`, 302)
+  const response = new Response(null, { status: 302, headers: { Location: `https://flow.polar.com/oauth2/authorization?${params}` } })
   response.headers.append('Set-Cookie', cookie('polar_oauth_state', state, 600))
   return response
 }
@@ -86,7 +86,7 @@ async function polarCallback(request: Request, env: Env): Promise<Response> {
   const token = await tokenResponse.json() as { access_token?: string; x_user_id?: string }
   if (!token.access_token) return new Response('Polar lieferte keinen Access-Token.', { status: 502 })
   const frontend = env.FRONTEND_URL || 'https://lauftrainer-app.pages.dev'
-  const response = Response.redirect(`${frontend}?polar=connected`, 302)
+  const response = new Response(null, { status: 302, headers: { Location: `${frontend}?polar=connected` } })
   response.headers.append('Set-Cookie', cookie('polar_oauth_state', '', 0))
   response.headers.append('Set-Cookie', cookie('polar_token', JSON.stringify(token), 31536000))
   return response
@@ -142,7 +142,10 @@ export default {
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
       console.error('Worker error:', error)
-      return json({ detail: 'KI-Aufruf konnte nicht verarbeitet werden.' }, 502, request, env)
+      const detail = url.pathname.startsWith('/api/polar/')
+        ? 'Polar-OAuth konnte nicht verarbeitet werden.'
+        : 'KI-Aufruf konnte nicht verarbeitet werden.'
+      return json({ detail }, 502, request, env)
     }
   }
 }
