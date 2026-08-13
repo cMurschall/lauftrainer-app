@@ -52,7 +52,20 @@ async function token(request: Request, env: Env): Promise<StravaToken | undefine
   try { sessionId = (JSON.parse(request.headers.get('X-Connector-Sessions') || '{}') as Record<string, string>).strava } catch { /* use refresh-token fallback */ }
   if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) {
     const raw = await env.POLAR_SESSIONS.get(`strava-session:${sessionId}`)
-    if (raw) try { const stored = JSON.parse(raw) as StravaToken; if (stored.access_token) return stored } catch { /* continue */ }
+    if (raw) try {
+      const stored = JSON.parse(raw) as StravaToken
+      if (stored.access_token) {
+        // Strava access tokens expire after a few hours. Refresh shortly before
+        // expiry so a previously connected device does not suddenly fail.
+        if (!stored.expires_at || stored.expires_at > Math.floor(Date.now() / 1000) + 60 || !stored.refresh_token) return stored
+        const refreshed = await exchange(request, env, { grant_type: 'refresh_token', refresh_token: stored.refresh_token })
+        if (!(refreshed instanceof Response)) {
+          await env.POLAR_SESSIONS.put(`strava-session:${sessionId}`, JSON.stringify(refreshed), { expirationTtl: 60 * 60 * 24 * 30 })
+          return refreshed
+        }
+        return undefined
+      }
+    } catch { /* continue */ }
   }
   if (!env.STRAVA_REFRESH_TOKEN) return undefined
   const refreshed = await exchange(request, env, { grant_type: 'refresh_token', refresh_token: env.STRAVA_REFRESH_TOKEN })
@@ -73,7 +86,7 @@ function workout(activity: Record<string, unknown>) {
 }
 
 export async function sync(request: Request, env: Env): Promise<Response> {
-  const access = await token(request, env); if (!access) return json({ detail: 'Strava ist nicht verbunden.' }, 401, request, env)
+  const access = await token(request, env); if (!access) return json({ detail: 'Strava ist auf diesem Gerät nicht verbunden oder die Verbindung ist abgelaufen. Bitte Strava hier erneut verbinden.' }, 401, request, env)
   const activities: Record<string, unknown>[] = []
   for (let page = 1; page <= 5; page += 1) {
     const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}`, { headers: { Authorization: `Bearer ${access.access_token}`, Accept: 'application/json' } })

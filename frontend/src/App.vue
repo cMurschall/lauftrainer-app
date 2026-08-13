@@ -81,6 +81,9 @@ function scheduleAnalysisRefresh() {
 }
 useTheme(theme)
 onMounted(async () => {
+  // Capture the OAuth handoff before asynchronous startup work, especially
+  // important when a mobile browser resumes the app after the redirect.
+  captureConnectorSession()
   diagnosticLog('theme.startup', {
     defaultPreference: theme.value,
     localStoragePreference: localStorage.getItem('lauftrainer-theme'),
@@ -112,7 +115,6 @@ onMounted(async () => {
     if (old === 'de' || old === 'en') setLocale(old)
     await saveSettings()
   }
-  captureConnectorSession()
   await checkBackend()
   await refreshConnectors()
 })
