@@ -59,29 +59,7 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
 const activeConnectedConnectors = computed(() => props.connectors.filter((connector) => connector.active && connector.connected))
 </script>
 <template>
-  <section v-if="!workouts.length" class="hero">
-    <span class="hero-orb" aria-hidden="true">◉</span>
-    <p>{{ t.heroText }}</p>
-    <div class="empty-actions">
-      <RouterLink class="button primary" to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
-    </div>
-  </section>
   <p v-if="message" class="notice">{{ message }}</p>
-  <section class="card connector-card">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">{{ t.connectors }}</p>
-        <h3>{{ t.syncAllConnectors }}</h3>
-      </div>
-      <span class="connection-dot"></span>
-    </div>
-    <p v-if="!activeConnectedConnectors.length" class="muted connector-empty-state">
-      {{ t.noConnectedSource }} <RouterLink to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
-    </p>
-    <button :disabled="connectorLoading || !activeConnectedConnectors.length" class="button primary" @click="syncConnectors">
-      {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
-    </button>
-  </section>
   <div class="dashboard-flow">
   <section class="stats dashboard-stats">
     <article class="card">
@@ -104,12 +82,37 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
       >
     </article>
   </section>
+  <section v-if="!workouts.length" class="hero dashboard-empty-hero">
+    <span class="hero-orb" aria-hidden="true">◉</span>
+    <p>{{ t.heroText }}</p>
+    <div class="empty-actions">
+      <RouterLink class="button primary" to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
+    </div>
+  </section>
+  <section v-if="activeConnectedConnectors.length" class="card connector-card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">{{ t.connectors }}</p>
+        <h3>{{ t.syncAllConnectors }}</h3>
+      </div>
+      <span class="connection-dot"></span>
+    </div>
+    <button :disabled="connectorLoading" class="button primary" @click="syncConnectors">
+      {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
+    </button>
+  </section>
+  <p v-else class="connector-empty-banner muted">
+    <span>{{ t.noConnectedSource }}</span>
+    <RouterLink class="button secondary connector-connect-button" to="/settings#connectors">
+      {{ t.connectTrainingSource }}
+    </RouterLink>
+  </p>
   <section class="card ai-plan-card">
     <div class="credits-summary">
-      <p class="eyebrow">CREDITS</p>
+      <p class="eyebrow">{{ t.creditLabel }}</p>
       <strong class="metric">{{ credits }}</strong>
-      <span class="muted">1 Credit pro erfolgreicher Plan</span>
-      <RouterLink class="text-button" to="/pricing">Credits kaufen</RouterLink>
+      <span class="muted">{{ t.creditPerPlan }}</span>
+      <RouterLink class="button secondary credits-link" to="/pricing">{{ t.buyCredits }}</RouterLink>
     </div>
     <p class="eyebrow">{{ t.aiPlan }}</p>
     <p>{{ t.aiDescription }}</p>
@@ -164,7 +167,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
               {{ formatWorkoutDistance(workout.distanceKm) }}</span
             >
             <details v-if="showWorkoutDebug" class="workout-debug">
-              <summary>Debug-Details</summary>
+              <summary>{{ t.debugDetails }}</summary>
               <code>{{ JSON.stringify(workoutDebug(workout), null, 2) }}</code>
             </details>
           </div>

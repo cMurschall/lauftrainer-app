@@ -82,9 +82,18 @@
 @layer components {
   .pricing-page {
     position: relative;
-    max-width: 1120px;
     margin: 0 auto;
-    padding: 56px 0 40px;
+    padding: 32px 0 40px;
+  }
+  .pricing-page.pricing-page {
+    min-height: min(560px, calc(100vh - 96px));
+  }
+  .pricing-title {
+    margin: 0 0 24px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
   }
   .pricing-page::before {
     position: absolute;
@@ -100,20 +109,41 @@
     transform: translateX(-50%);
   }
   .pricing-page .page-heading {
-    max-width: 640px;
-    margin: 0 auto;
-    text-align: center;
+    gap: 10px;
+    margin: 48px auto 0;
   }
   .pricing-page .page-heading h1 {
-    margin-bottom: 12px;
-    font-size: clamp(2rem, 5vw, 3.4rem);
+    margin: 0;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
     letter-spacing: -0.05em;
     line-height: 1.05;
   }
+  .pricing-kicker,
+  .pricing-page .page-heading .eyebrow {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
   .pricing-lead {
-    margin-bottom: 6px;
-    color: var(--text);
-    font-size: 1.05rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .pricing-back {
+    min-height: 34px;
+    padding: 7px 11px;
+    font-size: 0.78rem;
+  }
+  .pricing-back span {
+    font-size: 1rem;
+  }
+  .pricing-page .page-heading > .muted {
+    display: none;
   }
   .billing-toggle {
     display: flex;
@@ -121,19 +151,20 @@
     margin: 20px 0 8px;
   }
   .pricing-country {
-    margin-bottom: 16px;
+    margin: 18px auto 0;
+    color: var(--subtle);
+    font-size: 0.72rem;
+    text-align: center;
   }
   .pricing-grid {
-    display: flex;
-    justify-content: center;
-    margin: 28px 0 24px;
+    margin: 32px auto 24px;
   }
   .pricing-card {
     position: relative;
     display: flex;
     flex-direction: column;
     width: min(100%, 430px);
-    min-height: 410px;
+    min-height: 0;
     padding: 24px;
     border-color: rgba(16, 185, 129, 0.32);
     background: linear-gradient(145deg, var(--surface-raised), var(--surface));
@@ -160,38 +191,47 @@
     text-transform: uppercase;
   }
   .pricing-card h2 {
-    margin: 34px 0 6px;
+    margin: 28px 0 6px;
     font-size: 1.45rem;
     letter-spacing: -0.03em;
     line-height: 1.4;
   }
+  .pricing-credits {
+    margin: 18px 0 0 !important;
+    color: var(--text);
+    font-size: 1.5rem !important;
+    font-weight: 700;
+    line-height: 1.25 !important;
+  }
   .pricing-description {
-    min-height: 42px;
+    min-height: 0;
     margin-bottom: 0;
     color: var(--muted);
   }
   .pricing-amount {
     margin-top: 24px;
     color: var(--accent);
-    font-size: 2.8rem;
-    font-weight: 700;
+    font-size: 1.875rem;
+    font-weight: 800;
     letter-spacing: -0.06em;
   }
-  .pricing-unit {
-    margin-top: 2px;
-    color: var(--muted);
-    font-size: 0.8rem;
-  }
-  .pricing-card ul {
+  .pricing-features {
     display: grid;
     gap: 8px;
-    padding-left: 18px;
+    margin: 24px 0;
+    padding: 0;
+    list-style: none;
     color: var(--muted);
     font-size: 0.85rem;
   }
+  .pricing-features li::before {
+    margin-right: 8px;
+    color: var(--accent);
+    content: '✓';
+    font-weight: 700;
+  }
   .pricing-button {
     width: 100%;
-    margin-top: auto;
     padding: 13px 16px;
     font-weight: 700;
   }
@@ -201,7 +241,6 @@
   }
   @media (max-width: 760px) {
     .pricing-page { padding: 24px 0; }
-    .pricing-grid { display: block; }
     .pricing-card { min-height: 0; }
     .pricing-card h2 { min-height: 0; }
   }
@@ -799,10 +838,12 @@
     display: flex;
     flex-direction: column;
   }
-  .dashboard-stats { order: 1; }
-  .dashboard-grid { order: 2; }
+  .dashboard-stats { order: 0; }
+  .connector-card,
+  .connector-empty-banner { order: 1; }
+  .dashboard-grid { order: 5; }
   .ai-plan-card {
-    order: 0;
+    order: 2;
     margin-top: 14px;
   }
   .credits-summary {
@@ -839,12 +880,34 @@
     gap: 8px;
     margin-top: 14px;
   }
-  .connector-empty-state {
-    margin: 10px 0 14px;
+  .connector-empty-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
   }
-  .connector-empty-state a {
+  .connector-empty-banner a {
     color: var(--text);
     font-weight: 650;
+  }
+  .connector-connect-button {
+    min-height: 32px;
+    padding: 6px 10px;
+    color: var(--text) !important;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .credits-link {
+    width: fit-content;
+    min-height: 34px;
+    padding: 7px 11px;
+    color: var(--muted);
+    font-size: 0.78rem;
   }
   .local-data-summary {
     display: grid;
@@ -1229,6 +1292,28 @@
   .analysis-intro {
     margin: 12px 0 0;
     color: var(--muted);
+  }
+  .analysis-view {
+    display: flex;
+    flex-direction: column;
+  }
+  .analysis-view .analysis-stats {
+    order: 0;
+  }
+  .analysis-view .sports-card {
+    order: 1;
+    margin-top: 24px;
+  }
+  .analysis-view .analysis-chart-card,
+  .analysis-view .analysis-chart-grid {
+    order: 2;
+    margin-top: 24px;
+  }
+  .analysis-view .analysis-chart-card {
+    margin-bottom: 0;
+  }
+  .analysis-view .analysis-chart-grid {
+    gap: 24px;
   }
   .range-switch {
     display: flex;

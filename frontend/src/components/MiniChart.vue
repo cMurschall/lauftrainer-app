@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
+import { Bar } from 'vue-chartjs'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
@@ -21,8 +22,10 @@ const props = withDefaults(
     labels: string[]
     yUnit?: string
     rightYUnit?: string
+    type?: 'line' | 'bar'
+    stacked?: boolean
   }>(),
-  { yUnit: '' },
+  { yUnit: '', type: 'line', stacked: false },
 )
 
 function resolveColor(value: string): string {
@@ -50,9 +53,12 @@ const data = computed(() => ({
       tension: 0.28,
       fill: false,
       yAxisID: item.axis === 'right' ? 'yRight' : 'y',
+      ...(props.type === 'bar' ? { borderWidth: 0, borderRadius: 2 } : {}),
     }
   }),
 }))
+
+const chartComponent = computed(() => (props.type === 'bar' ? Bar : Line))
 
 const chartMax = computed(() => Math.max(...props.series.flatMap((item) => item.values).filter(Number.isFinite), 0))
 const chartMin = computed(() => Math.min(...props.series.flatMap((item) => item.values).filter(Number.isFinite), 0))
@@ -77,13 +83,15 @@ const options = computed(() => ({
   layout: { padding: { top: 8, right: 4, bottom: 2, left: 2 } },
   scales: {
     x: {
+      stacked: props.stacked,
       grid: { display: false },
       ticks: { color: resolveColor('var(--muted)'), maxTicksLimit: 4, maxRotation: 0, autoSkip: true },
     },
     y: {
-      beginAtZero: false,
-      suggestedMin: chartMin.value - chartPadding.value,
-      suggestedMax: chartMax.value + chartPadding.value,
+      stacked: props.stacked,
+      beginAtZero: true,
+      min: 0,
+      ...(props.yUnit === '%' ? { max: 100 } : { suggestedMax: chartMax.value + chartPadding.value }),
       grid: { color: 'rgba(255,255,255,.08)' },
       ticks: {
         color: resolveColor('var(--muted)'),
@@ -112,6 +120,6 @@ const options = computed(() => ({
 </script>
 <template>
   <div class="mini-chart">
-    <div class="mini-chart-canvas"><Line :data="data" :options="options" /></div>
+    <div class="mini-chart-canvas"><component :is="chartComponent" :data="data" :options="options" /></div>
   </div>
 </template>
