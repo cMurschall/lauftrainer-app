@@ -56,6 +56,14 @@ const workoutDebug = (workout: Workout) => ({
 })
 const planMinutes = computed(() => props.plan.reduce((sum, day) => sum + day.total_duration_minutes, 0))
 const completedCount = computed(() => props.plan.filter((day) => props.completedPlanDays.includes(day.day)).length)
+const planDescription = (day: TrainingPlanDay) =>
+  day.description.startsWith('TESTPLAN')
+    ? day.total_duration_minutes === 0
+      ? 'Erholungstag.'
+      : day.sport === 'Walking'
+        ? 'Lockere aktive Erholung.'
+        : `${day.target_focus} mit kontrollierter Belastung.`
+    : day.description
 const activeConnectedConnectors = computed(() => props.connectors.filter((connector) => connector.active && connector.connected))
 </script>
 <template>
@@ -132,27 +140,41 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
       </div>
     </div>
   </section>
-    <div v-if="plan.length" class="plan dashboard-plan">
-      <div class="plan-summary">
+    <section v-if="plan.length" class="card plan dashboard-plan">
+      <div class="plan-heading">
+        <div>
+          <p class="eyebrow">{{ t.aiPlan }}</p>
+          <h3>Deine Woche</h3>
+        </div>
+        <div class="plan-summary">
         <strong>{{ planMinutes }} min</strong>
         <span>{{ completedCount }}/{{ plan.length }} {{ t.planCompleted }}</span>
+        </div>
       </div>
       <article v-for="(day, index) in plan" :key="`${day.day}-${index}`" class="plan-day" :class="{ completed: completedPlanDays.includes(day.day) }">
         <label class="plan-check">
           <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="togglePlanDay(day.day)" />
           <span>
+            <strong class="plan-day-name">{{ day.day }}</strong>
             <strong>{{ day.day }} Â· {{ day.sport }} Â· {{ day.total_duration_minutes }} min</strong>
             <small>{{ day.target_focus }}</small>
           </span>
         </label>
-        <p>{{ day.description }}</p>
+        <div class="plan-day-meta">
+          <span class="plan-sport">{{ day.sport }}</span>
+          <strong>{{ day.total_duration_minutes }} min</strong>
+        </div>
+        <p>{{ planDescription(day) }}</p>
         <ul class="plan-steps">
           <li v-for="step in day.workout_steps" :key="`${day.day}-${step.step_duration}-${step.step_instruction}`">
+            <strong class="plan-step-duration">{{ step.step_duration }}</strong>
+            <span class="plan-step-intensity">{{ step.step_intensity }}</span>
+            <span class="plan-step-instruction">{{ step.step_instruction }}</span>
             <strong>{{ step.step_duration }}</strong> Â· {{ step.step_intensity }} Â· {{ step.step_instruction }}
           </li>
         </ul>
       </article>
-    </div>
+    </section>
   <section class="grid dashboard-grid">
     <article class="card">
       <p class="eyebrow">{{ t.history }}</p><!--

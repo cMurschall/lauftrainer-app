@@ -1153,6 +1153,16 @@
     gap: 0;
     margin-top: 16px;
   }
+  .plan-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.9rem;
+  }
+  .plan-heading h3 {
+    margin: 0.15rem 0 0;
+  }
   .plan div {
     display: flex;
     align-items: center;
@@ -1168,14 +1178,24 @@
 
   .plan-summary {
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+  }
+  .plan-summary strong {
+    font-size: 1.15rem;
+  }
+  .plan-summary span {
+    color: var(--muted);
+    font-size: 0.75rem;
   }
 
   .plan-day {
     border-top: 1px solid var(--border);
-    padding: 0.75rem 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem 1rem;
+    padding: 0.9rem 0;
   }
 
   .plan-day.completed {
@@ -1193,19 +1213,62 @@
     gap: 0.2rem;
   }
 
+  .plan-check > span > strong:not(.plan-day-name),
+  .plan-steps li > strong:not(.plan-step-duration) {
+    display: none;
+  }
+
+  .plan-day-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .plan-day-meta strong {
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .plan-sport {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem 0.5rem;
+  }
+
   .plan-check small {
     color: var(--text-muted);
   }
 
   .plan-day p {
-    margin: 0.45rem 0 0.45rem 1.65rem;
+    grid-column: 1 / -1;
+    margin: 0.1rem 0 0 1.65rem;
   }
 
   .plan-steps {
+    grid-column: 1 / -1;
     display: grid;
     gap: 0.3rem;
     margin: 0 0 0 1.65rem;
     padding-left: 1rem;
+  }
+
+  .plan-steps li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.45rem;
+    font-size: 0;
+  }
+
+  .plan-steps li .plan-step-duration,
+  .plan-steps li .plan-step-intensity,
+  .plan-steps li .plan-step-instruction {
+    font-size: 0.8rem;
+  }
+
+  .plan-steps li span:first-of-type {
+    color: var(--accent);
   }
 
   .weekday-picks {
