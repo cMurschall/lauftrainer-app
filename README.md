@@ -31,7 +31,7 @@ Die Projektstruktur ist bewusst getrennt:
 ```text
 lauftrainer-app/
 ├── frontend/   # Vue 3, TypeScript, Vite, PWA
-└── backend/    # Node.js, TypeScript, Express, Gemini API
+└── backend/    # Cloudflare Worker, TypeScript, Gemini API
 ```
 
 Für die lokale Entwicklung: `$env:VITE_AI_API_URL = 'http://localhost:8000/api'` vor `npm run dev` setzen.
@@ -48,4 +48,4 @@ npx wrangler secret put GEMINI_API_KEY
 npm run deploy
 ```
 
-Das Backend ist ein stateless Node-/TypeScript-Service. Die Endpunkte `/health` und `/api/training-plan` bleiben gegenüber der Vue-App unverändert.
+Das Backend ist ein stateless Cloudflare Worker (TypeScript). Die Endpunkte `/health` und `/api/training-plan` bleiben gegenüber der Vue-App unverändert.

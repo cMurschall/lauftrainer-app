@@ -133,12 +133,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     ><button :disabled="loading || !workouts.length" class="button primary full" @click="createPlan">
       {{ loading ? t.creatingPlan : t.createPlan }}
     </button>
-    <div v-if="false && plan.length" class="plan">
-      <div v-for="day in plan" :key="day.day">
-        <strong>{{ day.day }}</strong
-        ><span>{{ day.description }} · {{ day.total_duration_minutes }} min</span>
-      </div>
-    </div>
   </section>
     <section v-if="plan.length" class="card plan dashboard-plan">
       <div class="plan-heading">
@@ -156,7 +150,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
           <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="togglePlanDay(day.day)" />
           <span>
             <strong class="plan-day-name">{{ day.day }}</strong>
-            <strong>{{ day.day }} Â· {{ day.sport }} Â· {{ day.total_duration_minutes }} min</strong>
             <small>{{ day.target_focus }}</small>
           </span>
         </label>
@@ -170,7 +163,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
             <strong class="plan-step-duration">{{ step.step_duration }}</strong>
             <span class="plan-step-intensity">{{ step.step_intensity }}</span>
             <span class="plan-step-instruction">{{ step.step_instruction }}</span>
-            <strong>{{ step.step_duration }}</strong> Â· {{ step.step_intensity }} Â· {{ step.step_instruction }}
           </li>
         </ul>
       </article>

@@ -18,7 +18,7 @@ Welcome Agent! Read this document carefully before generating, refactoring, or m
 ## 2. Core Architecture & Stack
 - **Frontend Framework:** Vue 3 (Composition API `<script setup>`).
 - **Styling:** Tailwind CSS (Utility-first approach).
-- **Local Storage Strategy:** Local-First Architecture via **IndexedDB (Dexie.js)**.
+- **Local Storage Strategy:** Local-First Architecture via **native IndexedDB** (thin wrapper in `frontend/src/db/database.ts`, no Dexie.js).
   - *CRITICAL:* All sensitive athlete health and workout data stays strictly on the user's device.
   - Backend must remain **stateless** (handling OAuth tokens and proxying structured LLM API requests only).
 - **Data Visualizations:** Chart.js (via `vue-chartjs`) for UI charts; HTML5 Canvas for image exports.
@@ -52,7 +52,7 @@ Welcome Agent! Read this document carefully before generating, refactoring, or m
 When building or refactoring features, respect the following priority hierarchy:
 
 * **Tier 1 (Core Essentials):**
-  - Dexie.js local storage logic & fast reads.
+  - Native IndexedDB local storage logic & fast reads.
   - Polar/Garmin OAuth & workout ingestion.
   - TSB / CTL / ATL calculation engine & smooth area line charts.
   - Structured AI Weekly Plan generator (JSON output from LLM).
@@ -68,5 +68,5 @@ When building or refactoring features, respect the following priority hierarchy:
 ## 5. Instructions for Coding Agents
 - **Code Style:** Write clean, modular Vue 3 components with `<script setup>`.
 - **Styling:** Use Tailwind utility classes directly in the template. Do not introduce raw custom CSS unless required for Canvas or complex Chart.js gradients.
-- **Preserve Logic:** When refactoring UI components, strictly preserve existing reactive state, Dexie.js database calls, and API handlers.
+- **Preserve Logic:** When refactoring UI components, strictly preserve existing reactive state, IndexedDB database calls, and API handlers.
 - **Error Handling:** Ensure API requests (especially stream reading like `response.clone()`) are handled defensively.

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+coverage/
 .env
 __pycache__/
 backend/.dev.vars.example

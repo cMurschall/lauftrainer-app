@@ -266,10 +266,6 @@ export function calculateRpeFosterMetrics(workouts: Workout[]): FosterWeek[] {
   )
 }
 
-export function calculateAcwr(load: LoadDay[]): LoadDay[] {
-  return load.filter((x) => x.ctl > 0).map((x) => x)
-}
-
 function recordSeconds(workout: Workout, index: number): number {
   const current = workout.records[index]?.elapsedSeconds
   const next = workout.records[index + 1]?.elapsedSeconds
