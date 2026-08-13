@@ -208,6 +208,7 @@ async function saveRpe(workout: Workout, value: string) {
     <p class="eyebrow">{{ t.loadChart }}</p>
     <MiniChart
       v-if="load.length"
+      :dynamic-y="true"
       y-unit="load"
       :labels="chartLabels(load)"
       :series="[
@@ -276,11 +277,12 @@ async function saveRpe(workout: Workout, value: string) {
       <p class="eyebrow">{{ t.efficiency }}</p>
       <MiniChart
         v-if="efficiency.length"
+        :dynamic-y="true"
         y-unit="efficiency"
         :labels="chartLabels(efficiency)"
         :series="[
-          { name: t.workoutsLabel, values: efficiency.map((x) => x.efficiency), color: 'var(--accent)' },
-          { name: t.efficiencyTrend, values: efficiencyTrend, color: 'var(--chart-blue)' },
+          { name: t.workoutsLabel, values: efficiency.map((x) => x.efficiency), color: 'var(--accent)', pointRadius: 2 },
+          { name: t.efficiencyTrend, values: efficiencyTrend, color: 'var(--chart-blue)', pointRadius: 0, borderWidth: 3 },
         ]"
       />
       <p v-else>{{ t.noData }}</p>

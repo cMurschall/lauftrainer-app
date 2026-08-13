@@ -18,14 +18,22 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 const props = withDefaults(
   defineProps<{
-    series: Array<{ name: string; values: number[]; color: string; axis?: 'left' | 'right' }>
+    series: Array<{
+      name: string
+      values: number[]
+      color: string
+      axis?: 'left' | 'right'
+      pointRadius?: number
+      borderWidth?: number
+    }>
     labels: string[]
     yUnit?: string
     rightYUnit?: string
     type?: 'line' | 'bar'
     stacked?: boolean
+    dynamicY?: boolean
   }>(),
-  { yUnit: '', type: 'line', stacked: false },
+  { yUnit: '', type: 'line', stacked: false, dynamicY: false },
 )
 
 function resolveColor(value: string): string {
@@ -35,7 +43,7 @@ function resolveColor(value: string): string {
 
 function formatChartValue(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '–'
-  return Number(value.toFixed(1)).toString()
+  return Number(value.toFixed(props.yUnit === 'efficiency' ? 3 : 1)).toString()
 }
 
 const data = computed(() => ({
@@ -47,9 +55,9 @@ const data = computed(() => ({
       data: item.values,
       borderColor: color,
       backgroundColor: color,
-      pointRadius: 0,
+      pointRadius: item.pointRadius ?? 0,
       pointHoverRadius: 4,
-      borderWidth: 2,
+      borderWidth: item.borderWidth ?? 2,
       tension: 0.28,
       fill: false,
       yAxisID: item.axis === 'right' ? 'yRight' : 'y',
@@ -60,9 +68,10 @@ const data = computed(() => ({
 
 const chartComponent = computed(() => (props.type === 'bar' ? Bar : Line))
 
-const chartMax = computed(() => Math.max(...props.series.flatMap((item) => item.values).filter(Number.isFinite), 0))
-const chartMin = computed(() => Math.min(...props.series.flatMap((item) => item.values).filter(Number.isFinite), 0))
-const chartPadding = computed(() => Math.max((chartMax.value - chartMin.value) * 0.08, 1))
+const chartValues = computed(() => props.series.flatMap((item) => item.values).filter(Number.isFinite))
+const chartMax = computed(() => (chartValues.value.length ? Math.max(...chartValues.value) : 0))
+const chartMin = computed(() => (chartValues.value.length ? Math.min(...chartValues.value) : 0))
+const chartPadding = computed(() => Math.max((chartMax.value - chartMin.value) * 0.1, 0.001))
 
 const options = computed(() => ({
   responsive: true,
@@ -89,9 +98,10 @@ const options = computed(() => ({
     },
     y: {
       stacked: props.stacked,
-      beginAtZero: true,
-      min: 0,
-      ...(props.yUnit === '%' ? { max: 100 } : { suggestedMax: chartMax.value + chartPadding.value }),
+      beginAtZero: !props.dynamicY,
+      min: props.dynamicY ? chartMin.value - chartPadding.value : 0,
+      max: props.dynamicY ? chartMax.value + chartPadding.value : props.yUnit === '%' ? 100 : undefined,
+      ...(props.stacked && props.yUnit === '%' ? { grace: '5%' } : {}),
       grid: { color: 'rgba(255,255,255,.08)' },
       ticks: {
         color: resolveColor('var(--muted)'),
