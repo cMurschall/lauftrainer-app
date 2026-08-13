@@ -26,6 +26,7 @@ const props = defineProps<{
   connectorLoading: boolean
   syncConnectors: () => void
   importFiles: (event: Event) => void
+  importProgress: { active: boolean; current: number; total: number; fileName: string; failed: number }
   createPlan: () => void
 }>()
 const emit = defineEmits<{ 'update:search': [value: string]; 'update:consent': [value: boolean] }>()
@@ -46,9 +47,23 @@ const strongestWeekDistance = computed(() =>
 <template>
   <div class="page-heading">
     <label class="button primary"
-      >{{ t.importFiles }}<input accept=".csv,.json,.tcx,.gpx,.fit" multiple type="file" @change="importFiles"
+      >{{ t.importFiles
+      }}<input
+        :disabled="importProgress.active"
+        accept=".csv,.json,.tcx,.gpx,.fit"
+        multiple
+        type="file"
+        @change="importFiles"
     /></label>
   </div>
+  <section v-if="importProgress.active" class="card import-progress" aria-live="polite" aria-busy="true">
+    <div class="card-heading">
+      <p class="eyebrow">{{ t.importProgressLabel }}</p>
+      <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
+    </div>
+    <progress :max="importProgress.total" :value="importProgress.current"></progress>
+    <small>{{ importProgress.fileName }}</small>
+  </section>
   <section v-if="!workouts.length" class="hero">
     <span class="hero-orb" aria-hidden="true">◉</span>
     <p>{{ t.heroText }}</p>

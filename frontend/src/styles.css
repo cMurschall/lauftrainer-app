@@ -449,6 +449,14 @@
     padding: 0;
     list-style: none;
   }
+  .import-progress {
+    display: grid;
+    gap: 8px;
+  }
+  .import-progress progress {
+    width: 100%;
+    accent-color: var(--accent);
+  }
   .workouts li {
     display: flex;
     align-items: center;

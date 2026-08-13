@@ -42,6 +42,7 @@ const config = ref<UserConfig>({
 })
 const emptyAnalysis: AnalysisSummary = { totalDistanceKm: 0, totalDurationMinutes: 0, weekly: [], zoneMinutes: {} }
 const analysis = ref<AnalysisSummary>(emptyAnalysis)
+const importProgress = ref({ active: false, current: 0, total: 0, fileName: '', failed: 0 })
 const { analysisResult, dashboardSummary, isCalculating, calculationError, loadAnalysis, invalidateAnalysis } =
   useAnalysis()
 async function refreshAnalysis() {
@@ -110,17 +111,22 @@ async function checkBackend() {
 async function importFiles(event: Event) {
   const files = Array.from((event.target as HTMLInputElement).files || [])
   let imported = 0
+  importProgress.value = { active: files.length > 0, current: 0, total: files.length, fileName: '', failed: 0 }
   for (const file of files) {
+    importProgress.value.fileName = file.name
     try {
       await importWorkoutFile(file)
       imported++
     } catch {
+      importProgress.value.failed++
       message.value = t.value.importFailed
     }
+    importProgress.value.current++
   }
   workouts.value = await workoutDb.list()
   await refreshAnalysis()
   if (imported) message.value = t.value.importSuccess(imported)
+  importProgress.value = { ...importProgress.value, active: false, fileName: '' }
   ;(event.target as HTMLInputElement).value = ''
 }
 
@@ -275,6 +281,7 @@ async function saveWorkout(workout: Workout) {
                     consent,
                     connectorLoading,
                     importFiles,
+                    importProgress,
                     createPlan,
                     syncConnectors,
                   }
