@@ -12,6 +12,9 @@ const { t } = useI18n()
       <RouterLink to="/settings" class="nav-link" exact-active-class="is-active">
         <span class="nav-icon" aria-hidden="true">⚙</span><span>{{ t.settingsNav }}</span><span class="nav-arrow" aria-hidden="true">›</span>
       </RouterLink>
+      <RouterLink to="/analysis" class="nav-link" exact-active-class="is-active">
+        <span class="nav-icon" aria-hidden="true">↗</span><span>{{ t.analysisNav }}</span><span class="nav-arrow" aria-hidden="true">›</span>
+      </RouterLink>
     </nav>
     <span class="badge">{{ t.offlineReady }}</span>
   </aside>

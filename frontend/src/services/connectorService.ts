@@ -1,13 +1,19 @@
 import type { Workout } from '../types/workout'
 import type { ConnectorId, ConnectorSettings } from '../types/settings'
-
-const API_URL = import.meta.env.VITE_AI_API_URL || '/api'
-const API_ROOT = API_URL.replace(/\/api\/?$/, '')
+import { API_ROOT } from './api'
 const SESSION_KEY = 'lauftrainer-connector-sessions'
 
 type SessionMap = Partial<Record<ConnectorId, string>>
 function sessions(): SessionMap {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as SessionMap } catch { return {} }
+  try {
+    const current = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as SessionMap
+    const legacy = localStorage.getItem('lauftrainer-polar-session')
+    if (!current.polar && legacy) {
+      current.polar = legacy
+      localStorage.setItem(SESSION_KEY, JSON.stringify(current))
+    }
+    return current
+  } catch { return {} }
 }
 function headers(): HeadersInit {
   return { 'Content-Type': 'application/json', 'X-Connector-Sessions': JSON.stringify(sessions()) }

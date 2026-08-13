@@ -24,6 +24,8 @@ export interface Workout {
   sourceFileHash?: string
   ascentM?: number
   averagePaceSecondsPerKm?: number
+  /** Optional perceived exertion score, deliberately not populated by imports. */
+  sessionRpe?: number
 }
 
 export interface WeeklyAnalysis {

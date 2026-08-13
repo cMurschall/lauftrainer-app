@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "lauftrainer-backend",
+  "name": "lauftrainer-app-backend",
   "main": "src/server.ts",
   "compatibility_date": "2026-08-12",
   "vars": {
-    "ALLOWED_ORIGIN": "https://lauftrainer-app.pages.dev",
+    "ALLOWED_ORIGIN": "https://lauftrainer-app.pages.dev,http://localhost:5173,http://127.0.0.1:5173",
     "FRONTEND_URL": "https://lauftrainer-app.pages.dev",
     "POLAR_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/polar/callback"
   },
