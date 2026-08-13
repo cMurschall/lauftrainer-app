@@ -4,6 +4,7 @@ import {useI18n} from '../i18n'
 import {type AnalysisResult, calculateAnalysis, toDateKey} from '../analysis/analysisEngine'
 import type {UserConfig, Workout} from '../types/workout'
 import MiniChart from '../components/MiniChart.vue'
+import {formatChartDate, formatSport, formatWorkoutDate} from '../utils/formatters'
 
 const props = defineProps<{
   workouts: Workout[];
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>()
 const {t} = useI18n();
 const range = ref(90);
+const weeklyMetric = ref<'minutes' | 'distance'>('minutes')
 const results = computed<AnalysisResult>(() => calculateAnalysis(props.workouts, props.config))
 const latest = computed(() => props.workouts.map(w => w.date).map(x => new Date(x.match(/^\d{2}-\d{2}-\d{4}$/) ? x.split('-').reverse().join('-') : x).getTime()).filter(Number.isFinite).sort((a, b) => b - a)[0])
 const cutoff = computed(() => range.value === 0 || !latest.value ? '' : new Date(latest.value - range.value * 86400000).toISOString().slice(0, 10))
@@ -35,9 +37,12 @@ const lastLoad = computed(() => [...load.value].at(-1));
 const lastEfficiency = computed(() => efficiency.value.at(-1))
 const rpeWorkouts = computed(() => props.workouts.filter(w => inRange(w.date)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30))
 const rpeFoster = computed(() => results.value.fosterRpe.filter(x => inRange(x.weekStart)))
+const weeklyChart = computed(() => weeklyMetric.value === 'minutes'
+    ? {unit: 'min', series: [{name: 'Total min', values: weekly.value.map(x => x.totalMinutes), color: 'var(--accent)'}, {name: 'Running min', values: weekly.value.map(x => x.runningMinutes), color: 'var(--chart-blue)'}, {name: 'Cycling min', values: weekly.value.map(x => x.cyclingMinutes), color: 'var(--chart-gold)'}]}
+    : {unit: 'km', series: [{name: 'Running km', values: weekly.value.map(x => x.runningDistanceKm), color: 'var(--chart-blue)'}, {name: 'Cycling km', values: weekly.value.map(x => x.cyclingDistanceKm), color: 'var(--chart-gold)'}]})
 
 function chartLabels(items: Array<{ weekStart?: string; date?: string }>) {
-  return items.map(x => (x.weekStart || x.date || '').slice(5))
+  return items.map(x => formatChartDate(x.weekStart || x.date || ''))
 }
 
 async function saveRpe(workout: Workout, value: string) {
@@ -78,27 +83,25 @@ async function saveRpe(workout: Workout, value: string) {
         class="metric">{{ weekly.reduce((sum, x) => sum + x.runningDistanceKm + x.cyclingDistanceKm, 0).toFixed(1) }}
       km</strong></article>
   </section>
-  <section class="card"><p class="eyebrow">{{ t.weeklyLoad }}</p>
-    <MiniChart v-if="weekly.length" :labels="chartLabels(weekly)"
-               :series="[{ name: 'Total min', values: weekly.map(x => x.totalMinutes), color: '#78e3c0' }, { name: 'Running min', values: weekly.map(x => x.runningMinutes), color: '#74a7ff' }, { name: 'Cycling min', values: weekly.map(x => x.cyclingMinutes), color: '#e6b66c' }]"/>
-    <MiniChart v-if="weekly.length" :labels="chartLabels(weekly)"
-               :series="[{ name: 'Running km', values: weekly.map(x => x.runningDistanceKm), color: '#74a7ff' }, { name: 'Cycling km', values: weekly.map(x => x.cyclingDistanceKm), color: '#e6b66c' }]"/>
+  <section class="card"><div class="chart-heading"><p class="eyebrow">{{ t.weeklyLoad }}</p><div class="chart-toggle"><button class="button" :class="weeklyMetric === 'minutes' ? 'primary' : 'secondary'" @click="weeklyMetric = 'minutes'">MIN</button><button class="button" :class="weeklyMetric === 'distance' ? 'primary' : 'secondary'" @click="weeklyMetric = 'distance'">KM</button></div></div>
+    <MiniChart v-if="weekly.length" :y-unit="weeklyChart.unit" :labels="chartLabels(weekly)" :series="weeklyChart.series"/>
     <p v-if="!weekly.length">{{ t.noData }}</p></section>
   <section class="card"><p class="eyebrow">{{ t.loadChart }}</p>
-    <MiniChart v-if="load.length" :labels="chartLabels(load)"
-               :series="[{ name: 'CTL', values: load.map(x => x.ctl), color: '#78e3c0' }, { name: 'ATL', values: load.map(x => x.atl), color: '#e6b66c' }, { name: 'TSB', values: load.map(x => x.tsb), color: '#74a7ff' }]"/>
+    <MiniChart v-if="load.length" y-unit="load" :labels="chartLabels(load)"
+               :series="[{ name: 'CTL', values: load.map(x => x.ctl), color: 'var(--accent)' }, { name: 'ATL', values: load.map(x => x.atl), color: 'var(--chart-gold)' }, { name: 'TSB', values: load.map(x => x.tsb), color: 'var(--chart-blue)' }]"/>
     <p v-else>{{ t.noHr }}</p></section>
   <div class="analysis-grid">
     <section class="card"><p class="eyebrow">{{ t.foster }}</p>
-      <MiniChart v-if="foster.length" :labels="chartLabels(foster)"
-                 :series="[{ name: 'Load', values: foster.map(x => x.load), color: '#78e3c0' }, { name: 'Strain', values: foster.map(x => x.strain), color: '#e6b66c' }]"/>
+      <MiniChart v-if="foster.length" y-unit="load" :labels="chartLabels(foster)"
+                 :series="[{ name: 'Load', values: foster.map(x => x.load), color: 'var(--accent)' }, { name: 'Strain', values: foster.map(x => x.strain), color: 'var(--chart-gold)' }]"/>
       <p v-else>{{ t.noData }}</p></section>
     <section class="card"><p class="eyebrow">{{ t.polarization }}</p>
-      <MiniChart v-if="polarization.length" :labels="chartLabels(polarization)"
-                 :series="[{ name: 'Z1 %', values: polarization.map(x => x.z1Pct), color: '#78e3c0' }, { name: 'Z2 %', values: polarization.map(x => x.z2Pct), color: '#e6b66c' }, { name: 'Z3 %', values: polarization.map(x => x.z3Pct), color: '#e87987' }]"/>
+      <MiniChart v-if="polarization.length" y-unit="%" :labels="chartLabels(polarization)"
+                 :series="[{ name: 'Z1 %', values: polarization.map(x => x.z1Pct), color: 'var(--accent)' }, { name: 'Z2 %', values: polarization.map(x => x.z2Pct), color: 'var(--chart-gold)' }, { name: 'Z3 %', values: polarization.map(x => x.z3Pct), color: 'var(--chart-rose)' }]"/>
       <p v-else>{{ t.noHr }}</p></section>
   </div>
   <section class="card"><p class="eyebrow">{{ t.hrDistribution }}</p>
+    <div class="zone-legend"><span v-for="zone in ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']" :key="zone"><i :class="zone.toLowerCase()"></i>{{ zone }}</span></div>
     <div v-if="zones.length" class="zone-bars">
       <div v-for="week in zones" :key="week.weekStart" class="zone-week"><small>{{ week.weekStart }}</small>
         <div class="stacked"><i v-for="(pct, index) in week.percentages" :key="index" :class="`z${index + 1}`"
@@ -108,18 +111,18 @@ async function saveRpe(workout: Workout, value: string) {
     <p v-else>{{ t.noHr }}</p></section>
   <div class="analysis-grid">
     <section class="card"><p class="eyebrow">{{ t.efficiency }}</p>
-      <MiniChart v-if="efficiency.length" :labels="chartLabels(efficiency)"
-                 :series="[{ name: 'Workouts', values: efficiency.map(x => x.efficiency), color: '#78e3c0' }, { name: '10-workout trend', values: efficiencyTrend, color: '#74a7ff' }]"/>
+      <MiniChart v-if="efficiency.length" y-unit="efficiency" :labels="chartLabels(efficiency)"
+                 :series="[{ name: 'Workouts', values: efficiency.map(x => x.efficiency), color: 'var(--accent)' }, { name: '10-workout trend', values: efficiencyTrend, color: 'var(--chart-blue)' }]"/>
       <p v-else>{{ t.noData }}</p></section>
     <section class="card"><p class="eyebrow">{{ t.fosterRpe }}</p>
-      <MiniChart v-if="rpeFoster.length" :labels="chartLabels(rpeFoster)"
-                 :series="[{ name: 'Load', values: rpeFoster.map(x => x.load), color: '#74a7ff' }, { name: 'Strain', values: rpeFoster.map(x => x.strain), color: '#e6b66c' }]"/>
+      <MiniChart v-if="rpeFoster.length" y-unit="load" :labels="chartLabels(rpeFoster)"
+                 :series="[{ name: 'Load', values: rpeFoster.map(x => x.load), color: 'var(--chart-blue)' }, { name: 'Strain', values: rpeFoster.map(x => x.strain), color: 'var(--chart-gold)' }]"/>
       <p v-else>{{ t.missingRpe }}</p></section>
   </div>
   <section class="card"><p class="eyebrow">{{ t.rpe }}</p>
     <div class="rpe-list"><label v-for="workout in rpeWorkouts" :key="workout.id"><span>{{
-        workout.date
-      }} · {{ workout.sport }}</span><input :value="workout.sessionRpe ?? ''" max="10" min="1" step="1" type="number"
+        formatWorkoutDate(workout.date)
+      }} · {{ formatSport(workout.sport) }}</span><input :value="workout.sessionRpe ?? ''" max="10" min="1" step="1" type="number"
                                             @change="saveRpe(workout, ($event.target as HTMLInputElement).value)"></label>
     </div>
   </section>
