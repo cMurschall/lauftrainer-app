@@ -211,15 +211,26 @@ async function syncConnectors() {
     for (const result of results) {
       for (const workout of result.workouts) {
         await workoutDb.put(workout)
+        diagnosticLog('connector.workout', {
+          connector: result.connector,
+          durationSeconds: workout.durationSeconds,
+          distanceKm: workout.distanceKm,
+          averageHeartRate: workout.averageHeartRate,
+        })
         imported++
       }
       if (result.error) errors.push(`${result.connector}: ${result.error}`)
     }
     workouts.value = await workoutDb.list()
     await refreshAnalysis()
+    const emptyMetrics = results.reduce(
+      (count, result) =>
+        count + result.workouts.filter((workout) => !workout.durationSeconds && !workout.distanceKm).length,
+      0,
+    )
     message.value = errors.length
       ? `${imported} Training(s) gespeichert. ${errors.join(' ')}`
-      : `${imported} Training(s) lokal gespeichert.`
+      : `${imported} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`
   } catch (error) {
     message.value = error instanceof Error ? error.message : t.value.syncFailed
   } finally {

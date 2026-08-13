@@ -43,6 +43,12 @@ function calculateInMainThread(workouts: Workout[], config: UserConfig) {
   }
 }
 
+function cloneForWorker<T>(value: T): T {
+  // JSON cloning is deliberately used here: iOS Safari can reject otherwise
+  // valid Vue proxy graphs with a DataCloneError during worker postMessage.
+  return JSON.parse(JSON.stringify(toRaw(value))) as T
+}
+
 function calculateInWorker(
   workouts: Workout[],
   config: UserConfig,
@@ -50,7 +56,7 @@ function calculateInWorker(
   if (typeof Worker === 'undefined') return Promise.resolve(calculateInMainThread(workouts, config))
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./analysisWorker.ts', import.meta.url), { type: 'module' })
-    const payload = { workouts: structuredClone(toRaw(workouts)), config: structuredClone(toRaw(config)) }
+    const payload = { workouts: cloneForWorker(workouts), config: cloneForWorker(config) }
     diagnosticLog('analysis.worker.start', { workoutCount: workouts.length })
     worker.onmessage = (event) => {
       worker.terminate()
