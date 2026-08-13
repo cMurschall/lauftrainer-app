@@ -93,6 +93,43 @@
     padding: 0 16px 24px;
   }
 
+  .pwa-install-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+  .pwa-install-banner strong {
+    display: block;
+    font-size: 0.9rem;
+  }
+  .pwa-install-banner p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .pwa-install-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+  }
+  @media (max-width: 560px) {
+    .pwa-install-banner {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .pwa-install-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+
   .sidebar {
     position: fixed;
     inset: auto 0 0;

@@ -5,6 +5,11 @@ const translations = {
   de: {
     coach: 'LOKALER TRAININGSCOACH',
     offlineReady: 'Offline bereit',
+    installApp: 'LaufTrainer installieren',
+    installAppDescription: 'Installiere die App für einen schnellen Zugriff und eine bessere Offline-Nutzung.',
+    installAppIos: 'Tippe auf „Teilen“ und anschließend auf „Zum Home-Bildschirm“, um LaufTrainer zu installieren.',
+    install: 'Installieren',
+    later: 'Später',
     navigation: 'Hauptnavigation',
     dashboard: 'Dashboard',
     settingsNav: 'Einstellungen',
@@ -158,6 +163,11 @@ const translations = {
   en: {
     coach: 'LOCAL TRAINING COACH',
     offlineReady: 'Offline ready',
+    installApp: 'Install LaufTrainer',
+    installAppDescription: 'Install the app for quick access and a better offline experience.',
+    installAppIos: 'Tap “Share”, then “Add to Home Screen” to install LaufTrainer.',
+    install: 'Install',
+    later: 'Later',
     navigation: 'Main navigation',
     dashboard: 'Dashboard',
     settingsNav: 'Settings',

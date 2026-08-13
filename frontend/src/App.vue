@@ -15,12 +15,14 @@ import { API_ROOT } from './services/api'
 import { cachedBalance, getBalance } from './services/billingService'
 import { useI18n } from './i18n'
 import { useTheme } from './composables/useTheme'
+import { usePwaInstall } from './composables/usePwaInstall'
 import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference, type TrainingGoal } from './types/settings'
 import AppSidebar from './components/AppSidebar.vue'
 import BackendStatus from './components/BackendStatus.vue'
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './types/workout'
 import { useAnalysis } from './analysis/analysisService'
 import { diagnosticLog } from './services/logger'
+import PwaInstallBanner from './components/PwaInstallBanner.vue'
 
 const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
@@ -35,6 +37,7 @@ const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
 const connectorLoading = ref(false)
+const { visible: pwaInstallVisible, ios: pwaInstallIos, install: installPwa, dismiss: dismissPwaInstall } = usePwaInstall()
 const persistedTheme = localStorage.getItem('lauftrainer-theme')
 const initialTheme: ThemePreference =
   persistedTheme === 'system' || persistedTheme === 'light' || persistedTheme === 'dark'
@@ -389,6 +392,17 @@ async function saveWorkout(workout: Workout) {
           />
         </div>
       </header>
+      <PwaInstallBanner
+        :visible="pwaInstallVisible"
+        :ios="pwaInstallIos"
+        :title="t.installApp"
+        :description="t.installAppDescription"
+        :ios-description="t.installAppIos"
+        :install-label="t.install"
+        :dismiss-label="t.later"
+        @install="installPwa"
+        @dismiss="dismissPwaInstall"
+      />
       <RouterView v-slot="{ Component }">
         <component
           :is="Component"
