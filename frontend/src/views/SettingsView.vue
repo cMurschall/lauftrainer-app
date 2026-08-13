@@ -42,10 +42,28 @@ const languageOptions = computed(() => [
   { label: t.value.german, value: 'de' },
   { label: t.value.english, value: 'en' },
 ])
+const trainingGoalOptions = computed(() => [
+  { label: t.value.goalBaseEndurance, value: 'base_endurance' },
+  { label: t.value.goalPerformance, value: 'performance' },
+  { label: t.value.goalRecovery, value: 'recovery' },
+  { label: t.value.goalGeneralFitness, value: 'general_fitness' },
+])
 
 function changeLocale(value: Locale) {
   setLocale(value)
   emit('update:locale', value)
+}
+
+function togglePreferredDay(day: string) {
+  props.config.preferredTrainingDays = props.config.preferredTrainingDays.includes(day)
+    ? props.config.preferredTrainingDays.filter((item) => item !== day)
+    : [...props.config.preferredTrainingDays, day]
+  props.saveConfig()
+}
+
+function changeTrainingGoal(value: string) {
+  props.config.trainingGoal = value
+  props.saveConfig()
 }
 
 function resetGoalForm() {
@@ -126,6 +144,7 @@ function submitGoal() {
     <div class="form-grid">
       <label>{{ t.name }}<input v-model="config.name" @change="saveConfig" /></label
       ><label>{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfig" /><span class="field-help">{{ t.lthrHelp }}</span></label>
+      <label>{{ t.trainingGoal }}<UiSelect :model-value="config.trainingGoal || config.trainingFocus || 'base_endurance'" :ariaLabel="t.trainingGoal" :options="trainingGoalOptions" @update:model-value="changeTrainingGoal" /></label>
       <label>{{ t.performanceNotes }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfig"></textarea></label>
       <label>{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfig"></textarea></label>
       <label>{{ t.personalNotes }}<textarea v-model="config.personalNotes" rows="3" @change="saveConfig"></textarea></label>
@@ -137,6 +156,12 @@ function submitGoal() {
       <label>{{ t.trainingFrequency }}<input v-model.number="config.trainingFrequencyPerWeek" min="0" max="14" step="1" type="number" @change="saveConfig" /></label>
       <label class="checkbox-field"><input v-model="config.strengthTraining" type="checkbox" @change="saveConfig" />{{ t.strengthTraining }}</label>
       <label>{{ t.maxWeeklyMinutes }}<input v-model.number="config.maxWeeklyTrainingMinutes" min="1" step="15" type="number" placeholder="optional" @change="saveConfig" /></label>
+    </div>
+    <p class="field-heading">{{ t.preferredDays }}</p>
+    <div class="weekday-picks">
+      <label v-for="day in weekdays" :key="day" class="checkbox-field">
+        <input :checked="config.preferredTrainingDays.includes(day)" type="checkbox" @change="togglePreferredDay(day)" />{{ weekdayLabels[day] }}
+      </label>
     </div>
     <p class="field-heading">{{ t.maxDailyMinutes }}</p>
     <p class="field-help settings-help">{{ t.trainingLimitsHelp }}</p>

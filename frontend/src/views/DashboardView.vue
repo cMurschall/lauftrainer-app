@@ -14,6 +14,7 @@ import { workoutIdentity } from '../services/workoutIdentity'
 const props = defineProps<{
   workouts: Workout[]
   plan: TrainingPlanDay[]
+  completedPlanDays: string[]
   config: UserConfig
   analysis: {
     totalDistanceKm: number
@@ -29,6 +30,7 @@ const props = defineProps<{
   importFiles: (event: Event) => void
   importProgress: { active: boolean; current: number; total: number; fileName: string; failed: number }
   createPlan: () => void
+  togglePlanDay: (day: string) => void
 }>()
 const emit = defineEmits<{ 'update:search': [value: string]; 'update:consent': [value: boolean] }>()
 const { t } = useI18n()
@@ -54,6 +56,8 @@ const workoutDebug = (workout: Workout) => ({
   sport: workout.sport,
   identity: workoutIdentity(workout),
 })
+const planMinutes = computed(() => props.plan.reduce((sum, day) => sum + day.total_duration_minutes, 0))
+const completedCount = computed(() => props.plan.filter((day) => props.completedPlanDays.includes(day.day)).length)
 </script>
 <template>
   <div class="page-heading">
@@ -113,13 +117,34 @@ const workoutDebug = (workout: Workout) => ({
     ><button :disabled="loading || !workouts.length" class="button primary full" @click="createPlan">
       {{ loading ? t.creatingPlan : t.createPlan }}
     </button>
-    <div v-if="plan.length" class="plan">
+    <div v-if="false && plan.length" class="plan">
       <div v-for="day in plan" :key="day.day">
         <strong>{{ day.day }}</strong
         ><span>{{ day.description }} · {{ day.total_duration_minutes }} min</span>
       </div>
     </div>
   </section>
+    <div v-if="plan.length" class="plan">
+      <div class="plan-summary">
+        <strong>{{ planMinutes }} min</strong>
+        <span>{{ completedCount }}/{{ plan.length }} {{ t.planCompleted }}</span>
+      </div>
+      <article v-for="(day, index) in plan" :key="`${day.day}-${index}`" class="plan-day" :class="{ completed: completedPlanDays.includes(day.day) }">
+        <label class="plan-check">
+          <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="togglePlanDay(day.day)" />
+          <span>
+            <strong>{{ day.day }} Â· {{ day.sport }} Â· {{ day.total_duration_minutes }} min</strong>
+            <small>{{ day.target_focus }}</small>
+          </span>
+        </label>
+        <p>{{ day.description }}</p>
+        <ul class="plan-steps">
+          <li v-for="step in day.workout_steps" :key="`${day.day}-${step.step_duration}-${step.step_instruction}`">
+            <strong>{{ step.step_duration }}</strong> Â· {{ step.step_intensity }} Â· {{ step.step_instruction }}
+          </li>
+        </ul>
+      </article>
+    </div>
   <section class="grid">
     <article class="card">
       <p class="eyebrow">{{ t.history }}</p>

@@ -7,7 +7,8 @@
     "dev": "wrangler dev",
     "build": "tsc -p tsconfig.json",
     "deploy": "wrangler deploy",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "test:plan": "tsx scripts/test-training-plan.ts"
   },
   "dependencies": {
     "zod": "^3.24.2"

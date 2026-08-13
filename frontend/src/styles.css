@@ -731,6 +731,54 @@
   .plan div:last-child {
     border-bottom: 0;
   }
+
+  .plan-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .plan-day {
+    border-top: 1px solid var(--border);
+    padding: 0.75rem 0;
+  }
+
+  .plan-day.completed {
+    opacity: 0.55;
+  }
+
+  .plan-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+
+  .plan-check span {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .plan-check small {
+    color: var(--text-muted);
+  }
+
+  .plan-day p {
+    margin: 0.45rem 0 0.45rem 1.65rem;
+  }
+
+  .plan-steps {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0 0 0 1.65rem;
+    padding-left: 1rem;
+  }
+
+  .weekday-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1rem;
+  }
   footer {
     display: flex;
     flex-direction: column;

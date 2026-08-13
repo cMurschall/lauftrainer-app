@@ -89,6 +89,16 @@ export const workoutDb = {
         plan,
       }),
     ),
+  getPlan: async () => (await transaction<{ plan?: TrainingPlanDay[]; completedDays?: string[] } | undefined>('plans', 'readonly', (store) => store.get('current'))) || undefined,
+  savePlanWithStatus: (plan: TrainingPlanDay[], completedDays: string[]) =>
+    transaction<IDBValidKey>('plans', 'readwrite', (store) =>
+      store.put({
+        id: 'current',
+        createdAt: new Date().toISOString(),
+        plan,
+        completedDays,
+      }),
+    ),
   getAnalysisCache: (cacheKey: string) =>
     transaction<AnalysisCacheEntry | undefined>('analysisCache', 'readonly', (store) => store.get(cacheKey)),
   saveAnalysisCache: (entry: AnalysisCacheEntry) =>

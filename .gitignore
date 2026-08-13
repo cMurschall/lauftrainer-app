@@ -4,3 +4,6 @@ dist/
 __pycache__/
 backend/.dev.vars.example
 start-local.ps1
+backend/output/
+lauftrainer-backup-2026-08-13.json
+backend/scripts/test-training-plan.ts

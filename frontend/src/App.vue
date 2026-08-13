@@ -25,6 +25,7 @@ const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
 const workouts = ref<Workout[]>([]),
   plan = ref<TrainingPlanDay[]>([]),
+  completedPlanDays = ref<string[]>([]),
   message = ref(''),
   loading = ref(false),
   consent = ref(false),
@@ -88,6 +89,11 @@ onMounted(async () => {
   })
   workouts.value = await workoutDb.deduplicate()
   goals.value = await workoutDb.listGoals()
+  const savedPlan = await workoutDb.getPlan()
+  if (savedPlan?.plan) {
+    plan.value = savedPlan.plan
+    completedPlanDays.value = savedPlan.completedDays || []
+  }
   const stored = await workoutDb.getConfig()
   if (stored) config.value = normalizeConfig(stored)
   await refreshAnalysis()
@@ -208,7 +214,8 @@ async function createPlan() {
   }
   loading.value = true
   try {
-    plan.value = await requestTrainingPlan(workouts.value, config.value)
+    plan.value = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
+    completedPlanDays.value = []
     await workoutDb.savePlan(plan.value)
     message.value = t.value.planSaved
   } catch {
@@ -216,6 +223,13 @@ async function createPlan() {
   } finally {
     loading.value = false
   }
+}
+
+async function togglePlanDay(day: string) {
+  completedPlanDays.value = completedPlanDays.value.includes(day)
+    ? completedPlanDays.value.filter((item) => item !== day)
+    : [...completedPlanDays.value, day]
+  await workoutDb.savePlanWithStatus(plan.value, completedPlanDays.value)
 }
 
 async function saveConfig() {
@@ -277,6 +291,7 @@ async function clearData() {
   goals.value = []
   await refreshAnalysis()
   plan.value = []
+  completedPlanDays.value = []
   message.value = t.value.dataDeleted
 }
 
@@ -402,6 +417,7 @@ async function saveWorkout(workout: Workout) {
                 : {
                     workouts,
                     plan,
+                    completedPlanDays,
                     config,
                     analysis,
                     search,
@@ -412,6 +428,7 @@ async function saveWorkout(workout: Workout) {
                     importFiles,
                     importProgress,
                     createPlan,
+                    togglePlanDay,
                     syncConnectors,
                   }
           "
