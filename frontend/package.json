@@ -1,11 +1,12 @@
 {
-  "name": "lauftrainer-app",
+  "name": "lauftrainer-app-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name lauftrainer-app-frontend",
     "preview": "vite preview",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config vitest.config.ts",

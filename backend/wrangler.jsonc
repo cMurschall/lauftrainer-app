@@ -7,7 +7,8 @@
     "ALLOWED_ORIGIN": "https://lauftrainer-app.pages.dev,http://localhost:5173,http://127.0.0.1:5173",
     "FRONTEND_URL": "https://lauftrainer-app.pages.dev",
     "POLAR_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/polar/callback",
-    "STRAVA_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/connectors/strava/callback"
+    "STRAVA_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/connectors/strava/callback",
+    "STRAVA_CLIENT_ID": "271866",
   },
   "kv_namespaces": [
     {

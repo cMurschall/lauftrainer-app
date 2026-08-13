@@ -206,7 +206,7 @@ async function restoreBackup(event: Event) {
   if (!file) return
   try {
     await importBackup(JSON.parse(await file.text()))
-    workouts.value = await workoutDb.list()
+    workouts.value = await workoutDb.deduplicate()
     await refreshAnalysis()
     message.value = t.value.backupRestored
   } catch {
@@ -247,7 +247,7 @@ async function syncConnectors() {
       }
       if (result.error) errors.push(`${result.connector}: ${result.error}`)
     }
-    workouts.value = await workoutDb.list()
+    workouts.value = await workoutDb.deduplicate()
     await refreshAnalysis()
     const emptyMetrics = results.reduce(
       (count, result) =>

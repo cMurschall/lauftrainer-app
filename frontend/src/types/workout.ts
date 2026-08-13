@@ -11,7 +11,7 @@ export interface ActivityRecord {
 
 export interface Workout {
   id: string
-  source: 'polar-csv' | 'polar-json' | 'tcx' | 'gpx' | 'fit' | 'unknown'
+  source: 'polar-csv' | 'polar-json' | 'strava' | 'tcx' | 'gpx' | 'fit' | 'unknown'
   name: string
   sport: string
   date: string

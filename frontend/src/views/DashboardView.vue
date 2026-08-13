@@ -9,6 +9,7 @@ import {
   formatWorkoutDistance,
   formatWorkoutDuration,
 } from '../utils/formatters'
+import { workoutIdentity } from '../services/workoutIdentity'
 
 const props = defineProps<{
   workouts: Workout[]
@@ -31,6 +32,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:search': [value: string]; 'update:consent': [value: boolean] }>()
 const { t } = useI18n()
+const showWorkoutDebug = import.meta.env.DEV
 const formatWorkoutDate = (value: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatWeekLabel(value) : formatDateValue(value)
 const filteredWorkouts = computed(() =>
@@ -43,6 +45,15 @@ const filteredWorkouts = computed(() =>
 const strongestWeekDistance = computed(() =>
   Math.max(...props.analysis.weekly.map((week) => week.distanceKm).filter(Number.isFinite), 0),
 )
+const workoutDebug = (workout: Workout) => ({
+  source: workout.source,
+  id: workout.id,
+  date: workout.date,
+  durationSeconds: workout.durationSeconds,
+  distanceKm: workout.distanceKm,
+  sport: workout.sport,
+  identity: workoutIdentity(workout),
+})
 </script>
 <template>
   <div class="page-heading">
@@ -130,6 +141,10 @@ const strongestWeekDistance = computed(() =>
               >{{ formatSport(workout.sport) }} · {{ formatWorkoutDuration(workout.durationSeconds) }} ·
               {{ formatWorkoutDistance(workout.distanceKm) }}</span
             >
+            <details v-if="showWorkoutDebug" class="workout-debug">
+              <summary>Debug-Details</summary>
+              <code>{{ JSON.stringify(workoutDebug(workout), null, 2) }}</code>
+            </details>
           </div>
         </li>
         <li v-if="!filteredWorkouts.length">{{ t.noWorkouts }}</li>

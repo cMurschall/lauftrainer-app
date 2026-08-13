@@ -8,8 +8,14 @@ function redirectUri(request: Request, env: Env) {
 }
 
 function clientConfig(env: Env): { id: string; secret: string } | Response {
-  if (!env.STRAVA_CLIENT_ID || !env.STRAVA_CLIENT_SECRET) return new Response('Strava ist im Backend noch nicht konfiguriert.', { status: 503 })
-  return { id: env.STRAVA_CLIENT_ID, secret: env.STRAVA_CLIENT_SECRET }
+  const id = env.STRAVA_CLIENT_ID
+  const secret = env.STRAVA_CLIENT_SECRET
+  const missing = [
+    !id ? 'STRAVA_CLIENT_ID' : '',
+    !secret ? 'STRAVA_CLIENT_SECRET' : '',
+  ].filter(Boolean)
+  if (!id || !secret) return new Response(`Strava-Konfiguration unvollständig. Fehlende Variable(n): ${missing.join(', ')}. Bitte im Cloudflare-Worker unter dem Production-Environment prüfen und danach deployen.`, { status: 503 })
+  return { id, secret }
 }
 
 export async function connect(request: Request, env: Env): Promise<Response> {
