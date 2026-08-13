@@ -1,6 +1,6 @@
 export type ThemePreference = 'system' | 'light' | 'dark'
 
-export type ConnectorId = 'polar'
+export type ConnectorId = 'polar' | 'strava'
 
 export interface ConnectorSettings {
   id: ConnectorId
@@ -20,5 +20,5 @@ export interface AppSettings {
 export const defaultAppSettings: AppSettings = {
   theme: 'dark',
   locale: 'de',
-  connectors: [{ id: 'polar', name: 'Polar', active: true, connected: false }],
+  connectors: [{ id: 'polar', name: 'Polar', active: true, connected: false }, { id: 'strava', name: 'Strava', active: true, connected: false }],
 }

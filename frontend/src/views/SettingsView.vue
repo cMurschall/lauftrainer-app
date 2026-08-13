@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
 import type { UserConfig } from '../types/workout'
-import type { ConnectorSettings, ThemePreference } from '../types/settings'
+import type { ConnectorId, ConnectorSettings, ThemePreference } from '../types/settings'
 
 const props = defineProps<{
   config: UserConfig
@@ -14,7 +14,7 @@ const props = defineProps<{
   downloadBackup: () => void
   restoreBackup: (event: Event) => void
   clearData: () => void
-  connectConnector: (id: 'polar') => void
+  connectConnector: (id: ConnectorId) => void
 }>()
 const emit = defineEmits<{ 'update:theme': [value: ThemePreference]; 'update:locale': [value: Locale] }>()
 const { locale, t, setLocale } = useI18n()

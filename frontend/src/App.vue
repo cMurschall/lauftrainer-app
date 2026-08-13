@@ -13,7 +13,7 @@ import {
 import { API_ROOT } from './services/api'
 import { useI18n } from './i18n'
 import { useTheme } from './composables/useTheme'
-import { type AppSettings, type ConnectorSettings, defaultAppSettings, type ThemePreference } from './types/settings'
+import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference } from './types/settings'
 import AppSidebar from './components/AppSidebar.vue'
 import BackendStatus from './components/BackendStatus.vue'
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './types/workout'
@@ -223,7 +223,7 @@ async function clearData() {
   message.value = t.value.dataDeleted
 }
 
-function connectConnector(id: 'polar') {
+function connectConnector(id: ConnectorId) {
   window.location.href = connectorConnectUrl(id)
 }
 
