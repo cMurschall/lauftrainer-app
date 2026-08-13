@@ -28,8 +28,7 @@ const workouts = ref<Workout[]>([]),
   completedPlanDays = ref<string[]>([]),
   message = ref(''),
   loading = ref(false),
-  consent = ref(false),
-  search = ref('')
+  consent = ref(false)
 const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
@@ -401,6 +400,8 @@ async function saveWorkout(workout: Workout) {
                   connectConnector,
                   disconnectConnector: removeConnector,
                   goals,
+                  workouts,
+                  plan,
                   saveGoal,
                   deleteGoal,
                 }
@@ -420,7 +421,6 @@ async function saveWorkout(workout: Workout) {
                     completedPlanDays,
                     config,
                     analysis,
-                    search,
                     message,
                     loading,
                     consent,
@@ -432,7 +432,6 @@ async function saveWorkout(workout: Workout) {
                     syncConnectors,
                   }
           "
-          @update:search="search = $event"
           @update:consent="consent = $event"
           @update:theme="updateTheme($event)"
           @update:locale="setLocale($event)"

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
-import type { UserConfig } from '../types/workout'
+import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
 import type { ConnectorId, ConnectorSettings, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
 
 const props = defineProps<{
@@ -17,6 +17,8 @@ const props = defineProps<{
   connectConnector: (id: ConnectorId) => void
   disconnectConnector: (id: ConnectorId) => void
   goals: TrainingGoal[]
+  workouts: Workout[]
+  plan: TrainingPlanDay[]
   saveGoal: (goal: TrainingGoal) => void
   deleteGoal: (id: string) => void
 }>()
@@ -30,6 +32,19 @@ const goalError = ref('')
 const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 const weekdayLabels = computed(() => ({ monday: t.value.monday, tuesday: t.value.tuesday, wednesday: t.value.wednesday, thursday: t.value.thursday, friday: t.value.friday, saturday: t.value.saturday, sunday: t.value.sunday }))
 const sortedGoals = computed(() => [...props.goals].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999')))
+const workoutDateRange = computed(() => {
+  const dates = props.workouts.map((workout) => workout.date.slice(0, 10)).sort()
+  if (!dates.length) return t.value.noLocalWorkouts
+  const format = (date: string) => new Intl.DateTimeFormat(locale.value, { month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00`))
+  return `${format(dates[0])} – ${format(dates[dates.length - 1])}`
+})
+const localDataSize = computed(() => {
+  const data = JSON.stringify({ workouts: props.workouts, goals: props.goals, plan: props.plan })
+  const bytes = new TextEncoder().encode(data).length
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+})
 const themeOptions = computed(() => [
   { label: t.value.themeSystem, value: 'system' },
   {
@@ -237,6 +252,24 @@ function submitGoal() {
   </section>
   <section class="card settings-section">
     <p class="eyebrow">{{ t.dataSettings }}</p>
+    <div class="local-data-summary">
+      <div>
+        <strong>{{ props.workouts.length }}</strong>
+        <span>{{ t.localWorkouts }}</span>
+      </div>
+      <div>
+        <strong>{{ workoutDateRange }}</strong>
+        <span>{{ t.localPeriod }}</span>
+      </div>
+      <div>
+        <strong>{{ props.goals.length }} · {{ props.plan.length }}</strong>
+        <span>{{ t.localGoalsAndPlan }}</span>
+      </div>
+      <div>
+        <strong>~{{ localDataSize }}</strong>
+        <span>{{ t.localStorageUsed }}</span>
+      </div>
+    </div>
     <div class="settings-actions">
       <button class="button secondary" @click="downloadBackup">{{ t.exportBackup }}</button>
       <label class="button secondary"

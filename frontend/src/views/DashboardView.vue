@@ -21,7 +21,6 @@ const props = defineProps<{
     totalDurationMinutes: number
     weekly: Array<{ weekStart: string; distanceKm: number; workoutCount: number }>
   }
-  search: string
   message: string
   loading: boolean
   consent: boolean
@@ -32,16 +31,13 @@ const props = defineProps<{
   createPlan: () => void
   togglePlanDay: (day: string) => void
 }>()
-const emit = defineEmits<{ 'update:search': [value: string]; 'update:consent': [value: boolean] }>()
+const emit = defineEmits<{ 'update:consent': [value: boolean] }>()
 const { t } = useI18n()
 const showWorkoutDebug = import.meta.env.DEV
 const formatWorkoutDate = (value: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatWeekLabel(value) : formatDateValue(value)
-const filteredWorkouts = computed(() =>
-  props.workouts
-    .filter((workout) =>
-      `${workout.name} ${workout.sport} ${workout.date}`.toLowerCase().includes(props.search.toLowerCase()),
-    )
+const recentWorkouts = computed(() =>
+  [...props.workouts]
     .sort((a, b) => b.date.localeCompare(a.date)),
 )
 const strongestWeekDistance = computed(() =>
@@ -60,30 +56,23 @@ const planMinutes = computed(() => props.plan.reduce((sum, day) => sum + day.tot
 const completedCount = computed(() => props.plan.filter((day) => props.completedPlanDays.includes(day.day)).length)
 </script>
 <template>
-  <div class="page-heading">
-    <label class="button primary"
-      >{{ t.importFiles
-      }}<input
-        :disabled="importProgress.active"
-        accept=".csv,.json,.tcx,.gpx,.fit"
-        multiple
-        type="file"
-        @change="importFiles"
-    /></label>
-  </div>
-  <section v-if="importProgress.active" class="card import-progress" aria-live="polite" aria-busy="true">
-    <div class="card-heading">
-      <p class="eyebrow">{{ t.importProgressLabel }}</p>
-      <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
-    </div>
-    <progress :max="importProgress.total" :value="importProgress.current"></progress>
-    <small>{{ importProgress.fileName }}</small>
-  </section>
   <section v-if="!workouts.length" class="hero">
     <span class="hero-orb" aria-hidden="true">◉</span>
     <p>{{ t.heroText }}</p>
   </section>
   <p v-if="message" class="notice">{{ message }}</p>
+  <section class="card connector-card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">{{ t.connectors }}</p>
+        <h3>{{ t.syncAllConnectors }}</h3>
+      </div>
+      <span class="connection-dot"></span>
+    </div>
+    <button :disabled="connectorLoading" class="button primary" @click="syncConnectors">
+      {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
+    </button>
+  </section>
   <section class="stats">
     <article class="card">
       <span>{{ t.workouts }}</span
@@ -147,18 +136,10 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
     </div>
   <section class="grid">
     <article class="card">
-      <p class="eyebrow">{{ t.history }}</p>
-      <div class="search-wrap">
+      <p class="eyebrow">{{ t.history }}</p><!--
         <span aria-hidden="true">⌕</span
-        ><input
-          :placeholder="t.search"
-          :value="search"
-          class="search"
-          @input="emit('update:search', ($event.target as HTMLInputElement).value)"
-        />
-      </div>
-      <ul class="workouts">
-        <li v-for="workout in filteredWorkouts.slice(0, 12)" :key="workout.id" class="workout-row">
+      --><ul class="workouts">
+        <li v-for="workout in recentWorkouts.slice(0, 12)" :key="workout.id" class="workout-row">
           <span class="sport-icon" aria-hidden="true">⌁</span>
           <div>
             <strong>{{ formatWorkoutDate(workout.date) }}</strong
@@ -172,7 +153,7 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
             </details>
           </div>
         </li>
-        <li v-if="!filteredWorkouts.length">{{ t.noWorkouts }}</li>
+        <li v-if="!recentWorkouts.length">{{ t.noWorkouts }}</li>
       </ul>
     </article>
     <article class="card">
@@ -193,16 +174,28 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
       </div>
     </article>
   </section>
-  <section class="card">
+  <section class="card import-card">
     <div class="card-heading">
       <div>
-        <p class="eyebrow">{{ t.connectors }}</p>
-        <h3>{{ t.syncAllConnectors }}</h3>
+        <p class="eyebrow">{{ t.localUpload }}</p>
+        <h3>{{ t.importFiles }}</h3>
       </div>
-      <span class="connection-dot"></span>
     </div>
-    <button :disabled="connectorLoading" class="button primary" @click="syncConnectors">
-      {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
-    </button>
+    <label class="button secondary"
+      >{{ t.importFiles }}<input
+        :disabled="importProgress.active"
+        accept=".csv,.json,.tcx,.gpx,.fit"
+        multiple
+        type="file"
+        @change="importFiles"
+    /></label>
+    <div v-if="importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
+      <div class="card-heading">
+        <p class="eyebrow">{{ t.importProgressLabel }}</p>
+        <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
+      </div>
+      <progress :max="importProgress.total" :value="importProgress.current"></progress>
+      <small>{{ importProgress.fileName }}</small>
+    </div>
   </section>
 </template>

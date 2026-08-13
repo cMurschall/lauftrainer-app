@@ -547,6 +547,33 @@
   .settings-section {
     padding: 18px;
   }
+  .local-data-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    margin: 14px 0 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--border);
+  }
+  .local-data-summary > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 11px;
+    background: var(--surface-raised);
+  }
+  .local-data-summary strong {
+    overflow: hidden;
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .local-data-summary span {
+    color: var(--muted);
+    font-size: 0.68rem;
+  }
   .form-grid {
     display: grid;
     grid-template-columns: 1fr;
