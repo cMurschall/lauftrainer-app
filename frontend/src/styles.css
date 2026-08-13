@@ -162,6 +162,12 @@
     font-size: 1.05rem;
     font-weight: 800;
   }
+  .brand-mark img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: inherit;
+  }
   .brand strong,
   .brand small {
     display: block;
@@ -211,6 +217,10 @@
     place-items: center;
     color: currentColor;
     font-size: 0.95rem;
+  }
+  .nav-icon svg {
+    width: 19px;
+    height: 19px;
   }
   .nav-arrow {
     display: none;
@@ -757,7 +767,10 @@
   }
   .goal-row {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'copy copy delete'
+      'date target edit';
     align-items: center;
     gap: 12px;
     padding: 12px 0;
@@ -765,6 +778,21 @@
   }
   .goal-row:last-child {
     border-bottom: 0;
+  }
+  .goal-row > .text-button:first-child {
+    grid-area: edit;
+  }
+  .goal-row > .goal-target {
+    grid-area: target;
+  }
+  .goal-row > .goal-date {
+    grid-area: date;
+  }
+  .goal-row > .goal-copy {
+    grid-area: copy;
+  }
+  .goal-row > .text-button:last-child {
+    grid-area: delete;
   }
   .goal-date {
     color: var(--accent);
@@ -787,6 +815,20 @@
   .goal-target {
     color: var(--accent);
     font-size: 0.75rem;
+  }
+  @media (width < 30rem) {
+    .goal-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'copy delete'
+        'date edit'
+        'target target';
+      align-items: start;
+      gap: 7px 10px;
+    }
+    .goal-row > .goal-target {
+      margin-top: 2px;
+    }
   }
   .consent {
     display: flex;

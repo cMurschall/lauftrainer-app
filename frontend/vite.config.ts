@@ -16,7 +16,21 @@ export default defineConfig({
         theme_color: '#0d1117',
         background_color: '#0d1117',
         display: 'standalone',
-        lang: 'de'
+        lang: 'de',
+        icons: [
+          {
+            src: '/lauftrainer-strava-icon.png',
+            sizes: '1280x1280',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/lauftrainer-strava-icon.png',
+            sizes: '1280x1280',
+            type: 'image/png',
+            purpose: 'maskable'
+          }
+        ]
       }
     })
   ]
