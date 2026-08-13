@@ -14,6 +14,8 @@ Trainingsdateien werden im Browser verarbeitet und in IndexedDB gespeichert. CSV
 
 Die lokale Übersicht berechnet bereits Gesamtzeit, Distanz, Wochenwerte, Trainingslast und Herzfrequenz-Zonen. Backups können als JSON exportiert und wieder eingelesen werden.
 
+GPX- und FIT-Dateien werden ebenfalls lokal im Browser verarbeitet. FIT wird über die browserkompatible Garmin FIT SDK dekodiert. Die Rohdaten verlassen den Browser beim Dateiimport nicht.
+
 ## KI-Backend (TypeScript)
 
 ```powershell

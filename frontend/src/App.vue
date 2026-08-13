@@ -105,6 +105,7 @@ async function importFiles(event: Event) {
   }
   workouts.value = await workoutDb.list();
   if (imported) message.value = t.value.importSuccess(imported)
+  ;(event.target as HTMLInputElement).value = ''
 }
 
 async function createPlan() {

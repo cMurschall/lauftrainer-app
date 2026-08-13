@@ -20,8 +20,8 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
     const zoneMinutes: Record<string, number> = {z1: 0, z2: 0, z3: 0, z4: 0, z5: 0}
     let totalDistanceKm = 0, totalDurationMinutes = 0
     for (const workout of workouts) {
-        const durationMinutes = workout.durationSeconds / 60
-        const distanceKm = workout.distanceKm || 0
+        const durationMinutes = Number.isFinite(workout.durationSeconds) ? Math.max(0, workout.durationSeconds / 60) : 0
+        const distanceKm = Number.isFinite(workout.distanceKm) ? Math.max(0, workout.distanceKm || 0) : 0
         const week = weekStart(workout.date)
         const current = weeks.get(week) || {workoutCount: 0, distanceKm: 0, durationMinutes: 0, load: 0, heartRates: []}
         current.workoutCount += 1;

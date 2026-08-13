@@ -26,7 +26,7 @@ const {t} = useI18n()
 const filteredWorkouts = computed(() => props.workouts.filter(workout => `${workout.name} ${workout.sport} ${workout.date}`.toLowerCase().includes(props.search.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date)))
 </script>
 <template>
-  <div class="page-heading"><h1>{{ t.greeting }}</h1><label class="button primary">{{ t.importFiles }}<input accept=".csv,.json,.tcx"
+  <div class="page-heading"><h1>{{ t.greeting }}</h1><label class="button primary">{{ t.importFiles }}<input accept=".csv,.json,.tcx,.gpx,.fit"
                                                                                                              multiple
                                                                                                              type="file"
                                                                                                              @change="importFiles"></label>
