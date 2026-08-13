@@ -257,6 +257,55 @@
   .diagnostics-content .backend-status {
     color: var(--muted);
   }
+  .legal-links {
+    display: flex;
+    gap: 14px;
+    padding: 0 0 12px;
+  }
+  .legal-links a,
+  .legal-back,
+  .legal-page a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .legal-links a:hover,
+  .legal-back:hover,
+  .legal-page a:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .legal-page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 0 48px;
+  }
+  .legal-back {
+    display: inline-block;
+    margin-bottom: 28px;
+    font-size: 0.82rem;
+  }
+  .legal-page h1 {
+    margin: 0 0 28px;
+    color: var(--text);
+    font-size: 1.8rem;
+  }
+  .legal-page section {
+    margin-top: 28px;
+  }
+  .legal-page h2 {
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  .legal-page p {
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.65;
+  }
+  .legal-muted {
+    color: var(--subtle) !important;
+    font-size: 0.75rem !important;
+  }
   .page-heading {
     display: flex;
     flex-direction: column;

@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import SettingsView from './views/SettingsView.vue'
 import AnalysisView from './views/AnalysisView.vue'
+import ImprintView from './views/ImprintView.vue'
+import PrivacyView from './views/PrivacyView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -13,5 +15,7 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: DashboardView },
     { path: '/settings', name: 'settings', component: SettingsView },
     { path: '/analysis', name: 'analysis', component: AnalysisView },
+    { path: '/impressum', name: 'imprint', component: ImprintView },
+    { path: '/datenschutz', name: 'privacy', component: PrivacyView },
   ],
 })

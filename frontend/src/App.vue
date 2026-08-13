@@ -459,6 +459,10 @@ async function saveWorkout(workout: Workout) {
             <span>{{ t.backendVersion }} {{ backendVersion }}<template v-if="backendCommit"> · {{ backendCommit }}</template></span>
           </div>
         </details>
+        <nav class="legal-links" aria-label="Rechtliche Informationen">
+          <RouterLink to="/impressum">{{ t.imprint }}</RouterLink>
+          <RouterLink to="/datenschutz">{{ t.privacy }}</RouterLink>
+        </nav>
       </footer>
     </main>
   </div>
