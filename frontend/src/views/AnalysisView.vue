@@ -276,14 +276,16 @@ async function saveRpe(workout: Workout, value: string) {
     <div class="rpe-list">
       <label v-for="workout in rpeWorkouts" :key="workout.id"
         ><span>{{ formatWorkoutDate(workout.date) }} · {{ formatSport(workout.sport) }}</span
-        ><input
-          :value="workout.sessionRpe ?? ''"
+        ><span class="rpe-control"
+          ><input
+          :aria-label="`${t.rpe}: ${formatWorkoutDate(workout.date)}`"
+          :value="workout.sessionRpe ?? 5"
           max="10"
           min="1"
           step="1"
-          type="number"
+          type="range"
           @change="saveRpe(workout, ($event.target as HTMLInputElement).value)"
-      /></label>
+        /><output>{{ workout.sessionRpe ?? '–' }}</output></span></label>
     </div>
   </section>
 </template>

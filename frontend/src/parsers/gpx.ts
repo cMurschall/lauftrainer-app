@@ -5,6 +5,9 @@ const number = (value: string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const childText = (root: Element, tag: string) =>
+  root.getElementsByTagNameNS('*', tag)[0]?.textContent || root.getElementsByTagName(tag)[0]?.textContent
+
 function distanceMeters(a: ActivityRecord, b: ActivityRecord): number {
   if (a.latitude === undefined || a.longitude === undefined || b.latitude === undefined || b.longitude === undefined)
     return 0
@@ -21,12 +24,13 @@ export function parseGpx(text: string, fileName: string): Workout {
   const xml = new DOMParser().parseFromString(text, 'application/xml')
   if (xml.querySelector('parsererror')) throw new Error(`${fileName}: ungültiges GPX-XML.`)
   const points = [...xml.getElementsByTagNameNS('*', 'trkpt')]
+  if (!points.length) points.push(...xml.getElementsByTagName('trkpt'))
   if (!points.length) throw new Error(`${fileName}: keine Trackpoints gefunden.`)
   const raw = points.map((point) => ({
     latitude: number(point.getAttribute('lat')),
     longitude: number(point.getAttribute('lon')),
-    altitudeM: number(point.getElementsByTagNameNS('*', 'ele')[0]?.textContent),
-    time: point.getElementsByTagNameNS('*', 'time')[0]?.textContent,
+    altitudeM: number(childText(point, 'ele')),
+    time: childText(point, 'time'),
   }))
   const firstTime = raw.find((point) => point.time)?.time
   const start = firstTime ? Date.parse(firstTime) : undefined
@@ -47,7 +51,7 @@ export function parseGpx(text: string, fileName: string): Workout {
     if (previous !== undefined && current !== undefined && current > previous) ascentM += current - previous
   }
   const durationSeconds = records[records.length - 1].elapsedSeconds
-  const date = firstTime || xml.getElementsByTagNameNS('*', 'time')[0]?.textContent || new Date().toISOString()
+  const date = firstTime || childText(xml.documentElement, 'time') || new Date().toISOString()
   return {
     id: `gpx-${fileName}-${date}`,
     source: 'gpx',

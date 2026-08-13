@@ -30,6 +30,11 @@ function resolveColor(value: string): string {
   return match ? getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim() : value
 }
 
+function formatChartValue(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '–'
+  return Number(value.toFixed(1)).toString()
+}
+
 const data = computed(() => ({
   labels: props.labels,
   datasets: props.series.map((item) => {
@@ -65,7 +70,7 @@ const options = computed(() => ({
     tooltip: {
       callbacks: {
         label: (context: { dataset: { label?: string }; parsed: { y: number | null } }) =>
-          `${context.dataset.label || ''}: ${context.parsed.y ?? '–'} ${props.yUnit}`,
+          `${context.dataset.label || ''}: ${formatChartValue(context.parsed.y)} ${props.yUnit}`,
       },
     },
   },
@@ -83,7 +88,8 @@ const options = computed(() => ({
       ticks: {
         color: resolveColor('var(--muted)'),
         maxTicksLimit: 4,
-        callback: (value: string | number) => `${value} ${props.yUnit}`,
+        callback: (value: string | number) =>
+          `${formatChartValue(typeof value === 'number' ? value : Number(value))} ${props.yUnit}`,
       },
     },
     ...(props.rightYUnit
@@ -95,7 +101,8 @@ const options = computed(() => ({
             ticks: {
               color: resolveColor('var(--muted)'),
               maxTicksLimit: 4,
-              callback: (value: string | number) => `${value} ${props.rightYUnit}`,
+              callback: (value: string | number) =>
+                `${formatChartValue(typeof value === 'number' ? value : Number(value))} ${props.rightYUnit}`,
             },
           },
         }

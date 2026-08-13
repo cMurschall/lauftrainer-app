@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:e2e": "playwright test",
+    "test:all": "npm run test:unit && npm run build && npm --prefix ../backend test",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue,css}\""
   },
@@ -19,10 +23,15 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.13.10",
     "@vite-pwa/assets-generator": "^0.2.6",
     "@vitejs/plugin-vue": "^5.2.3",
+    "@vitest/coverage-v8": "^3.2.7",
+    "@vue/test-utils": "^2.4.11",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.11.2",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.2",

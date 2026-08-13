@@ -1,5 +1,6 @@
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
 import type { AppSettings } from '../types/settings'
+import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 
 const DB_NAME = 'lauftrainer-local'
 const DB_VERSION = 3
@@ -44,6 +45,25 @@ export const workoutDb = {
     const result = await transaction<undefined>('workouts', 'readwrite', (store) => store.clear())
     await workoutDb.bumpWorkoutRevision()
     return result
+  },
+  delete: (id: string) => transaction<undefined>('workouts', 'readwrite', (store) => store.delete(id)),
+  deduplicate: async () => {
+    const all = await workoutDb.list()
+    const grouped = new Map<string, Workout>()
+    for (const workout of all) {
+      const key = workoutIdentity(workout)
+      const existing = grouped.get(key)
+      grouped.set(key, existing ? mergeWorkouts(existing, workout) : workout)
+    }
+    if (grouped.size === all.length) return all
+    const winnerIds = new Set([...grouped.values()].map((workout) => workout.id))
+    await transaction<undefined>('workouts', 'readwrite', (store) => {
+      for (const workout of grouped.values()) store.put(workout)
+      for (const workout of all) if (!winnerIds.has(workout.id)) store.delete(workout.id)
+      return store.getAll() as unknown as IDBRequest<undefined>
+    })
+    await workoutDb.bumpWorkoutRevision()
+    return workoutDb.list()
   },
   getConfig: () => transaction<UserConfig | undefined>('settings', 'readonly', (store) => store.get('config')),
   saveConfig: async (config: UserConfig) => {

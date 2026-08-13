@@ -32,7 +32,12 @@ const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
 const connectorLoading = ref(false)
-const theme = ref<ThemePreference>(defaultAppSettings.theme)
+const persistedTheme = localStorage.getItem('lauftrainer-theme')
+const initialTheme: ThemePreference =
+  persistedTheme === 'system' || persistedTheme === 'light' || persistedTheme === 'dark'
+    ? persistedTheme
+    : defaultAppSettings.theme
+const theme = ref<ThemePreference>(initialTheme)
 const connectors = ref<ConnectorSettings[]>(structuredClone(defaultAppSettings.connectors))
 const config = ref<UserConfig>({
   name: 'Athlet',
@@ -46,19 +51,39 @@ const analysis = ref<AnalysisSummary>(emptyAnalysis)
 const importProgress = ref({ active: false, current: 0, total: 0, fileName: '', failed: 0 })
 const { analysisResult, dashboardSummary, isCalculating, calculationError, loadAnalysis, invalidateAnalysis } =
   useAnalysis()
+let analysisRefreshTimer: ReturnType<typeof setTimeout> | undefined
+
 async function refreshAnalysis() {
   invalidateAnalysis()
   await loadAnalysis(workouts.value, config.value)
   if (dashboardSummary.value) analysis.value = dashboardSummary.value
 }
+
+function scheduleAnalysisRefresh() {
+  if (analysisRefreshTimer) clearTimeout(analysisRefreshTimer)
+  analysisRefreshTimer = setTimeout(() => {
+    analysisRefreshTimer = undefined
+    void refreshAnalysis()
+  }, 150)
+}
 useTheme(theme)
 onMounted(async () => {
-  workouts.value = await workoutDb.list()
+  diagnosticLog('theme.startup', {
+    defaultPreference: theme.value,
+    localStoragePreference: localStorage.getItem('lauftrainer-theme'),
+    domThemeBeforeSettings: document.documentElement.dataset.theme || '(unset)',
+  })
+  workouts.value = await workoutDb.deduplicate()
   const stored = await workoutDb.getConfig()
   if (stored) config.value = stored
   await refreshAnalysis()
   const saved = await workoutDb.getAppSettings()
   if (saved) {
+    diagnosticLog('theme.settings-loaded', {
+      savedPreference: saved.theme,
+      currentPreference: theme.value,
+      resolvedBeforeApply: document.documentElement.dataset.theme || '(unset)',
+    })
     theme.value = saved.theme
     localStorage.setItem('lauftrainer-theme', saved.theme)
     setLocale(saved.locale)
@@ -84,6 +109,7 @@ async function saveSettings() {
 }
 
 function updateTheme(value: ThemePreference) {
+  diagnosticLog('theme.user-change', { previousPreference: theme.value, nextPreference: value })
   theme.value = value
   localStorage.setItem('lauftrainer-theme', value)
 }
@@ -241,9 +267,13 @@ async function syncConnectors() {
 async function saveWorkout(workout: Workout) {
   const rpe = workout.sessionRpe
   if (rpe !== undefined && (!Number.isFinite(rpe) || rpe < 1 || rpe > 10)) return
-  await workoutDb.put(workout)
+  // Props from AnalysisView can contain Vue proxies (including nested records).
+  // IndexedDB uses structured clone and rejects those proxies.
+  await workoutDb.put(plain(workout))
   workouts.value = await workoutDb.list()
-  await refreshAnalysis()
+  // Persistence is immediate; recalculating charts is deliberately decoupled
+  // so changing the RPE slider does not block the control on the worker.
+  scheduleAnalysisRefresh()
 }
 </script>
 <template>

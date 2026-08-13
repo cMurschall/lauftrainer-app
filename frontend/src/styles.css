@@ -784,13 +784,22 @@
     border-bottom: 1px solid var(--border);
     color: var(--muted);
   }
-  .rpe-list input {
-    width: 70px;
-    padding: 7px;
-    border: 1px solid var(--border-strong);
-    border-radius: 8px;
-    background: var(--input);
+  .rpe-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: min(48%, 230px);
+  }
+  .rpe-control input {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .rpe-control output {
+    min-width: 24px;
     color: var(--text);
+    font-weight: 700;
+    text-align: center;
   }
   .switch {
     display: flex;

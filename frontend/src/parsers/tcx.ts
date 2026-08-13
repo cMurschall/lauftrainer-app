@@ -1,7 +1,7 @@
 import type { ActivityRecord, Workout } from '../types/workout'
 
 const value = (root: Element, tag: string): string | undefined =>
-  root.getElementsByTagNameNS('*', tag)[0]?.textContent || undefined
+  root.getElementsByTagNameNS('*', tag)[0]?.textContent || root.getElementsByTagName(tag)[0]?.textContent || undefined
 const numeric = (root: Element, tag: string) => {
   const result = Number(value(root, tag))
   return Number.isFinite(result) ? result : undefined
@@ -10,9 +10,10 @@ const numeric = (root: Element, tag: string) => {
 export function parseTcx(text: string, fileName: string): Workout {
   const xml = new DOMParser().parseFromString(text, 'application/xml')
   if (xml.querySelector('parsererror')) throw new Error(`${fileName}: ungültiges TCX-XML.`)
-  const activity = xml.getElementsByTagNameNS('*', 'Activity')[0]
+  const activity = xml.getElementsByTagNameNS('*', 'Activity')[0] || xml.getElementsByTagName('Activity')[0]
   if (!activity) throw new Error(`${fileName}: keine Aktivität gefunden.`)
   const trackpoints = [...activity.getElementsByTagNameNS('*', 'Trackpoint')]
+  if (!trackpoints.length) trackpoints.push(...activity.getElementsByTagName('Trackpoint'))
   const records: ActivityRecord[] = trackpoints.map((point, index) => ({
     elapsedSeconds: index,
     heartRateBpm: numeric(point, 'Value'),
