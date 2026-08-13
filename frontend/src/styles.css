@@ -785,6 +785,19 @@
   .settings-actions {
     margin-bottom: 12px;
   }
+  .settings-actions .data-action {
+    flex: 1 1 0;
+    min-width: 145px;
+  }
+  .settings-actions .danger-action {
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+  }
+  .settings-actions .danger-action:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger);
+  }
   .goal-form {
     margin: 16px 0 18px;
     padding: 14px;
@@ -1200,6 +1213,21 @@
     padding: 14px 0;
     border-bottom: 1px solid var(--border);
   }
+  .connector-controls {
+    display: grid;
+    flex: 0 0 230px;
+    grid-template-columns: 130px 90px;
+    align-items: center;
+    gap: 10px;
+  }
+  .connector-action {
+    width: 130px;
+  }
+  .connector-controls .switch {
+    width: 90px;
+    justify-content: flex-start;
+    white-space: nowrap;
+  }
   .connector-row:first-child {
     padding-top: 0;
   }
@@ -1213,6 +1241,21 @@
   }
   .connector-row .muted {
     margin-top: 2px;
+  }
+  @media (width < 36rem) {
+    .connector-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .connector-controls {
+      width: 100%;
+      flex-basis: auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .connector-action {
+      width: 100%;
+    }
   }
 }
 

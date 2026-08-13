@@ -134,7 +134,7 @@ function submitGoal() {
   <div class="page-heading">
     <h1>{{ t.settingsTitle }}</h1>
   </div>
-  <section id="connectors" class="card settings-section">
+  <section class="card settings-section">
     <p class="eyebrow">{{ t.appearance }}</p>
     <div class="form-grid">
       <label
@@ -166,7 +166,7 @@ function submitGoal() {
       </label>
     </div>
   </section>
-  <section class="card settings-section">
+  <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.athleteProfile }}</p>
     <div class="form-grid">
       <label>{{ t.name }}<input v-model="config.name" @change="saveConfig" /></label
@@ -252,10 +252,10 @@ function submitGoal() {
           ><span class="muted">{{ connector.connected ? t.connectorConnected : t.connectorNotConnected }}</span>
         </div>
         <div class="connector-controls">
-          <button v-if="!connector.connected" class="button secondary" @click="connectConnector(connector.id)">
+          <button v-if="!connector.connected" class="button secondary connector-action" @click="connectConnector(connector.id)">
             {{ t.connectConnector }}
           </button>
-          <button v-else class="button secondary" @click="disconnectConnector(connector.id)">
+          <button v-else class="button secondary connector-action" @click="disconnectConnector(connector.id)">
             Trennen
           </button>
           <label class="switch"
@@ -288,7 +288,7 @@ function submitGoal() {
       </div>
     </div>
     <div class="settings-actions">
-      <label class="button primary"
+      <label class="button primary data-action"
         >{{ t.importFiles }}<input
           :disabled="props.importProgress.active"
           accept=".csv,.json,.tcx,.gpx,.fit"
@@ -296,11 +296,11 @@ function submitGoal() {
           type="file"
           @change="props.importFiles"
       /></label>
-      <button class="button secondary" @click="downloadBackup">{{ t.exportBackup }}</button>
-      <label class="button secondary"
+      <button class="button secondary data-action" @click="downloadBackup">{{ t.exportBackup }}</button>
+      <label class="button secondary data-action"
         >{{ t.importBackup }}<input accept=".json" type="file" @change="restoreBackup"
       /></label>
-      <button class="text-button" @click="clearData">{{ t.deleteData }}</button>
+      <button class="button data-action danger-action" @click="clearData">{{ t.deleteData }}</button>
     </div>
     <div v-if="props.importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
       <div class="card-heading">

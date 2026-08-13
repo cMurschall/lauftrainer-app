@@ -35,7 +35,7 @@ export interface AppSettings {
 }
 
 export const defaultAppSettings: AppSettings = {
-  theme: 'dark',
+  theme: 'system',
   locale: 'de',
   connectors: [{ id: 'polar', name: 'Polar', active: true, connected: false }, { id: 'strava', name: 'Strava', active: true, connected: false }],
 }

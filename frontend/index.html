@@ -9,7 +9,7 @@
     <title>LaufTrainer</title>
     <script>
       ;(() => {
-        const preference = localStorage.getItem('lauftrainer-theme') || 'dark'
+        const preference = localStorage.getItem('lauftrainer-theme') || 'system'
         const dark =
           preference === 'dark' || (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
