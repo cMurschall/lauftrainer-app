@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
 import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
+import type { ConnectorSettings } from '../types/settings'
 import {
   formatSport,
   formatWeekLabel,
@@ -13,6 +14,7 @@ import { workoutIdentity } from '../services/workoutIdentity'
 
 const props = defineProps<{
   workouts: Workout[]
+  connectors: ConnectorSettings[]
   plan: TrainingPlanDay[]
   completedPlanDays: string[]
   config: UserConfig
@@ -54,11 +56,23 @@ const workoutDebug = (workout: Workout) => ({
 })
 const planMinutes = computed(() => props.plan.reduce((sum, day) => sum + day.total_duration_minutes, 0))
 const completedCount = computed(() => props.plan.filter((day) => props.completedPlanDays.includes(day.day)).length)
+const activeConnectedConnectors = computed(() => props.connectors.filter((connector) => connector.active && connector.connected))
 </script>
 <template>
   <section v-if="!workouts.length" class="hero">
     <span class="hero-orb" aria-hidden="true">◉</span>
     <p>{{ t.heroText }}</p>
+    <div class="empty-actions">
+      <RouterLink class="button primary" to="/settings">{{ t.connectTrainingSource }}</RouterLink>
+      <label class="button secondary"
+        >{{ t.importFiles }}<input
+          :disabled="importProgress.active"
+          accept=".csv,.json,.tcx,.gpx,.fit"
+          multiple
+          type="file"
+          @change="importFiles"
+      /></label>
+    </div>
   </section>
   <p v-if="message" class="notice">{{ message }}</p>
   <section class="card connector-card">
@@ -69,11 +83,15 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
       </div>
       <span class="connection-dot"></span>
     </div>
-    <button :disabled="connectorLoading" class="button primary" @click="syncConnectors">
+    <p v-if="!activeConnectedConnectors.length" class="muted connector-empty-state">
+      {{ t.noConnectedSource }} <RouterLink to="/settings">{{ t.connectTrainingSource }}</RouterLink>
+    </p>
+    <button :disabled="connectorLoading || !activeConnectedConnectors.length" class="button primary" @click="syncConnectors">
       {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
     </button>
   </section>
-  <section class="stats">
+  <div class="dashboard-flow">
+  <section class="stats dashboard-stats">
     <article class="card">
       <span>{{ t.workouts }}</span
       ><strong class="metric">{{ workouts.length }}</strong>
@@ -113,7 +131,7 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
       </div>
     </div>
   </section>
-    <div v-if="plan.length" class="plan">
+    <div v-if="plan.length" class="plan dashboard-plan">
       <div class="plan-summary">
         <strong>{{ planMinutes }} min</strong>
         <span>{{ completedCount }}/{{ plan.length }} {{ t.planCompleted }}</span>
@@ -134,7 +152,7 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
         </ul>
       </article>
     </div>
-  <section class="grid">
+  <section class="grid dashboard-grid">
     <article class="card">
       <p class="eyebrow">{{ t.history }}</p><!--
         <span aria-hidden="true">⌕</span
@@ -174,7 +192,7 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
       </div>
     </article>
   </section>
-  <section class="card import-card">
+  <section class="card import-card dashboard-import">
     <div class="card-heading">
       <div>
         <p class="eyebrow">{{ t.localUpload }}</p>
@@ -198,4 +216,5 @@ const completedCount = computed(() => props.plan.filter((day) => props.completed
       <small>{{ importProgress.fileName }}</small>
     </div>
   </section>
+  </div>
 </template>

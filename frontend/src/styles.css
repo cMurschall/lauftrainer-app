@@ -252,6 +252,7 @@
 
   .hero {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
     margin-bottom: 14px;
@@ -546,6 +547,32 @@
 
   .settings-section {
     padding: 18px;
+  }
+  .dashboard-flow {
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-stats { order: 1; }
+  .dashboard-grid { order: 2; }
+  .ai-plan-card {
+    order: 3;
+    margin-top: 14px;
+  }
+  .dashboard-plan { order: 4; }
+  .dashboard-import { order: 5; }
+  .empty-actions {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .connector-empty-state {
+    margin: 10px 0 14px;
+  }
+  .connector-empty-state a {
+    color: var(--text);
+    font-weight: 650;
   }
   .local-data-summary {
     display: grid;

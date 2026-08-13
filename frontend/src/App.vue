@@ -417,6 +417,7 @@ async function saveWorkout(workout: Workout) {
                   }
                 : {
                     workouts,
+                    connectors,
                     plan,
                     completedPlanDays,
                     config,
