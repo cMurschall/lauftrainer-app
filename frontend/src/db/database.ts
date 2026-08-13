@@ -29,9 +29,37 @@ async function transaction<T>(
 ): Promise<T> {
   const db = await openDatabase()
   return new Promise((resolve, reject) => {
-    const request = action(db.transaction(storeName, mode).objectStore(storeName))
-    request.onsuccess = () => resolve(request.result as T)
-    request.onerror = () => reject(request.error)
+    const dbTransaction = db.transaction(storeName, mode)
+    let result: T
+    let settled = false
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      db.close()
+      reject(error)
+    }
+
+    let request: IDBRequest
+    try {
+      request = action(dbTransaction.objectStore(storeName))
+    } catch (error) {
+      fail(error)
+      return
+    }
+
+    request.onsuccess = () => {
+      result = request.result as T
+    }
+    request.onerror = () => fail(request.error)
+    dbTransaction.onerror = () => fail(dbTransaction.error)
+    dbTransaction.onabort = () => fail(dbTransaction.error || new Error('IndexedDB transaction aborted'))
+    // Resolve only after IndexedDB has committed the complete transaction.
+    dbTransaction.oncomplete = () => {
+      if (settled) return
+      settled = true
+      db.close()
+      resolve(result)
+    }
   })
 }
 
