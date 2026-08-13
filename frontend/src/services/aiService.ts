@@ -4,6 +4,12 @@ import type { TrainingGoal } from '../types/settings'
 import { API_URL } from './api'
 import { ensureWallet, idempotencyKey, walletToken } from './billingService'
 
+export interface TrainingPlanResponse {
+  plan: TrainingPlanDay[]
+  debug?: boolean
+  detail?: string
+}
+
 function round(value: number | undefined, digits = 1) {
   if (value === undefined || !Number.isFinite(value)) return undefined
   const factor = 10 ** digits
@@ -16,7 +22,7 @@ export async function requestTrainingPlan(
   analysis: AnalysisResult | null,
   goals: TrainingGoal[],
   locale: 'de' | 'en',
-): Promise<TrainingPlanDay[]> {
+): Promise<TrainingPlanResponse> {
   await ensureWallet()
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const latestLoad = analysis?.load.at(-1)
@@ -95,7 +101,7 @@ export async function requestTrainingPlan(
     const detail = await response.json().catch(() => null) as { detail?: string } | null
     throw new Error(detail?.detail || `KI-Backend antwortete mit ${response.status}.`)
   }
-  const result = (await response.json()) as { plan: TrainingPlanDay[] }
+  const result = (await response.json()) as TrainingPlanResponse
   if (!Array.isArray(result.plan)) throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
-  return result.plan
+  return result
 }

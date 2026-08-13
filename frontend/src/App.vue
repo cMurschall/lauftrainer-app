@@ -227,11 +227,12 @@ async function createPlan() {
   }
   loading.value = true
   try {
-    plan.value = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
+    const result = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
+    plan.value = result.plan
     credits.value = await getBalance()
     completedPlanDays.value = []
     await workoutDb.savePlan(plan.value)
-    message.value = t.value.planSaved
+    message.value = result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved
   } catch {
     message.value = t.value.aiFailed
   } finally {
