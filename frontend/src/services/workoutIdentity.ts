@@ -43,6 +43,18 @@ export function mergeWorkouts(previous: Workout, next: Workout): Workout {
     calories: next.calories ?? previous.calories,
     ascentM: next.ascentM ?? previous.ascentM,
     sessionRpe: next.sessionRpe ?? previous.sessionRpe,
+    rawSport: next.rawSport ?? previous.rawSport,
+    elevationGainM: next.elevationGainM ?? previous.elevationGainM,
+    averageSpeedKmh: next.averageSpeedKmh ?? previous.averageSpeedKmh,
+    averagePowerW: next.averagePowerW ?? previous.averagePowerW,
+    normalizedPowerW: next.normalizedPowerW ?? previous.normalizedPowerW,
+    swimmingDistanceM: next.swimmingDistanceM ?? previous.swimmingDistanceM,
+    swimmingLaps: next.swimmingLaps ?? previous.swimmingLaps,
+    swimmingStrokes: next.swimmingStrokes ?? previous.swimmingStrokes,
+    poolLengthM: next.poolLengthM ?? previous.poolLengthM,
+    multisportGroupId: next.multisportGroupId ?? previous.multisportGroupId,
+    multisportDiscipline: next.multisportDiscipline ?? previous.multisportDiscipline,
+    multisportOrder: next.multisportOrder ?? previous.multisportOrder,
     importedAt: next.importedAt,
   }
 }

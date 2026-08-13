@@ -75,6 +75,7 @@ export function parsePolarCsv(text: string, fileName: string): Workout {
     source: 'polar-csv',
     name: get('Name') || fileName,
     sport: get('Sport') || 'RUNNING',
+    rawSport: get('Sport') || 'RUNNING',
     date,
     durationSeconds,
     distanceKm: number(get('Total distance (km)')),
@@ -83,5 +84,6 @@ export function parsePolarCsv(text: string, fileName: string): Workout {
     ascentM: number(get('Ascent (m)')),
     records,
     importedAt: new Date().toISOString(),
+    elevationGainM: number(get('Ascent (m)')),
   }
 }

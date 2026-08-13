@@ -48,6 +48,18 @@ export function connectorConnectUrl(id: ConnectorId): string {
   return `${API_ROOT}/api/connectors/${id}/connect`
 }
 
+export async function disconnectConnector(id: ConnectorId): Promise<void> {
+  const stored = sessions()
+  const response = await fetch(`${API_ROOT}/api/connectors/${id}/disconnect`, {
+    method: 'POST',
+    headers: headers(),
+  })
+  if (!response.ok) throw new Error('Connector konnte serverseitig nicht getrennt werden.')
+  delete stored[id]
+  localStorage.setItem(SESSION_KEY, JSON.stringify(stored))
+  if (id === 'polar') localStorage.removeItem('lauftrainer-polar-session')
+}
+
 export async function connectorStatus(): Promise<ConnectorSettings[]> {
   const response = await fetch(`${API_ROOT}/api/connectors/status`, { headers: headers() })
   if (!response.ok) throw new Error('Connector-Status konnte nicht geladen werden.')

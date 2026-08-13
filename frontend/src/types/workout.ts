@@ -8,12 +8,16 @@ export interface ActivityRecord {
   latitude?: number
   longitude?: number
 }
+export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Triathlon', 'Other'] as const
+export type SportCategory = (typeof SPORT_CATEGORIES)[number]
+export type MultisportDiscipline = 'Swimming' | 'Cycling' | 'Running'
 
 export interface Workout {
   id: string
   source: 'polar-csv' | 'polar-json' | 'strava' | 'tcx' | 'gpx' | 'fit' | 'unknown'
   name: string
   sport: string
+  rawSport?: string
   date: string
   durationSeconds: number
   distanceKm?: number
@@ -23,7 +27,21 @@ export interface Workout {
   importedAt: string
   sourceFileHash?: string
   ascentM?: number
+  elevationGainM?: number
+  averageSpeedKmh?: number
+  maxSpeedKmh?: number
+  averagePowerW?: number
+  maxPowerW?: number
+  normalizedPowerW?: number
   averagePaceSecondsPerKm?: number
+  swimmingDistanceM?: number
+  swimmingLaps?: number
+  swimmingStrokes?: number
+  poolLengthM?: number
+  verticalSpeedMPerHour?: number
+  multisportGroupId?: string
+  multisportDiscipline?: MultisportDiscipline
+  multisportOrder?: 1 | 2 | 3
   /** Optional perceived exertion score, deliberately not populated by imports. */
   sessionRpe?: number
 }
@@ -35,6 +53,9 @@ export interface WeeklyAnalysis {
   durationMinutes: number
   trainingLoad: number
   averageHeartRate?: number
+  calories?: number
+  elevationGainM?: number
+  sports: Partial<Record<SportCategory, { workoutCount: number; durationMinutes: number; distanceKm: number; trainingLoad: number }>>
 }
 
 export interface AnalysisSummary {
@@ -42,6 +63,8 @@ export interface AnalysisSummary {
   totalDurationMinutes: number
   weekly: WeeklyAnalysis[]
   zoneMinutes: Record<string, number>
+  totalCalories?: number
+  totalElevationGainM?: number
 }
 
 export interface UserConfig {
@@ -50,6 +73,10 @@ export interface UserConfig {
   preferredTrainingDays: string[]
   hrZones: Record<string, [number, number]>
   thresholds: Record<string, number>
+  primarySports?: SportCategory[]
+  availableSports?: SportCategory[]
+  trainingGoal?: string
+  sportSpecificThresholds?: Partial<Record<SportCategory, Record<string, number>>>
 }
 
 export interface TrainingPlanStep {

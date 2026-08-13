@@ -3,7 +3,7 @@ import type { AppSettings } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 
 const DB_NAME = 'lauftrainer-local'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -35,7 +35,7 @@ async function transaction<T>(
 }
 
 export const workoutDb = {
-  list: () => transaction<Workout[]>('workouts', 'readonly', (store) => store.getAll()),
+  list: async () => (await transaction<Workout[]>('workouts', 'readonly', (store) => store.getAll())).map((workout) => ({ ...workout, rawSport: workout.rawSport ?? workout.sport })),
   put: async (workout: Workout) => {
     const result = await transaction<IDBValidKey>('workouts', 'readwrite', (store) => store.put(workout))
     await workoutDb.bumpWorkoutRevision()

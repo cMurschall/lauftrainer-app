@@ -14,6 +14,9 @@ export async function requestTrainingPlan(workouts: Workout[], config: UserConfi
         distance_km: workout.distanceKm,
         avg_hr: workout.averageHeartRate,
         calories: workout.calories,
+        elevation_gain_m: workout.elevationGainM ?? workout.ascentM,
+        average_power_w: workout.averagePowerW,
+        average_speed_kmh: workout.averageSpeedKmh,
       })),
     }),
   })

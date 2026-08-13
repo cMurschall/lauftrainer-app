@@ -60,6 +60,7 @@ export function parseFit(buffer: ArrayBuffer, fileName: string): Workout {
     source: 'fit',
     name: fileName,
     sport: String(session.sport || 'RUNNING'),
+    rawSport: String(session.sport || 'RUNNING'),
     date: start.toISOString(),
     durationSeconds,
     distanceKm: distanceM !== undefined ? distanceM / 1000 : undefined,
@@ -70,5 +71,11 @@ export function parseFit(buffer: ArrayBuffer, fileName: string): Workout {
     ascentM: numeric(session.totalAscent),
     records,
     importedAt: new Date().toISOString(),
+    elevationGainM: numeric(session.totalAscent),
+    averageSpeedKmh: numeric(session.avgSpeed) !== undefined ? numeric(session.avgSpeed)! * 3.6 : undefined,
+    maxSpeedKmh: numeric(session.maxSpeed) !== undefined ? numeric(session.maxSpeed)! * 3.6 : undefined,
+    averagePowerW: numeric(session.avgPower),
+    maxPowerW: numeric(session.maxPower),
+    normalizedPowerW: numeric(session.normalizedPower),
   }
 }

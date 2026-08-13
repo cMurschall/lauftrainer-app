@@ -1,6 +1,6 @@
-import type { UserConfig, Workout } from '../types/workout'
+import { SPORT_CATEGORIES, type SportCategory, type UserConfig, type Workout } from '../types/workout'
 
-export type Sport = 'Running' | 'Cycling' | string
+export type Sport = SportCategory
 
 export interface WeeklyMetric {
   weekStart: string
@@ -9,6 +9,7 @@ export interface WeeklyMetric {
   cyclingMinutes: number
   runningDistanceKm: number
   cyclingDistanceKm: number
+  sports: Partial<Record<SportCategory, { minutes: number; distanceKm: number; workoutCount: number }>>
 }
 
 export interface LoadDay {
@@ -51,6 +52,22 @@ export interface EfficiencyPoint {
   workoutId: string
 }
 
+export interface SportMetrics {
+  sport: SportCategory
+  workoutCount: number
+  durationMinutes: number
+  distanceKm: number
+  calories: number
+  elevationGainM: number
+  averageHeartRate?: number
+  averagePaceSecondsPerKm?: number
+  averageSpeedKmh?: number
+  averagePowerW?: number
+  swimmingDistanceM?: number
+  swimmingLaps?: number
+  swimmingStrokes?: number
+}
+
 export interface AnalysisResult {
   weekly: WeeklyMetric[]
   load: LoadDay[]
@@ -59,13 +76,48 @@ export interface AnalysisResult {
   polarization: PolarizationWeek[]
   hrZones: HrZoneWeek[]
   efficiency: EfficiencyPoint[]
+  sports: SportMetrics[]
+  triathlonGroups: Array<{ id: string; workouts: string[]; disciplines: Array<{ sport: string; order?: number }> }>
+}
+
+export function calculateSportMetrics(workouts: Workout[]): SportMetrics[] {
+  const map = new Map<SportCategory, SportMetrics>()
+  for (const workout of workouts) {
+    const sport = normalizeSport(workout.sport) as SportCategory
+    const item = map.get(sport) || { sport, workoutCount: 0, durationMinutes: 0, distanceKm: 0, calories: 0, elevationGainM: 0 }
+    item.workoutCount += 1
+    item.durationMinutes += Math.max(0, workout.durationSeconds || 0) / 60
+    item.distanceKm += workout.distanceKm || 0
+    item.calories += workout.calories || 0
+    item.elevationGainM += workout.elevationGainM ?? workout.ascentM ?? 0
+    if (Number.isFinite(workout.averageHeartRate)) item.averageHeartRate = ((item.averageHeartRate || 0) * (item.workoutCount - 1) + workout.averageHeartRate!) / item.workoutCount
+    if (Number.isFinite(workout.averageSpeedKmh)) item.averageSpeedKmh = ((item.averageSpeedKmh || 0) * (item.workoutCount - 1) + workout.averageSpeedKmh!) / item.workoutCount
+    if (Number.isFinite(workout.averagePowerW)) item.averagePowerW = ((item.averagePowerW || 0) * (item.workoutCount - 1) + workout.averagePowerW!) / item.workoutCount
+    item.swimmingDistanceM = (item.swimmingDistanceM || 0) + (workout.swimmingDistanceM || 0) || undefined
+    item.swimmingLaps = (item.swimmingLaps || 0) + (workout.swimmingLaps || 0) || undefined
+    item.swimmingStrokes = (item.swimmingStrokes || 0) + (workout.swimmingStrokes || 0) || undefined
+    if (workout.averagePaceSecondsPerKm !== undefined) item.averagePaceSecondsPerKm = ((item.averagePaceSecondsPerKm || 0) * (item.workoutCount - 1) + workout.averagePaceSecondsPerKm) / item.workoutCount
+    map.set(sport, item)
+  }
+  return [...map.values()].sort((a, b) => a.sport.localeCompare(b.sport))
+}
+
+export function calculateTriathlonGroups(workouts: Workout[]) {
+  const groups = new Map<string, Workout[]>()
+  for (const workout of workouts) if (workout.multisportGroupId) groups.set(workout.multisportGroupId, [...(groups.get(workout.multisportGroupId) || []), workout])
+  return [...groups].map(([id, items]) => ({ id, workouts: items.sort((a, b) => (a.multisportOrder || 99) - (b.multisportOrder || 99)).map((item) => item.id), disciplines: items.map((item) => ({ sport: item.multisportDiscipline || normalizeSport(item.sport), order: item.multisportOrder })) }))
 }
 
 export function normalizeSport(value: string): string {
   const sport = (value || '').trim().toLowerCase()
   if (['running', 'run', 'jogging'].includes(sport)) return 'Running'
   if (['cycling', 'ride', 'biking', 'bike'].includes(sport)) return 'Cycling'
-  return sport ? sport[0].toUpperCase() + sport.slice(1) : 'Unknown'
+  if (['swimming', 'swim', 'pool_swimming'].includes(sport)) return 'Swimming'
+  if (['hiking', 'hike', 'trekking', 'mountaineering'].includes(sport)) return 'Hiking'
+  if (['walking', 'walk'].includes(sport)) return 'Walking'
+  if (['triathlon', 'multisport', 'multi_sport'].includes(sport)) return 'Triathlon'
+  const title = sport ? sport[0].toUpperCase() + sport.slice(1) : 'Other'
+  return SPORT_CATEGORIES.includes(title as SportCategory) ? title : 'Other'
 }
 
 export function toDateKey(value: string | Date): string {
@@ -123,6 +175,7 @@ export function calculateWeeklyMetrics(workouts: Workout[]): WeeklyMetric[] {
       cyclingMinutes: 0,
       runningDistanceKm: 0,
       cyclingDistanceKm: 0,
+      sports: {},
     }
     const minutes = Math.max(0, workout.durationSeconds || 0) / 60
     item.totalMinutes += minutes
@@ -134,6 +187,11 @@ export function calculateWeeklyMetrics(workouts: Workout[]): WeeklyMetric[] {
       item.cyclingMinutes += minutes
       if (finite(workout.distanceKm)) item.cyclingDistanceKm += workout.distanceKm
     }
+    const sportMetrics = item.sports[sport as SportCategory] || { minutes: 0, distanceKm: 0, workoutCount: 0 }
+    sportMetrics.minutes += minutes
+    sportMetrics.distanceKm += finite(workout.distanceKm) ? workout.distanceKm! : 0
+    sportMetrics.workoutCount += 1
+    item.sports[sport as SportCategory] = sportMetrics
     map.set(weekStart, item)
   }
   return [...map.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart))
@@ -304,5 +362,7 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
     polarization: calculatePolarization(workouts, config),
     hrZones: calculateHrZoneDistribution(workouts, config),
     efficiency: calculateEfficiency(workouts),
+    sports: calculateSportMetrics(workouts),
+    triathlonGroups: calculateTriathlonGroups(workouts),
   }
 }

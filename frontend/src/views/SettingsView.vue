@@ -15,6 +15,7 @@ const props = defineProps<{
   restoreBackup: (event: Event) => void
   clearData: () => void
   connectConnector: (id: ConnectorId) => void
+  disconnectConnector: (id: ConnectorId) => void
 }>()
 const emit = defineEmits<{ 'update:theme': [value: ThemePreference]; 'update:locale': [value: Locale] }>()
 const { locale, t, setLocale } = useI18n()
@@ -90,6 +91,9 @@ function changeLocale(value: Locale) {
         <div class="connector-controls">
           <button v-if="!connector.connected" class="button secondary" @click="connectConnector(connector.id)">
             {{ t.connectConnector }}
+          </button>
+          <button v-else class="button secondary" @click="disconnectConnector(connector.id)">
+            Trennen
           </button>
           <label class="switch"
             ><input v-model="connector.active" type="checkbox" @change="saveSettings" /><span>{{

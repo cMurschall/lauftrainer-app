@@ -46,3 +46,12 @@ export async function syncAll(request: Request, env: Env) {
   }
   return json({ results }, 200, request, env)
 }
+
+export async function disconnect(request: Request, env: Env, id: string) {
+  const sessions = sessionMap(request)
+  const sessionId = sessions[id]
+  if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) {
+    await env.POLAR_SESSIONS.delete(`${id === 'polar' ? 'polar' : 'strava'}-session:${sessionId}`)
+  }
+  return json({ disconnected: true }, 200, request, env)
+}

@@ -9,6 +9,7 @@ import {
   connectorConnectUrl,
   connectorStatus,
   syncActiveConnectors,
+  disconnectConnector,
 } from './services/connectorService'
 import { API_ROOT } from './services/api'
 import { useI18n } from './i18n'
@@ -45,6 +46,10 @@ const config = ref<UserConfig>({
   preferredTrainingDays: ['monday', 'wednesday', 'friday'],
   hrZones: { z1: [90, 106], z2: [107, 124], z3: [125, 142], z4: [143, 160], z5: [161, 179] },
   thresholds: { lthr: 160, hr_max: 186 },
+  primarySports: ['Running'],
+  availableSports: ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking'],
+  trainingGoal: 'base_endurance',
+  sportSpecificThresholds: {},
 })
 const emptyAnalysis: AnalysisSummary = { totalDistanceKm: 0, totalDurationMinutes: 0, weekly: [], zoneMinutes: {} }
 const analysis = ref<AnalysisSummary>(emptyAnalysis)
@@ -227,6 +232,21 @@ function connectConnector(id: ConnectorId) {
   window.location.href = connectorConnectUrl(id)
 }
 
+async function removeConnector(id: ConnectorId) {
+  try {
+    await disconnectConnector(id)
+    const connector = connectors.value.find((item) => item.id === id)
+    if (connector) {
+      connector.connected = false
+      connector.active = false
+    }
+    await saveSettings()
+    message.value = `${id === 'polar' ? 'Polar' : 'Strava'} getrennt.`
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Connector konnte nicht getrennt werden.'
+  }
+}
+
 async function syncConnectors() {
   connectorLoading.value = true
   try {
@@ -312,6 +332,7 @@ async function saveWorkout(workout: Workout) {
                   restoreBackup,
                   clearData,
                   connectConnector,
+                  disconnectConnector: removeConnector,
                 }
               : route.name === 'analysis'
                 ? {

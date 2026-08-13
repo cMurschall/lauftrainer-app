@@ -17,11 +17,13 @@ export function parsePolarJson(text: string, fileName: string): Workout {
   const heartRate = raw.heart_rate as Record<string, unknown> | undefined
   const date = String(raw.start_time || raw.startTime || raw.date || raw.start || new Date().toISOString())
   if (!duration && !distance) throw new Error(`${fileName}: JSON enthält keine Workout-Dauer oder Distanz.`)
+  const sport = String(raw.sport || 'RUNNING')
   return {
     id: `json-${String(raw.id || fileName)}-${date}`,
     source: 'polar-json',
     name: String(raw.name || fileName),
-    sport: String(raw.sport || 'RUNNING'),
+    sport,
+    rawSport: sport,
     date,
     durationSeconds: duration,
     distanceKm: distance > 1000 ? distance / 1000 : distance,
@@ -30,5 +32,12 @@ export function parsePolarJson(text: string, fileName: string): Workout {
     calories: Number(raw.calories) || undefined,
     records: [],
     importedAt: new Date().toISOString(),
+    elevationGainM: Number(raw.elevationGainM || raw.ascentM) || undefined,
+    averageSpeedKmh: Number(raw.averageSpeedKmh || raw.average_speed) || undefined,
+    averagePowerW: Number(raw.averagePowerW || raw.average_power) || undefined,
+    swimmingDistanceM: Number(raw.swimmingDistanceM) || undefined,
+    swimmingLaps: Number(raw.swimmingLaps || raw.laps) || undefined,
+    swimmingStrokes: Number(raw.swimmingStrokes || raw.strokes) || undefined,
+    poolLengthM: Number(raw.poolLengthM || raw.pool_length) || undefined,
   }
 }

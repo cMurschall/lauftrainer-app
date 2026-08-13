@@ -20,7 +20,7 @@ const range = ref(90)
 const weeklyMetric = ref<'minutes' | 'distance'>('minutes')
 const results = computed<AnalysisResult>(
   () =>
-    props.results || { weekly: [], load: [], foster: [], fosterRpe: [], polarization: [], hrZones: [], efficiency: [] },
+    props.results || { weekly: [], load: [], foster: [], fosterRpe: [], polarization: [], hrZones: [], efficiency: [], sports: [], triathlonGroups: [] },
 )
 const latest = computed(
   () =>
@@ -177,6 +177,18 @@ async function saveRpe(workout: Workout, value: string) {
       :series="weeklyChart.series"
     />
     <p v-if="!weekly.length">{{ t.noData }}</p>
+  </section>
+  <section v-if="results.sports.length" class="card">
+    <p class="eyebrow">Sportarten</p>
+    <div class="stats">
+      <article v-for="sport in results.sports" :key="sport.sport" class="card">
+        <span>{{ sport.sport }}</span>
+        <strong class="metric">{{ sport.durationMinutes.toFixed(0) }} min</strong>
+        <small>{{ sport.workoutCount }} Einheiten · {{ sport.distanceKm.toFixed(1) }} km<span v-if="sport.elevationGainM"> · {{ sport.elevationGainM.toFixed(0) }} m</span></small>
+        <small v-if="sport.averagePowerW">Ø {{ sport.averagePowerW.toFixed(0) }} W</small>
+        <small v-if="sport.swimmingDistanceM">{{ (sport.swimmingDistanceM / 1000).toFixed(2) }} km Schwimmen</small>
+      </article>
+    </div>
   </section>
   <section class="card">
     <p class="eyebrow">{{ t.loadChart }}</p>

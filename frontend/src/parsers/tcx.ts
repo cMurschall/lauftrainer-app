@@ -26,16 +26,22 @@ export function parseTcx(text: string, fileName: string): Workout {
   const distanceM = numeric(activity, 'DistanceMeters')
   const date = value(activity, 'Id') || new Date().toISOString()
   const heartRates = records.map((record) => record.heartRateBpm).filter((rate): rate is number => rate !== undefined)
+  const elevationGainM = records.reduce((sum, record, index) => {
+    const previous = index > 0 ? records[index - 1]?.altitudeM : undefined
+    return sum + (record.altitudeM !== undefined && previous !== undefined && record.altitudeM > previous ? record.altitudeM - previous : 0)
+  }, 0)
   return {
     id: `tcx-${fileName}-${date}`,
     source: 'tcx',
     name: fileName,
     sport: value(activity, 'Sport') || 'RUNNING',
+    rawSport: value(activity, 'Sport') || 'RUNNING',
     date,
     durationSeconds,
     distanceKm: distanceM ? distanceM / 1000 : undefined,
     averageHeartRate: heartRates.length ? heartRates.reduce((a, b) => a + b, 0) / heartRates.length : undefined,
     records,
     importedAt: new Date().toISOString(),
+    elevationGainM,
   }
 }

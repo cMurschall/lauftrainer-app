@@ -67,7 +67,9 @@ function number(value: unknown) { const result = typeof value === 'number' ? val
 
 function workout(activity: Record<string, unknown>) {
   const distance = number(activity.distance)
-  return { id: `strava-${String(activity.id)}`, source: 'strava', name: String(activity.name || 'Strava workout'), sport: String(activity.type || 'RUN'), date: String(activity.start_date || new Date().toISOString()), durationSeconds: number(activity.elapsed_time), distanceKm: distance === undefined ? undefined : distance / 1000, averageHeartRate: number(activity.average_heartrate), calories: number(activity.calories), records: [], importedAt: new Date().toISOString() }
+  const rawSport = String(activity.sport_type || activity.type || 'RUN')
+  const sportMap: Record<string, string> = { Run: 'Running', VirtualRun: 'Running', Ride: 'Cycling', VirtualRide: 'Cycling', Swim: 'Swimming', Hike: 'Hiking', Walk: 'Walking', Triathlon: 'Triathlon' }
+  return { id: `strava-${String(activity.id)}`, source: 'strava', name: String(activity.name || 'Strava workout'), sport: sportMap[rawSport] || 'Other', rawSport, date: String(activity.start_date || new Date().toISOString()), durationSeconds: number(activity.elapsed_time), distanceKm: distance === undefined ? undefined : distance / 1000, averageHeartRate: number(activity.average_heartrate), calories: number(activity.calories), ascentM: number(activity.total_elevation_gain), elevationGainM: number(activity.total_elevation_gain), averageSpeedKmh: number(activity.average_speed) === undefined ? undefined : number(activity.average_speed)! * 3.6, maxSpeedKmh: number(activity.max_speed) === undefined ? undefined : number(activity.max_speed)! * 3.6, averagePowerW: number(activity.average_watts), maxPowerW: number(activity.max_watts), normalizedPowerW: number(activity.weighted_average_watts), records: [], importedAt: new Date().toISOString() }
 }
 
 export async function sync(request: Request, env: Env): Promise<Response> {

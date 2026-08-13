@@ -6,7 +6,7 @@ import type { AnalysisSummary, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from './analysisEngine'
 import { diagnosticLog } from '../services/logger'
 
-export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v1'
+export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v2-multisport'
 
 function stableValue(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`
