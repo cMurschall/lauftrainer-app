@@ -109,6 +109,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
       <p class="eyebrow">CREDITS</p>
       <strong class="metric">{{ credits }}</strong>
       <span class="muted">1 Credit pro erfolgreicher Plan</span>
+      <RouterLink class="text-button" to="/pricing">Credits kaufen</RouterLink>
     </div>
     <p class="eyebrow">{{ t.aiPlan }}</p>
     <p>{{ t.aiDescription }}</p>

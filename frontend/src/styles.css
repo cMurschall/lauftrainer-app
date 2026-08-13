@@ -80,6 +80,62 @@
 }
 
 @layer components {
+  .pricing-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 32px 0;
+  }
+  .billing-toggle {
+    display: flex;
+    gap: 8px;
+    margin: 20px 0 8px;
+  }
+  .pricing-country {
+    margin-bottom: 16px;
+  }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 20px 0 24px;
+  }
+  .pricing-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+  }
+  .pricing-card h2 {
+    min-height: 48px;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+  .pricing-amount {
+    margin-top: 14px;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .pricing-card ul {
+    display: grid;
+    gap: 8px;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .pricing-button {
+    width: 100%;
+    margin-top: auto;
+  }
+  .welcome-card {
+    max-width: 520px;
+    margin: 15vh auto 0;
+  }
+  @media (max-width: 760px) {
+    .pricing-page { padding: 24px 0; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .pricing-card { min-height: 0; }
+    .pricing-card h2 { min-height: 0; }
+  }
+
   .app-layout {
     min-height: 100vh;
     display: block;

@@ -20,8 +20,7 @@
     {
       "database_name": "lauftrainer-billing",
       "migrations_dir": "migrations",
-      "binding": "lauftrainer_billing",
-      "database_name": "lauftrainer-billing",
+      "binding": "DB",
       "database_id": "020deef6-2515-43c5-b1e2-30df754364b7"
     }
   ],

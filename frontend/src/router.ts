@@ -4,6 +4,8 @@ import SettingsView from './views/SettingsView.vue'
 import AnalysisView from './views/AnalysisView.vue'
 import ImprintView from './views/ImprintView.vue'
 import PrivacyView from './views/PrivacyView.vue'
+import PricingView from './views/PricingView.vue'
+import WelcomeView from './views/WelcomeView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -17,5 +19,7 @@ export const router = createRouter({
     { path: '/analysis', name: 'analysis', component: AnalysisView },
     { path: '/impressum', name: 'imprint', component: ImprintView },
     { path: '/datenschutz', name: 'privacy', component: PrivacyView },
+    { path: '/pricing', name: 'pricing', component: PricingView },
+    { path: '/welcome', name: 'welcome', component: WelcomeView },
   ],
 })

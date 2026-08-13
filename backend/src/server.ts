@@ -31,6 +31,10 @@ export default {
       if (request.method === 'POST' && path === '/api/billing/checkout') return await createCheckout(request, env)
       if (request.method === 'POST' && path === '/api/billing/voucher/redeem') return await redeemVoucher(request, env)
       if (request.method === 'POST' && path === '/api/billing/webhook') return await paddleWebhook(request, env)
+      if (request.method === 'GET' && path === '/api/billing/region') {
+        const country = request.headers.get('CF-IPCountry') || request.headers.get('x-vercel-ip-country')
+        return json({ country: country && /^[A-Z]{2}$/.test(country.toUpperCase()) ? country.toUpperCase() : null }, 200, request, env)
+      }
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
       console.error('Worker error:', error)
