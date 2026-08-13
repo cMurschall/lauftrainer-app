@@ -71,12 +71,13 @@ const config = ref<UserConfig>({
 const emptyAnalysis: AnalysisSummary = { totalDistanceKm: 0, totalDurationMinutes: 0, weekly: [], zoneMinutes: {} }
 const analysis = ref<AnalysisSummary>(emptyAnalysis)
 const importProgress = ref({ active: false, current: 0, total: 0, fileName: '', failed: 0 })
-const { analysisResult, dashboardSummary, isCalculating, calculationError, loadAnalysis, invalidateAnalysis } =
+const { analysisResult, dashboardSummary, isCalculating, calculationError, loadAnalysis } =
   useAnalysis()
 let analysisRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
 async function refreshAnalysis() {
-  invalidateAnalysis()
+  // Keep the current result visible while recalculating. Clearing it first
+  // changes the page height and makes controls such as the RPE slider jump.
   await loadAnalysis(workouts.value, config.value)
   if (dashboardSummary.value) analysis.value = dashboardSummary.value
 }
@@ -412,6 +413,8 @@ async function saveWorkout(workout: Workout) {
                   plan,
                   saveGoal,
                   deleteGoal,
+                  importFiles,
+                  importProgress,
                 }
               : route.name === 'analysis'
                 ? {

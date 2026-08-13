@@ -542,7 +542,30 @@
     border-radius: 9px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 1.1rem;
+  }
+  .sport-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  .sport-icon-cycling {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.12);
+  }
+  .sport-icon-swimming {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+  }
+  .sport-icon-hiking {
+    color: #a3e635;
+    background: rgba(163, 230, 53, 0.12);
+  }
+  .sport-icon-walking {
+    color: #c084fc;
+    background: rgba(192, 132, 252, 0.12);
+  }
+  .sport-icon-other {
+    color: var(--muted);
+    background: var(--surface-raised);
   }
   .workouts li:last-child {
     border-bottom: 0;
@@ -604,8 +627,33 @@
   .dashboard-stats { order: 1; }
   .dashboard-grid { order: 2; }
   .ai-plan-card {
-    order: 3;
+    order: 0;
     margin-top: 14px;
+  }
+  .credits-summary {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: baseline;
+    gap: 8px 12px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .credits-summary .eyebrow,
+  .credits-summary .metric,
+  .credits-summary .muted {
+    margin: 0;
+  }
+  .credits-summary .metric {
+    font-size: 1.4rem;
+  }
+  @media (width < 30rem) {
+    .credits-summary {
+      grid-template-columns: auto auto;
+    }
+    .credits-summary .muted {
+      grid-column: 1 / -1;
+    }
   }
   .dashboard-plan { order: 4; }
   .dashboard-import { order: 5; }
@@ -933,6 +981,32 @@
     cursor: pointer;
     font-size: 0.82rem;
     font-weight: 550;
+  }
+  .icon-button {
+    display: inline-grid;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .icon-button:hover,
+  .icon-button:focus-visible {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+  .icon-button.danger:hover,
+  .icon-button.danger:focus-visible {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+  }
+  .icon-button svg {
+    width: 17px;
+    height: 17px;
   }
   .backend-status {
     display: inline-flex;

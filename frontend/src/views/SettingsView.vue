@@ -21,6 +21,8 @@ const props = defineProps<{
   plan: TrainingPlanDay[]
   saveGoal: (goal: TrainingGoal) => void
   deleteGoal: (id: string) => void
+  importFiles: (event: Event) => void
+  importProgress: { active: boolean; current: number; total: number; fileName: string; failed: number }
 }>()
 const emit = defineEmits<{ 'update:theme': [value: ThemePreference]; 'update:locale': [value: Locale] }>()
 const { locale, t, setLocale } = useI18n()
@@ -227,7 +229,9 @@ function submitGoal() {
         </span>
         <div class="goal-date">{{ goal.date ? new Date(`${goal.date}T12:00:00`).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }}</div>
         <div class="goal-copy"><strong>{{ goal.title }}</strong><span>{{ goal.type === 'race' ? t.race : t.personalGoal }}<template v-if="goal.sport"> · {{ goal.sport }}</template><template v-if="goal.distanceKm"> · {{ goal.distanceKm }} km</template><template v-if="goal.target"> · {{ goal.target }}</template></span></div>
-        <button class="text-button" type="button" :aria-label="t.deleteGoal" @click="deleteGoal(goal.id)">×</button>
+        <button class="icon-button danger" type="button" :aria-label="t.deleteGoal" :title="t.deleteGoal" @click="deleteGoal(goal.id)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        </button>
       </article>
     </div>
     <p v-else class="muted">{{ t.noGoals }}</p>
@@ -277,11 +281,27 @@ function submitGoal() {
       </div>
     </div>
     <div class="settings-actions">
+      <label class="button primary"
+        >{{ t.importFiles }}<input
+          :disabled="props.importProgress.active"
+          accept=".csv,.json,.tcx,.gpx,.fit"
+          multiple
+          type="file"
+          @change="props.importFiles"
+      /></label>
       <button class="button secondary" @click="downloadBackup">{{ t.exportBackup }}</button>
       <label class="button secondary"
         >{{ t.importBackup }}<input accept=".json" type="file" @change="restoreBackup"
       /></label>
       <button class="text-button" @click="clearData">{{ t.deleteData }}</button>
+    </div>
+    <div v-if="props.importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
+      <div class="card-heading">
+        <p class="eyebrow">{{ t.importProgressLabel }}</p>
+        <strong>{{ props.importProgress.current }} / {{ props.importProgress.total }}</strong>
+      </div>
+      <progress :max="props.importProgress.total" :value="props.importProgress.current"></progress>
+      <small>{{ props.importProgress.fileName }}</small>
     </div>
     <p class="muted">{{ t.localUpload }}</p>
   </section>

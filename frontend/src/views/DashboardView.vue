@@ -11,6 +11,7 @@ import {
   formatWorkoutDuration,
 } from '../utils/formatters'
 import { workoutIdentity } from '../services/workoutIdentity'
+import SportIcon from '../components/SportIcon.vue'
 
 const props = defineProps<{
   workouts: Workout[]
@@ -29,8 +30,6 @@ const props = defineProps<{
   consent: boolean
   connectorLoading: boolean
   syncConnectors: () => void
-  importFiles: (event: Event) => void
-  importProgress: { active: boolean; current: number; total: number; fileName: string; failed: number }
   createPlan: () => void
   togglePlanDay: (day: string) => void
 }>()
@@ -65,14 +64,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     <p>{{ t.heroText }}</p>
     <div class="empty-actions">
       <RouterLink class="button primary" to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
-      <label class="button secondary"
-        >{{ t.importFiles }}<input
-          :disabled="importProgress.active"
-          accept=".csv,.json,.tcx,.gpx,.fit"
-          multiple
-          type="file"
-          @change="importFiles"
-      /></label>
     </div>
   </section>
   <p v-if="message" class="notice">{{ message }}</p>
@@ -92,7 +83,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     </button>
   </section>
   <div class="dashboard-flow">
-  <section class="card"><p class="eyebrow">CREDITS</p><strong class="metric">{{ credits }}</strong><span class="muted">1 Credit pro erfolgreicher Plan</span></section>
   <section class="stats dashboard-stats">
     <article class="card">
       <span>{{ t.workouts }}</span
@@ -115,6 +105,11 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     </article>
   </section>
   <section class="card ai-plan-card">
+    <div class="credits-summary">
+      <p class="eyebrow">CREDITS</p>
+      <strong class="metric">{{ credits }}</strong>
+      <span class="muted">1 Credit pro erfolgreicher Plan</span>
+    </div>
     <p class="eyebrow">{{ t.aiPlan }}</p>
     <p>{{ t.aiDescription }}</p>
     <label class="consent"
@@ -160,7 +155,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
         <span aria-hidden="true">⌕</span
       --><ul class="workouts">
         <li v-for="workout in recentWorkouts.slice(0, 12)" :key="workout.id" class="workout-row">
-          <span class="sport-icon" aria-hidden="true">⌁</span>
+          <SportIcon :sport="workout.sport" />
           <div>
             <strong>{{ formatWorkoutDate(workout.date) }}</strong
             ><span
@@ -193,30 +188,6 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
         <p v-if="!analysis.weekly.length">{{ t.noWeeks }}</p>
       </div>
     </article>
-  </section>
-  <section class="card import-card dashboard-import">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">{{ t.localUpload }}</p>
-        <h3>{{ t.importFiles }}</h3>
-      </div>
-    </div>
-    <label class="button secondary"
-      >{{ t.importFiles }}<input
-        :disabled="importProgress.active"
-        accept=".csv,.json,.tcx,.gpx,.fit"
-        multiple
-        type="file"
-        @change="importFiles"
-    /></label>
-    <div v-if="importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
-      <div class="card-heading">
-        <p class="eyebrow">{{ t.importProgressLabel }}</p>
-        <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
-      </div>
-      <progress :max="importProgress.total" :value="importProgress.current"></progress>
-      <small>{{ importProgress.fileName }}</small>
-    </div>
   </section>
   </div>
 </template>
