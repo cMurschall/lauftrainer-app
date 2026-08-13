@@ -78,9 +78,13 @@ function changeLocale(value: Locale) {
 }
 
 function togglePreferredDay(day: string) {
-  props.config.preferredTrainingDays = props.config.preferredTrainingDays.includes(day)
+  const enabled = props.config.preferredTrainingDays.includes(day)
+  props.config.preferredTrainingDays = enabled
     ? props.config.preferredTrainingDays.filter((item) => item !== day)
     : [...props.config.preferredTrainingDays, day]
+  if (enabled && props.config.maxTrainingMinutesPerDay) {
+    delete props.config.maxTrainingMinutesPerDay[day]
+  }
   props.saveConfig()
 }
 
@@ -189,7 +193,10 @@ function submitGoal() {
     <p class="field-heading">{{ t.maxDailyMinutes }}</p>
     <p class="field-help settings-help">{{ t.trainingLimitsHelp }}</p>
     <div class="daily-limits">
-      <label v-for="day in weekdays" :key="day">{{ weekdayLabels[day] }}<input v-model.number="config.maxTrainingMinutesPerDay![day]" min="1" step="15" type="number" placeholder="optional" @change="saveConfig" /></label>
+      <template v-for="day in weekdays" :key="day">
+        <label v-if="config.preferredTrainingDays.includes(day)">{{ weekdayLabels[day] }}<input v-model.number="config.maxTrainingMinutesPerDay![day]" min="1" step="15" type="number" placeholder="optional" @change="saveConfig" /></label>
+      </template>
+      <span v-if="!config.preferredTrainingDays.length" class="muted">{{ t.trainingLimitsHelp }}</span>
     </div>
   </section>
   <section class="card settings-section">

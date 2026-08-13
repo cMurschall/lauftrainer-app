@@ -67,9 +67,9 @@ async function token(request: Request, env: Env): Promise<StravaToken | undefine
       }
     } catch { /* continue */ }
   }
-  if (!env.STRAVA_REFRESH_TOKEN) return undefined
-  const refreshed = await exchange(request, env, { grant_type: 'refresh_token', refresh_token: env.STRAVA_REFRESH_TOKEN })
-  return refreshed instanceof Response ? undefined : refreshed
+  // Connector sessions are intentionally device-specific. Do not fall back to
+  // a worker-wide refresh token, otherwise every new device appears connected.
+  return undefined
 }
 
 export async function status(request: Request, env: Env) {
