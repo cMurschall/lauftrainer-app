@@ -14,7 +14,7 @@ import {
 import { API_ROOT } from './services/api'
 import { useI18n } from './i18n'
 import { useTheme } from './composables/useTheme'
-import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference } from './types/settings'
+import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference, type TrainingGoal } from './types/settings'
 import AppSidebar from './components/AppSidebar.vue'
 import BackendStatus from './components/BackendStatus.vue'
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './types/workout'
@@ -40,6 +40,7 @@ const initialTheme: ThemePreference =
     : defaultAppSettings.theme
 const theme = ref<ThemePreference>(initialTheme)
 const connectors = ref<ConnectorSettings[]>(structuredClone(defaultAppSettings.connectors))
+const goals = ref<TrainingGoal[]>([])
 const config = ref<UserConfig>({
   name: 'Athlet',
   trainingFocus: 'base_endurance',
@@ -50,6 +51,13 @@ const config = ref<UserConfig>({
   availableSports: ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking'],
   trainingGoal: 'base_endurance',
   sportSpecificThresholds: {},
+  performanceNotes: '',
+  trainingFrequencyPerWeek: 3,
+  strengthTraining: false,
+  limitations: '',
+  personalNotes: '',
+  maxWeeklyTrainingMinutes: 0,
+  maxTrainingMinutesPerDay: { monday: undefined, tuesday: undefined, wednesday: undefined, thursday: undefined, friday: undefined, saturday: undefined, sunday: undefined },
 })
 const emptyAnalysis: AnalysisSummary = { totalDistanceKm: 0, totalDurationMinutes: 0, weekly: [], zoneMinutes: {} }
 const analysis = ref<AnalysisSummary>(emptyAnalysis)
@@ -79,8 +87,9 @@ onMounted(async () => {
     domThemeBeforeSettings: document.documentElement.dataset.theme || '(unset)',
   })
   workouts.value = await workoutDb.deduplicate()
+  goals.value = await workoutDb.listGoals()
   const stored = await workoutDb.getConfig()
-  if (stored) config.value = stored
+  if (stored) config.value = normalizeConfig(stored)
   await refreshAnalysis()
   const saved = await workoutDb.getAppSettings()
   if (saved) {
@@ -105,6 +114,25 @@ onMounted(async () => {
 
 function plain<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeConfig(stored: UserConfig): UserConfig {
+  const storedDailyLimits = stored.maxTrainingMinutesPerDay || {}
+  const dailyLimits = Object.fromEntries(
+    Object.entries({ ...config.value.maxTrainingMinutesPerDay, ...storedDailyLimits }).map(([day, value]) => [
+      day,
+      typeof value === 'number' && value > 0 ? value : undefined,
+    ]),
+  )
+  return {
+    ...config.value,
+    ...stored,
+    maxWeeklyTrainingMinutes:
+      typeof stored.maxWeeklyTrainingMinutes === 'number' && stored.maxWeeklyTrainingMinutes > 0
+        ? stored.maxWeeklyTrainingMinutes
+        : undefined,
+    maxTrainingMinutesPerDay: dailyLimits,
+  }
 }
 
 async function saveSettings() {
@@ -191,9 +219,31 @@ async function createPlan() {
 }
 
 async function saveConfig() {
-  await workoutDb.saveConfig(plain(config.value))
+  const nextConfig = plain(config.value)
+  nextConfig.maxWeeklyTrainingMinutes =
+    typeof nextConfig.maxWeeklyTrainingMinutes === 'number' && nextConfig.maxWeeklyTrainingMinutes > 0
+      ? nextConfig.maxWeeklyTrainingMinutes
+      : undefined
+  nextConfig.maxTrainingMinutesPerDay = Object.fromEntries(
+    Object.entries(nextConfig.maxTrainingMinutesPerDay || {}).map(([day, value]) => [
+      day,
+      typeof value === 'number' && value > 0 ? value : undefined,
+    ]),
+  )
+  config.value = nextConfig
+  await workoutDb.saveConfig(nextConfig)
   await refreshAnalysis()
   message.value = t.value.configSaved
+}
+
+async function saveGoal(goal: TrainingGoal) {
+  await workoutDb.saveGoal(plain(goal))
+  goals.value = await workoutDb.listGoals()
+}
+
+async function deleteGoal(id: string) {
+  await workoutDb.deleteGoal(id)
+  goals.value = goals.value.filter((goal) => goal.id !== id)
 }
 
 async function downloadBackup() {
@@ -222,7 +272,9 @@ async function restoreBackup(event: Event) {
 async function clearData() {
   if (!window.confirm(t.value.confirmDelete)) return
   await workoutDb.deleteAll()
+  await workoutDb.deleteAllGoals()
   workouts.value = []
+  goals.value = []
   await refreshAnalysis()
   plan.value = []
   message.value = t.value.dataDeleted
@@ -333,6 +385,9 @@ async function saveWorkout(workout: Workout) {
                   clearData,
                   connectConnector,
                   disconnectConnector: removeConnector,
+                  goals,
+                  saveGoal,
+                  deleteGoal,
                 }
               : route.name === 'analysis'
                 ? {

@@ -77,6 +77,13 @@ export interface UserConfig {
   availableSports?: SportCategory[]
   trainingGoal?: string
   sportSpecificThresholds?: Partial<Record<SportCategory, Record<string, number>>>
+  performanceNotes?: string
+  trainingFrequencyPerWeek?: number
+  strengthTraining?: boolean
+  limitations?: string
+  personalNotes?: string
+  maxWeeklyTrainingMinutes?: number
+  maxTrainingMinutesPerDay?: Record<string, number | undefined>
 }
 
 export interface TrainingPlanStep {

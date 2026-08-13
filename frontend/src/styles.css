@@ -563,6 +563,67 @@
     display: block;
     margin-top: 6px;
   }
+  .settings textarea,
+  .form-grid textarea {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    resize: vertical;
+  }
+  .settings textarea:focus,
+  .form-grid textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .field-help {
+    display: block;
+    margin-top: 5px;
+    color: var(--subtle);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+  .checkbox-field {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    padding-top: 28px;
+  }
+  .checkbox-field input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+  .field-heading {
+    margin: 18px 0 8px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .daily-limits {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .daily-limits label {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .daily-limits input {
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--input);
+    color: var(--text);
+  }
   .settings-actions,
   .connector-controls {
     display: flex;
@@ -572,6 +633,67 @@
   }
   .settings-actions {
     margin-bottom: 12px;
+  }
+  .goal-form {
+    margin: 16px 0 18px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-raised);
+  }
+  .goal-type-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .goal-type-switch .button {
+    min-height: 34px;
+    padding: 8px 11px;
+    font-size: 0.78rem;
+  }
+  .form-error {
+    margin: 12px 0;
+    color: var(--danger) !important;
+    font-size: 0.8rem;
+  }
+  .goal-list {
+    display: grid;
+    gap: 0;
+    margin-top: 8px;
+  }
+  .goal-row {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .goal-row:last-child {
+    border-bottom: 0;
+  }
+  .goal-date {
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .goal-copy strong,
+  .goal-copy span {
+    display: block;
+  }
+  .goal-copy strong {
+    color: var(--text);
+    font-size: 0.88rem;
+  }
+  .goal-copy span {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .goal-target {
+    color: var(--accent);
+    font-size: 0.75rem;
   }
   .consent {
     display: flex;

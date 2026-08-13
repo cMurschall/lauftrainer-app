@@ -1,9 +1,9 @@
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
-import type { AppSettings } from '../types/settings'
+import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 
 const DB_NAME = 'lauftrainer-local'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -15,6 +15,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('plans')) db.createObjectStore('plans', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('backups')) db.createObjectStore('backups', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('analysisCache')) db.createObjectStore('analysisCache', { keyPath: 'cacheKey' })
+      if (!db.objectStoreNames.contains('goals')) db.createObjectStore('goals', { keyPath: 'id' })
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
@@ -46,6 +47,7 @@ export const workoutDb = {
     await workoutDb.bumpWorkoutRevision()
     return result
   },
+  deleteAllGoals: () => transaction<undefined>('goals', 'readwrite', (store) => store.clear()),
   delete: (id: string) => transaction<undefined>('workouts', 'readwrite', (store) => store.delete(id)),
   deduplicate: async () => {
     const all = await workoutDb.list()
@@ -76,6 +78,9 @@ export const workoutDb = {
   getAppSettings: () => transaction<AppSettings | undefined>('settings', 'readonly', (store) => store.get('app')),
   saveAppSettings: (settings: AppSettings) =>
     transaction<IDBValidKey>('settings', 'readwrite', (store) => store.put(settings, 'app')),
+  listGoals: () => transaction<TrainingGoal[]>('goals', 'readonly', (store) => store.getAll()),
+  saveGoal: (goal: TrainingGoal) => transaction<IDBValidKey>('goals', 'readwrite', (store) => store.put(goal)),
+  deleteGoal: (id: string) => transaction<undefined>('goals', 'readwrite', (store) => store.delete(id)),
   savePlan: (plan: TrainingPlanDay[]) =>
     transaction<IDBValidKey>('plans', 'readwrite', (store) =>
       store.put({
@@ -118,6 +123,7 @@ export interface LocalBackup {
   workouts: Workout[]
   config?: UserConfig
   appSettings?: AppSettings
+  goals?: TrainingGoal[]
 }
 
 export async function exportBackup(): Promise<LocalBackup> {
@@ -127,6 +133,7 @@ export async function exportBackup(): Promise<LocalBackup> {
     workouts: await workoutDb.list(),
     config: await workoutDb.getConfig(),
     appSettings: await workoutDb.getAppSettings(),
+    goals: await workoutDb.listGoals(),
   }
 }
 
@@ -135,4 +142,5 @@ export async function importBackup(backup: LocalBackup): Promise<void> {
   for (const workout of backup.workouts) await workoutDb.put(workout)
   if (backup.config) await workoutDb.saveConfig(backup.config)
   if (backup.appSettings) await workoutDb.saveAppSettings(backup.appSettings)
+  for (const goal of backup.goals || []) await workoutDb.saveGoal(goal)
 }
