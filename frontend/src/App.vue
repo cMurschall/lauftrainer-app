@@ -23,6 +23,7 @@ import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './ty
 import { useAnalysis } from './analysis/analysisService'
 import { diagnosticLog } from './services/logger'
 import PwaInstallBanner from './components/PwaInstallBanner.vue'
+import frontendPackage from '../package.json'
 
 const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
@@ -37,6 +38,9 @@ const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
 const connectorLoading = ref(false)
+const backendCommit = ref('')
+const frontendVersion = frontendPackage.version
+const frontendCommit = import.meta.env.VITE_COMMIT_SHA || ''
 const { visible: pwaInstallVisible, ios: pwaInstallIos, install: installPwa, dismiss: dismissPwaInstall } = usePwaInstall()
 const persistedTheme = localStorage.getItem('lauftrainer-theme')
 const initialTheme: ThemePreference =
@@ -177,9 +181,10 @@ async function checkBackend() {
   try {
     const response = await fetch(`${API_ROOT}/health`, { signal: AbortSignal.timeout(8000) })
     if (!response.ok) throw new Error()
-    const health = (await response.json()) as { status?: string; version?: string }
+    const health = (await response.json()) as { status?: string; version?: string; commit?: string }
     backendStatus.value = health.status === 'ok' ? 'online' : 'offline'
     backendVersion.value = health.version || t.value.backendUnknown
+    backendCommit.value = health.commit || ''
   } catch {
     backendStatus.value = 'offline'
     backendVersion.value = '–'
@@ -375,23 +380,6 @@ async function saveWorkout(workout: Workout) {
   <div class="app-layout">
     <AppSidebar />
     <main class="main-content">
-      <header class="topbar">
-        <div>
-          <span class="mobile-brand">LaufTrainer</span
-          ><span class="route-label">{{
-            route.name === 'settings' ? t.settingsNav : route.name === 'analysis' ? t.analysisNav : t.dashboard
-          }}</span>
-        </div>
-        <div class="topbar-status">
-          <span class="badge">{{ t.offlineReady }}</span
-          ><BackendStatus
-            :check="checkBackend"
-            :checked-at="backendCheckedAt"
-            :status="backendStatus"
-            :version="backendVersion"
-          />
-        </div>
-      </header>
       <PwaInstallBanner
         :visible="pwaInstallVisible"
         :ios="pwaInstallIos"
@@ -459,6 +447,16 @@ async function saveWorkout(workout: Workout) {
           @update:locale="setLocale($event)"
         />
       </RouterView>
+      <footer class="diagnostics-footer">
+        <details>
+          <summary>{{ t.technicalInformation }}</summary>
+          <div class="diagnostics-content">
+            <BackendStatus :check="checkBackend" :checked-at="backendCheckedAt" :status="backendStatus" :version="backendVersion" />
+            <span>{{ t.frontendVersion }} {{ frontendVersion }}<template v-if="frontendCommit"> · {{ frontendCommit }}</template></span>
+            <span>{{ t.backendVersion }} {{ backendVersion }}<template v-if="backendCommit"> · {{ backendCommit }}</template></span>
+          </div>
+        </details>
+      </footer>
     </main>
   </div>
 </template>

@@ -64,7 +64,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     <span class="hero-orb" aria-hidden="true">◉</span>
     <p>{{ t.heroText }}</p>
     <div class="empty-actions">
-      <RouterLink class="button primary" to="/settings">{{ t.connectTrainingSource }}</RouterLink>
+      <RouterLink class="button primary" to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
       <label class="button secondary"
         >{{ t.importFiles }}<input
           :disabled="importProgress.active"
@@ -85,7 +85,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
       <span class="connection-dot"></span>
     </div>
     <p v-if="!activeConnectedConnectors.length" class="muted connector-empty-state">
-      {{ t.noConnectedSource }} <RouterLink to="/settings">{{ t.connectTrainingSource }}</RouterLink>
+      {{ t.noConnectedSource }} <RouterLink to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
     </p>
     <button :disabled="connectorLoading || !activeConnectedConnectors.length" class="button primary" @click="syncConnectors">
       {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}

@@ -1,4 +1,5 @@
 export interface Env {
+  COMMIT_SHA?: string
   GEMINI_API_KEY?: string
   GEMINI_MODEL?: string
   ALLOWED_ORIGIN?: string

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
 import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
@@ -64,6 +64,12 @@ const trainingGoalOptions = computed(() => [
   { label: t.value.goalGeneralFitness, value: 'general_fitness' },
 ])
 
+onMounted(async () => {
+  if (window.location.hash !== '#connectors') return
+  await nextTick()
+  document.getElementById('connectors')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+})
+
 function changeLocale(value: Locale) {
   setLocale(value)
   emit('update:locale', value)
@@ -122,7 +128,7 @@ function submitGoal() {
   <div class="page-heading">
     <h1>{{ t.settingsTitle }}</h1>
   </div>
-  <section class="card settings-section">
+  <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.appearance }}</p>
     <div class="form-grid">
       <label

@@ -12,7 +12,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, env) })
     const path = new URL(request.url).pathname
     try {
-      if (request.method === 'GET' && path === '/health') return json({ status: 'ok', version: packageJson.version }, 200, request, env)
+      if (request.method === 'GET' && path === '/health') return json({ status: 'ok', version: packageJson.version, commit: env.COMMIT_SHA || '' }, 200, request, env)
       if (request.method === 'GET' && path === '/api/polar/connect') return await connect(request, env)
       if (request.method === 'GET' && path === '/api/polar/callback') return await callback(request, env)
       if (request.method === 'GET' && path === '/api/polar/status') return await status(request, env)
