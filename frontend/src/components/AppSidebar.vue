@@ -1,19 +1,25 @@
-<script setup lang="ts">
-import { useI18n } from '../i18n'
-const { t } = useI18n()
+<script lang="ts" setup>
+import {useI18n} from '../i18n'
+
+const {t} = useI18n()
 </script>
 <template>
   <aside class="sidebar">
-    <div class="brand"><span class="brand-mark">L</span><div><strong>LaufTrainer</strong><small>{{ t.coach }}</small></div></div>
-    <nav class="nav" :aria-label="t.navigation">
-      <RouterLink to="/" class="nav-link" exact-active-class="is-active">
-        <span class="nav-icon" aria-hidden="true">⌂</span><span>{{ t.dashboard }}</span><span class="nav-arrow" aria-hidden="true">›</span>
+    <div class="brand"><span class="brand-mark">L</span>
+      <div><strong>LaufTrainer</strong><small>{{ t.coach }}</small></div>
+    </div>
+    <nav :aria-label="t.navigation" class="nav">
+      <RouterLink class="nav-link" exact-active-class="is-active" to="/">
+        <span aria-hidden="true" class="nav-icon">⌂</span><span>{{ t.dashboard }}</span><span aria-hidden="true"
+                                                                                              class="nav-arrow">›</span>
       </RouterLink>
-      <RouterLink to="/settings" class="nav-link" exact-active-class="is-active">
-        <span class="nav-icon" aria-hidden="true">⚙</span><span>{{ t.settingsNav }}</span><span class="nav-arrow" aria-hidden="true">›</span>
+      <RouterLink class="nav-link" exact-active-class="is-active" to="/settings">
+        <span aria-hidden="true" class="nav-icon">⚙</span><span>{{ t.settingsNav }}</span><span aria-hidden="true"
+                                                                                                class="nav-arrow">›</span>
       </RouterLink>
-      <RouterLink to="/analysis" class="nav-link" exact-active-class="is-active">
-        <span class="nav-icon" aria-hidden="true">↗</span><span>{{ t.analysisNav }}</span><span class="nav-arrow" aria-hidden="true">›</span>
+      <RouterLink class="nav-link" exact-active-class="is-active" to="/analysis">
+        <span aria-hidden="true" class="nav-icon">↗</span><span>{{ t.analysisNav }}</span><span aria-hidden="true"
+                                                                                                class="nav-arrow">›</span>
       </RouterLink>
     </nav>
     <span class="badge">{{ t.offlineReady }}</span>

@@ -1,35 +1,126 @@
-<script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useI18n } from '../i18n'
-import { calculateAnalysis, toDateKey, type AnalysisResult } from '../analysis/analysisEngine'
-import type { UserConfig, Workout } from '../types/workout'
+<script lang="ts" setup>
+import {computed, ref} from 'vue'
+import {useI18n} from '../i18n'
+import {type AnalysisResult, calculateAnalysis, toDateKey} from '../analysis/analysisEngine'
+import type {UserConfig, Workout} from '../types/workout'
 import MiniChart from '../components/MiniChart.vue'
 
-const props = defineProps<{ workouts: Workout[]; config: UserConfig; saveWorkout: (workout: Workout) => Promise<void> }>()
-const { t } = useI18n(); const range = ref(90); const results = computed<AnalysisResult>(() => calculateAnalysis(props.workouts, props.config))
+const props = defineProps<{
+  workouts: Workout[];
+  config: UserConfig;
+  saveWorkout: (workout: Workout) => Promise<void>
+}>()
+const {t} = useI18n();
+const range = ref(90);
+const results = computed<AnalysisResult>(() => calculateAnalysis(props.workouts, props.config))
 const latest = computed(() => props.workouts.map(w => w.date).map(x => new Date(x.match(/^\d{2}-\d{2}-\d{4}$/) ? x.split('-').reverse().join('-') : x).getTime()).filter(Number.isFinite).sort((a, b) => b - a)[0])
 const cutoff = computed(() => range.value === 0 || !latest.value ? '' : new Date(latest.value - range.value * 86400000).toISOString().slice(0, 10))
-function inRange(date: string) { const key = toDateKey(date); return !cutoff.value || (!!key && key >= cutoff.value) }
+
+function inRange(date: string) {
+  const key = toDateKey(date);
+  return !cutoff.value || (!!key && key >= cutoff.value)
+}
+
 const weekly = computed(() => results.value.weekly.filter(x => inRange(x.weekStart)))
 const load = computed(() => results.value.load.filter(x => inRange(x.date)))
 const foster = computed(() => results.value.foster.filter(x => inRange(x.weekStart)))
 const polarization = computed(() => results.value.polarization.filter(x => inRange(x.weekStart)))
 const zones = computed(() => results.value.hrZones.filter(x => inRange(x.weekStart)))
 const efficiency = computed(() => results.value.efficiency.filter(x => inRange(x.date)))
-const efficiencyTrend = computed(() => efficiency.value.map((_, index, values) => { const window = values.slice(Math.max(0, index - 9), index + 1); return window.reduce((sum, item) => sum + item.efficiency, 0) / window.length }))
-const lastLoad = computed(() => [...load.value].at(-1)); const lastEfficiency = computed(() => efficiency.value.at(-1))
+const efficiencyTrend = computed(() => efficiency.value.map((_, index, values) => {
+  const window = values.slice(Math.max(0, index - 9), index + 1);
+  return window.reduce((sum, item) => sum + item.efficiency, 0) / window.length
+}))
+const lastLoad = computed(() => [...load.value].at(-1));
+const lastEfficiency = computed(() => efficiency.value.at(-1))
 const rpeWorkouts = computed(() => props.workouts.filter(w => inRange(w.date)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30))
 const rpeFoster = computed(() => results.value.fosterRpe.filter(x => inRange(x.weekStart)))
-function chartLabels(items: Array<{ weekStart?: string; date?: string }>) { return items.map(x => (x.weekStart || x.date || '').slice(5)) }
-async function saveRpe(workout: Workout, value: string) { const numeric = value === '' ? undefined : Number(value); if (numeric !== undefined && (!Number.isInteger(numeric) || numeric < 1 || numeric > 10)) return; await props.saveWorkout({ ...workout, sessionRpe: numeric }) }
+
+function chartLabels(items: Array<{ weekStart?: string; date?: string }>) {
+  return items.map(x => (x.weekStart || x.date || '').slice(5))
+}
+
+async function saveRpe(workout: Workout, value: string) {
+  const numeric = value === '' ? undefined : Number(value);
+  if (numeric !== undefined && (!Number.isInteger(numeric) || numeric < 1 || numeric > 10)) return;
+  await props.saveWorkout({...workout, sessionRpe: numeric})
+}
 </script>
 <template>
-  <div class="page-heading"><div><p class="eyebrow">{{ t.analysisNav }}</p><h1>{{ t.analysisTitle }}</h1><p class="analysis-intro">{{ t.analysisIntro }}</p></div><div class="range-switch"><button v-for="item in [{ value: 30, label: t.range30 }, { value: 90, label: t.range90 }, { value: 365, label: t.range365 }, { value: 0, label: t.rangeAll }]" :key="item.value" class="button" :class="range === item.value ? 'primary' : 'secondary'" @click="range = item.value">{{ item.label }}</button></div></div>
-  <section class="stats analysis-stats"><article class="card"><span>{{ t.ctl }}</span><strong class="metric">{{ lastLoad ? lastLoad.ctl.toFixed(1) : '–' }}</strong></article><article class="card"><span>{{ t.atl }}</span><strong class="metric">{{ lastLoad ? lastLoad.atl.toFixed(1) : '–' }}</strong></article><article class="card"><span>{{ t.tsb }}</span><strong class="metric">{{ lastLoad ? lastLoad.tsb.toFixed(1) : '–' }}</strong></article><article class="card"><span>{{ t.acwr }}</span><strong class="metric">{{ lastLoad?.acwr?.toFixed(2) || '–' }}</strong><small v-if="lastLoad">{{ lastLoad.risk }}</small></article><article class="card"><span>{{ t.trainingTime }}</span><strong class="metric">{{ (weekly.reduce((sum, x) => sum + x.totalMinutes, 0) / 60).toFixed(1) }} h</strong></article><article class="card"><span>{{ t.totalDistance }}</span><strong class="metric">{{ weekly.reduce((sum, x) => sum + x.runningDistanceKm + x.cyclingDistanceKm, 0).toFixed(1) }} km</strong></article></section>
-  <section class="card"><p class="eyebrow">{{ t.weeklyLoad }}</p><MiniChart v-if="weekly.length" :labels="chartLabels(weekly)" :series="[{ name: 'Total min', values: weekly.map(x => x.totalMinutes), color: '#78e3c0' }, { name: 'Running min', values: weekly.map(x => x.runningMinutes), color: '#74a7ff' }, { name: 'Cycling min', values: weekly.map(x => x.cyclingMinutes), color: '#e6b66c' }]" /><MiniChart v-if="weekly.length" :labels="chartLabels(weekly)" :series="[{ name: 'Running km', values: weekly.map(x => x.runningDistanceKm), color: '#74a7ff' }, { name: 'Cycling km', values: weekly.map(x => x.cyclingDistanceKm), color: '#e6b66c' }]" /><p v-if="!weekly.length">{{ t.noData }}</p></section>
-  <section class="card"><p class="eyebrow">{{ t.loadChart }}</p><MiniChart v-if="load.length" :labels="chartLabels(load)" :series="[{ name: 'CTL', values: load.map(x => x.ctl), color: '#78e3c0' }, { name: 'ATL', values: load.map(x => x.atl), color: '#e6b66c' }, { name: 'TSB', values: load.map(x => x.tsb), color: '#74a7ff' }]" /><p v-else>{{ t.noHr }}</p></section>
-  <div class="analysis-grid"><section class="card"><p class="eyebrow">{{ t.foster }}</p><MiniChart v-if="foster.length" :labels="chartLabels(foster)" :series="[{ name: 'Load', values: foster.map(x => x.load), color: '#78e3c0' }, { name: 'Strain', values: foster.map(x => x.strain), color: '#e6b66c' }]" /><p v-else>{{ t.noData }}</p></section><section class="card"><p class="eyebrow">{{ t.polarization }}</p><MiniChart v-if="polarization.length" :labels="chartLabels(polarization)" :series="[{ name: 'Z1 %', values: polarization.map(x => x.z1Pct), color: '#78e3c0' }, { name: 'Z2 %', values: polarization.map(x => x.z2Pct), color: '#e6b66c' }, { name: 'Z3 %', values: polarization.map(x => x.z3Pct), color: '#e87987' }]" /><p v-else>{{ t.noHr }}</p></section></div>
-  <section class="card"><p class="eyebrow">{{ t.hrDistribution }}</p><div v-if="zones.length" class="zone-bars"><div v-for="week in zones" :key="week.weekStart" class="zone-week"><small>{{ week.weekStart }}</small><div class="stacked"><i v-for="(pct, index) in week.percentages" :key="index" :style="{ width: `${pct}%` }" :class="`z${index + 1}`"></i></div></div></div><p v-else>{{ t.noHr }}</p></section>
-  <div class="analysis-grid"><section class="card"><p class="eyebrow">{{ t.efficiency }}</p><MiniChart v-if="efficiency.length" :labels="chartLabels(efficiency)" :series="[{ name: 'Workouts', values: efficiency.map(x => x.efficiency), color: '#78e3c0' }, { name: '10-workout trend', values: efficiencyTrend, color: '#74a7ff' }]" /><p v-else>{{ t.noData }}</p></section><section class="card"><p class="eyebrow">{{ t.fosterRpe }}</p><MiniChart v-if="rpeFoster.length" :labels="chartLabels(rpeFoster)" :series="[{ name: 'Load', values: rpeFoster.map(x => x.load), color: '#74a7ff' }, { name: 'Strain', values: rpeFoster.map(x => x.strain), color: '#e6b66c' }]" /><p v-else>{{ t.missingRpe }}</p></section></div>
-  <section class="card"><p class="eyebrow">{{ t.rpe }}</p><div class="rpe-list"><label v-for="workout in rpeWorkouts" :key="workout.id"><span>{{ workout.date }} · {{ workout.sport }}</span><input type="number" min="1" max="10" step="1" :value="workout.sessionRpe ?? ''" @change="saveRpe(workout, ($event.target as HTMLInputElement).value)"></label></div></section>
+  <div class="page-heading">
+    <div><p class="eyebrow">{{ t.analysisNav }}</p>
+      <h1>{{ t.analysisTitle }}</h1>
+      <p class="analysis-intro">{{ t.analysisIntro }}</p></div>
+    <div class="range-switch">
+      <button
+          v-for="item in [{ value: 30, label: t.range30 }, { value: 90, label: t.range90 }, { value: 365, label: t.range365 }, { value: 0, label: t.rangeAll }]"
+          :key="item.value" :class="range === item.value ? 'primary' : 'secondary'" class="button"
+          @click="range = item.value">{{ item.label }}
+      </button>
+    </div>
+  </div>
+  <section class="stats analysis-stats">
+    <article class="card"><span>{{ t.ctl }}</span><strong class="metric">{{
+        lastLoad ? lastLoad.ctl.toFixed(1) : '–'
+      }}</strong></article>
+    <article class="card"><span>{{ t.atl }}</span><strong class="metric">{{
+        lastLoad ? lastLoad.atl.toFixed(1) : '–'
+      }}</strong></article>
+    <article class="card"><span>{{ t.tsb }}</span><strong class="metric">{{
+        lastLoad ? lastLoad.tsb.toFixed(1) : '–'
+      }}</strong></article>
+    <article class="card"><span>{{ t.acwr }}</span><strong class="metric">{{
+        lastLoad?.acwr?.toFixed(2) || '–'
+      }}</strong><small v-if="lastLoad">{{ lastLoad.risk }}</small></article>
+    <article class="card"><span>{{ t.trainingTime }}</span><strong
+        class="metric">{{ (weekly.reduce((sum, x) => sum + x.totalMinutes, 0) / 60).toFixed(1) }} h</strong></article>
+    <article class="card"><span>{{ t.totalDistance }}</span><strong
+        class="metric">{{ weekly.reduce((sum, x) => sum + x.runningDistanceKm + x.cyclingDistanceKm, 0).toFixed(1) }}
+      km</strong></article>
+  </section>
+  <section class="card"><p class="eyebrow">{{ t.weeklyLoad }}</p>
+    <MiniChart v-if="weekly.length" :labels="chartLabels(weekly)"
+               :series="[{ name: 'Total min', values: weekly.map(x => x.totalMinutes), color: '#78e3c0' }, { name: 'Running min', values: weekly.map(x => x.runningMinutes), color: '#74a7ff' }, { name: 'Cycling min', values: weekly.map(x => x.cyclingMinutes), color: '#e6b66c' }]"/>
+    <MiniChart v-if="weekly.length" :labels="chartLabels(weekly)"
+               :series="[{ name: 'Running km', values: weekly.map(x => x.runningDistanceKm), color: '#74a7ff' }, { name: 'Cycling km', values: weekly.map(x => x.cyclingDistanceKm), color: '#e6b66c' }]"/>
+    <p v-if="!weekly.length">{{ t.noData }}</p></section>
+  <section class="card"><p class="eyebrow">{{ t.loadChart }}</p>
+    <MiniChart v-if="load.length" :labels="chartLabels(load)"
+               :series="[{ name: 'CTL', values: load.map(x => x.ctl), color: '#78e3c0' }, { name: 'ATL', values: load.map(x => x.atl), color: '#e6b66c' }, { name: 'TSB', values: load.map(x => x.tsb), color: '#74a7ff' }]"/>
+    <p v-else>{{ t.noHr }}</p></section>
+  <div class="analysis-grid">
+    <section class="card"><p class="eyebrow">{{ t.foster }}</p>
+      <MiniChart v-if="foster.length" :labels="chartLabels(foster)"
+                 :series="[{ name: 'Load', values: foster.map(x => x.load), color: '#78e3c0' }, { name: 'Strain', values: foster.map(x => x.strain), color: '#e6b66c' }]"/>
+      <p v-else>{{ t.noData }}</p></section>
+    <section class="card"><p class="eyebrow">{{ t.polarization }}</p>
+      <MiniChart v-if="polarization.length" :labels="chartLabels(polarization)"
+                 :series="[{ name: 'Z1 %', values: polarization.map(x => x.z1Pct), color: '#78e3c0' }, { name: 'Z2 %', values: polarization.map(x => x.z2Pct), color: '#e6b66c' }, { name: 'Z3 %', values: polarization.map(x => x.z3Pct), color: '#e87987' }]"/>
+      <p v-else>{{ t.noHr }}</p></section>
+  </div>
+  <section class="card"><p class="eyebrow">{{ t.hrDistribution }}</p>
+    <div v-if="zones.length" class="zone-bars">
+      <div v-for="week in zones" :key="week.weekStart" class="zone-week"><small>{{ week.weekStart }}</small>
+        <div class="stacked"><i v-for="(pct, index) in week.percentages" :key="index" :class="`z${index + 1}`"
+                                :style="{ width: `${pct}%` }"></i></div>
+      </div>
+    </div>
+    <p v-else>{{ t.noHr }}</p></section>
+  <div class="analysis-grid">
+    <section class="card"><p class="eyebrow">{{ t.efficiency }}</p>
+      <MiniChart v-if="efficiency.length" :labels="chartLabels(efficiency)"
+                 :series="[{ name: 'Workouts', values: efficiency.map(x => x.efficiency), color: '#78e3c0' }, { name: '10-workout trend', values: efficiencyTrend, color: '#74a7ff' }]"/>
+      <p v-else>{{ t.noData }}</p></section>
+    <section class="card"><p class="eyebrow">{{ t.fosterRpe }}</p>
+      <MiniChart v-if="rpeFoster.length" :labels="chartLabels(rpeFoster)"
+                 :series="[{ name: 'Load', values: rpeFoster.map(x => x.load), color: '#74a7ff' }, { name: 'Strain', values: rpeFoster.map(x => x.strain), color: '#e6b66c' }]"/>
+      <p v-else>{{ t.missingRpe }}</p></section>
+  </div>
+  <section class="card"><p class="eyebrow">{{ t.rpe }}</p>
+    <div class="rpe-list"><label v-for="workout in rpeWorkouts" :key="workout.id"><span>{{
+        workout.date
+      }} · {{ workout.sport }}</span><input :value="workout.sessionRpe ?? ''" max="10" min="1" step="1" type="number"
+                                            @change="saveRpe(workout, ($event.target as HTMLInputElement).value)"></label>
+    </div>
+  </section>
 </template>
