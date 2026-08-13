@@ -18,6 +18,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import BackendStatus from './components/BackendStatus.vue'
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './types/workout'
 import { useAnalysis } from './analysis/analysisService'
+import { diagnosticLog } from './services/logger'
 
 const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
@@ -59,6 +60,7 @@ onMounted(async () => {
   const saved = await workoutDb.getAppSettings()
   if (saved) {
     theme.value = saved.theme
+    localStorage.setItem('lauftrainer-theme', saved.theme)
     setLocale(saved.locale)
     connectors.value = saved.connectors || connectors.value
   } else {
@@ -78,6 +80,12 @@ function plain<T>(value: T): T {
 async function saveSettings() {
   const settings: AppSettings = plain({ theme: theme.value, locale: locale.value, connectors: connectors.value })
   await workoutDb.saveAppSettings(settings)
+  localStorage.setItem('lauftrainer-theme', theme.value)
+}
+
+function updateTheme(value: ThemePreference) {
+  theme.value = value
+  localStorage.setItem('lauftrainer-theme', value)
 }
 
 async function refreshConnectors() {
@@ -117,7 +125,11 @@ async function importFiles(event: Event) {
     try {
       await importWorkoutFile(file)
       imported++
-    } catch {
+    } catch (error) {
+      diagnosticLog('import.error', {
+        fileName: file.name,
+        message: error instanceof Error ? error.message : String(error),
+      })
       importProgress.value.failed++
       message.value = t.value.importFailed
     }
@@ -288,7 +300,7 @@ async function saveWorkout(workout: Workout) {
           "
           @update:search="search = $event"
           @update:consent="consent = $event"
-          @update:theme="theme = $event"
+          @update:theme="updateTheme($event)"
           @update:locale="setLocale($event)"
         />
       </RouterView>

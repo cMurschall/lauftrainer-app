@@ -5,9 +5,11 @@ import { parseTcx } from '../parsers/tcx'
 import { parseGpx } from '../parsers/gpx'
 import { parseFit } from '../parsers/fit'
 import { workoutDb } from '../db/database'
+import { diagnosticLog } from './logger'
 
 export async function importWorkoutFile(file: File): Promise<Workout> {
   const extension = file.name.toLowerCase().split('.').pop()
+  diagnosticLog('import.start', { fileName: file.name, extension })
   let workout: Workout
   if (extension === 'fit') workout = parseFit(await file.arrayBuffer(), file.name)
   else {
@@ -21,6 +23,13 @@ export async function importWorkoutFile(file: File): Promise<Workout> {
   workout.sourceFileHash = await hashFile(file)
   workout.id = `${workout.source}-${workout.sourceFileHash}`
   await workoutDb.put(workout)
+  diagnosticLog('import.success', {
+    fileName: file.name,
+    source: workout.source,
+    durationSeconds: workout.durationSeconds,
+    distanceKm: workout.distanceKm,
+    recordCount: workout.records.length,
+  })
   return workout
 }
 

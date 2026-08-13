@@ -52,6 +52,7 @@ const efficiencyTrend = computed(() =>
   }),
 )
 const lastLoad = computed(() => [...load.value].at(-1))
+const tsbContext = computed(() => (lastLoad.value && lastLoad.value.tsb < 0 ? t.value.tsbFatigue : t.value.tsbFresh))
 const lastEfficiency = computed(() => efficiency.value.at(-1))
 const rpeWorkouts = computed(() =>
   props.workouts
@@ -120,30 +121,34 @@ async function saveRpe(workout: Workout, value: string) {
   <section class="stats analysis-stats">
     <article class="card">
       <span>{{ t.ctl }}</span
+      ><small>{{ t.ctlContext }}</small
       ><strong class="metric">{{ lastLoad ? lastLoad.ctl.toFixed(1) : '–' }}</strong>
     </article>
     <article class="card">
       <span>{{ t.atl }}</span
+      ><small>{{ t.atlContext }}</small
       ><strong class="metric">{{ lastLoad ? lastLoad.atl.toFixed(1) : '–' }}</strong>
     </article>
     <article class="card">
       <span>{{ t.tsb }}</span
+      ><small>{{ lastLoad ? tsbContext : t.tsbContext }}</small
       ><strong class="metric">{{ lastLoad ? lastLoad.tsb.toFixed(1) : '–' }}</strong>
     </article>
     <article class="card">
       <span>{{ t.acwr }}</span
       ><strong class="metric">{{ lastLoad?.acwr?.toFixed(2) || '–' }}</strong
-      ><small v-if="lastLoad">{{ lastLoad.risk }}</small>
+      ><small v-if="lastLoad">{{ lastLoad.risk }} · {{ t.acwrContext }}</small>
     </article>
     <article class="card">
       <span>{{ t.trainingTime }}</span
-      ><strong class="metric">{{ (weekly.reduce((sum, x) => sum + x.totalMinutes, 0) / 60).toFixed(1) }} h</strong>
+      ><strong class="metric">{{ (weekly.reduce((sum, x) => sum + x.totalMinutes, 0) / 60).toFixed(1) }} h</strong
+      ><small>{{ t.trainingTimeContext }}</small>
     </article>
     <article class="card">
       <span>{{ t.totalDistance }}</span
       ><strong class="metric"
         >{{ weekly.reduce((sum, x) => sum + x.runningDistanceKm + x.cyclingDistanceKm, 0).toFixed(1) }} km</strong
-      >
+      ><small>{{ t.distanceContext }}</small>
     </article>
   </section>
   <section class="card">

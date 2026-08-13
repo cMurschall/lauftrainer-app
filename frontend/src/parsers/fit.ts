@@ -2,7 +2,14 @@ import { Decoder, Stream } from '@garmin/fitsdk'
 import type { ActivityRecord, Workout } from '../types/workout'
 
 type FitMessage = Record<string, unknown>
-const numeric = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)
+const numeric = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.replace(',', '.').trim())
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
 const dateValue = (value: unknown) =>
   value instanceof Date ? value : typeof value === 'string' || typeof value === 'number' ? new Date(value) : undefined
 

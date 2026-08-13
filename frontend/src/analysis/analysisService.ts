@@ -1,9 +1,10 @@
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { workoutDb, type AnalysisCacheEntry } from '../db/database'
 import { calculateAnalysis } from './analysisEngine'
 import { calculateAnalysis as calculateDashboardAnalysis } from './localAnalysis'
 import type { AnalysisSummary, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from './analysisEngine'
+import { diagnosticLog } from '../services/logger'
 
 export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v1'
 
@@ -49,16 +50,32 @@ function calculateInWorker(
   if (typeof Worker === 'undefined') return Promise.resolve(calculateInMainThread(workouts, config))
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./analysisWorker.ts', import.meta.url), { type: 'module' })
+    const payload = { workouts: structuredClone(toRaw(workouts)), config: structuredClone(toRaw(config)) }
+    diagnosticLog('analysis.worker.start', { workoutCount: workouts.length })
     worker.onmessage = (event) => {
       worker.terminate()
-      if (event.data.error) reject(new Error(event.data.error))
-      else resolve(event.data)
+      if (event.data.error) {
+        diagnosticLog('analysis.worker.error', { message: event.data.error })
+        reject(new Error(event.data.error))
+      } else {
+        diagnosticLog('analysis.worker.success', { workoutCount: workouts.length })
+        resolve(event.data)
+      }
     }
     worker.onerror = (event) => {
       worker.terminate()
-      reject(new Error(event.message || 'Analyse konnte nicht berechnet werden.'))
+      const message = event.message || 'Analyse konnte nicht berechnet werden.'
+      diagnosticLog('analysis.worker.error', { message })
+      reject(new Error(message))
     }
-    worker.postMessage({ workouts, config })
+    try {
+      worker.postMessage(payload)
+    } catch (error) {
+      worker.terminate()
+      const message = error instanceof Error ? error.message : String(error)
+      diagnosticLog('analysis.worker.clone-error', { message })
+      reject(new Error(`Analyse-Daten konnten nicht an den Worker übertragen werden: ${message}`))
+    }
   })
 }
 
@@ -76,12 +93,14 @@ export function useAnalysis() {
     const cached = await workoutDb.getAnalysisCache(cacheKey)
     if (activeKey !== cacheKey) return
     if (cached) {
+      diagnosticLog('analysis.cache.hit', { workoutCount: workouts.length })
       analysisResult.value = cached.analysisResult
       dashboardSummary.value = cached.dashboardSummary
       isCalculating.value = false
       return
     }
     isCalculating.value = true
+    diagnosticLog('analysis.cache.miss', { workoutCount: workouts.length })
     try {
       const result = await calculateInWorker(workouts, config)
       if (activeKey !== cacheKey) return
@@ -90,8 +109,9 @@ export function useAnalysis() {
       const entry: AnalysisCacheEntry = { id: 'analysis', cacheKey, createdAt: new Date().toISOString(), ...result }
       await workoutDb.saveAnalysisCache(entry)
     } catch (error) {
-      if (activeKey === cacheKey)
-        calculationError.value = error instanceof Error ? error.message : 'Analyse konnte nicht berechnet werden.'
+      const message = error instanceof Error ? error.message : 'Analyse konnte nicht berechnet werden.'
+      diagnosticLog('analysis.failed', { message, workoutCount: workouts.length })
+      if (activeKey === cacheKey) calculationError.value = message
     } finally {
       if (activeKey === cacheKey) isCalculating.value = false
     }

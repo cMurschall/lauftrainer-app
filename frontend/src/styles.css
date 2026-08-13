@@ -829,6 +829,18 @@
 }
 
 /* Tailwind standard breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px. */
+@media (width < 48rem) {
+  .sidebar {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1000;
+    transform: translateZ(0);
+  }
+}
+
 @media (width >= 40rem) {
   .hero {
     flex-direction: row;
