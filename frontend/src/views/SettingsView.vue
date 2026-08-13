@@ -27,6 +27,8 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:theme': [value: ThemePreference]; 'update:locale': [value: Locale] }>()
 const { locale, t, setLocale } = useI18n()
 const showGoalForm = ref(false)
+const workoutFileInput = ref<HTMLInputElement | null>(null)
+const backupFileInput = ref<HTMLInputElement | null>(null)
 const editingGoalId = ref<string | null>(null)
 const goalType = ref<GoalType>('personal')
 const goalForm = ref({ title: '', date: '', sport: 'Running', distanceKm: undefined as number | undefined, targetTime: '', targetPace: '', priority: 'B' as 'A' | 'B' | 'C', notes: '' })
@@ -65,6 +67,14 @@ const trainingGoalOptions = computed(() => [
   { label: t.value.goalRecovery, value: 'recovery' },
   { label: t.value.goalGeneralFitness, value: 'general_fitness' },
 ])
+
+function openWorkoutFilePicker() {
+  workoutFileInput.value?.click()
+}
+
+function openBackupFilePicker() {
+  backupFileInput.value?.click()
+}
 
 onMounted(async () => {
   if (window.location.hash !== '#connectors') return
@@ -166,7 +176,7 @@ function submitGoal() {
       </label>
     </div>
   </section>
-  <section id="connectors" class="card settings-section">
+  <section class="card settings-section">
     <p class="eyebrow">{{ t.athleteProfile }}</p>
     <div class="form-grid">
       <label>{{ t.name }}<input v-model="config.name" @change="saveConfig" /></label
@@ -243,7 +253,7 @@ function submitGoal() {
     </div>
     <p v-else class="muted">{{ t.noGoals }}</p>
   </section>
-  <section class="card settings-section">
+  <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.connectors }}</p>
     <div class="connector-list">
       <article v-for="connector in props.connectors" :key="connector.id" class="connector-row">
@@ -288,18 +298,23 @@ function submitGoal() {
       </div>
     </div>
     <div class="settings-actions">
-      <label class="button primary data-action"
-        >{{ t.importFiles }}<input
-          :disabled="props.importProgress.active"
-          accept=".csv,.json,.tcx,.gpx,.fit"
-          multiple
-          type="file"
-          @change="props.importFiles"
-      /></label>
+
+      <input
+        ref="workoutFileInput"
+        :disabled="props.importProgress.active"
+        accept=".csv,.json,.tcx,.gpx,.fit"
+        multiple
+        type="file"
+        @change="props.importFiles"
+      />
       <button class="button secondary data-action" @click="downloadBackup">{{ t.exportBackup }}</button>
-      <label class="button secondary data-action"
-        >{{ t.importBackup }}<input accept=".json" type="file" @change="restoreBackup"
-      /></label>
+       <input ref="backupFileInput" accept=".json" type="file" @change="restoreBackup" />
+      <button class="button secondary data-action" type="button" @click="openBackupFilePicker">
+        {{ t.importBackup }}
+      </button>
+      <button class="button primary data-action" type="button" @click="openWorkoutFilePicker">
+        {{ t.importFiles }}
+      </button>
       <button class="button data-action danger-action" @click="clearData">{{ t.deleteData }}</button>
     </div>
     <div v-if="props.importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
