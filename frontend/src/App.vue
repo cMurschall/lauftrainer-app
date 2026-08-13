@@ -12,6 +12,7 @@ import {
   disconnectConnector,
 } from './services/connectorService'
 import { API_ROOT } from './services/api'
+import { cachedBalance, getBalance } from './services/billingService'
 import { useI18n } from './i18n'
 import { useTheme } from './composables/useTheme'
 import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference, type TrainingGoal } from './types/settings'
@@ -29,6 +30,7 @@ const workouts = ref<Workout[]>([]),
   message = ref(''),
   loading = ref(false),
   consent = ref(false)
+const credits = ref(cachedBalance())
 const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
@@ -81,6 +83,7 @@ function scheduleAnalysisRefresh() {
 }
 useTheme(theme)
 onMounted(async () => {
+  void getBalance().then((value) => { credits.value = value }).catch(() => undefined)
   // Capture the OAuth handoff before asynchronous startup work, especially
   // important when a mobile browser resumes the app after the redirect.
   captureConnectorSession()
@@ -216,6 +219,7 @@ async function createPlan() {
   loading.value = true
   try {
     plan.value = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
+    credits.value = await getBalance()
     completedPlanDays.value = []
     await workoutDb.savePlan(plan.value)
     message.value = t.value.planSaved
@@ -424,7 +428,8 @@ async function saveWorkout(workout: Workout) {
                     completedPlanDays,
                     config,
                     analysis,
-                    message,
+                  message,
+                  credits,
                     loading,
                     consent,
                     connectorLoading,

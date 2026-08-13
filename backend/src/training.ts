@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Env } from './types'
 import { json } from './http'
+import { finishReservation, reserveCredit } from './billing'
 
 const requestSchema = z.object({
   locale: z.enum(['de', 'en']).default('de'),
@@ -29,7 +30,12 @@ const responseSchema = {
 }
 
 export async function createTrainingPlan(request: Request, env: Env): Promise<Response> {
-  if (!env.GEMINI_API_KEY) return json({ detail: 'GEMINI_API_KEY ist nicht konfiguriert.' }, 503, request, env)
+  const requestId = request.headers.get('X-Idempotency-Key')?.trim()
+  if (!requestId || requestId.length > 128) return json({ detail: 'X-Idempotency-Key fehlt oder ist ungültig.' }, 400, request, env)
+  const reservation = await reserveCredit(request, env, requestId)
+  if (reservation.error) return reservation.error
+  if (reservation.replay) return reservation.replay.result_json ? json({ plan: JSON.parse(reservation.replay.result_json), replay: true }, 200, request, env) : json({ detail: 'Diese Anfrage wird bereits verarbeitet.' }, 409, request, env)
+  if (!env.GEMINI_API_KEY) { await finishReservation(env, reservation.reservationId!, null, false); return json({ detail: 'GEMINI_API_KEY ist nicht konfiguriert.' }, 503, request, env) }
   const rawBody = await request.text()
   if (rawBody.length > 128 * 1024) return json({ detail: 'Request ist zu groß.' }, 413, request, env)
   let body: unknown
@@ -38,16 +44,19 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   if (!parsed.success) return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
   const prompt = createPrompt(parsed.data)
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+  let response: Response
+  try { response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 } }),
     signal: AbortSignal.timeout(45_000),
-  })
-  if (!response.ok) return json({ detail: `Gemini antwortete mit ${response.status}.` }, 502, request, env)
+  }) } catch (error) { await finishReservation(env, reservation.reservationId!, null, false); throw error }
+  if (!response.ok) { await finishReservation(env, reservation.reservationId!, null, false); return json({ detail: `Gemini antwortete mit ${response.status}.` }, 502, request, env) }
   const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('')
   if (!text) throw new Error('Gemini lieferte keinen Text zurück.')
-  const plan = planSchema.parse(parseJson(text))
+  let plan: z.infer<typeof planSchema>
+  try { plan = planSchema.parse(parseJson(text)) } catch (error) { await finishReservation(env, reservation.reservationId!, null, false); throw error }
+  await finishReservation(env, reservation.reservationId!, plan, true)
   return json({ plan }, 200, request, env)
 }
 

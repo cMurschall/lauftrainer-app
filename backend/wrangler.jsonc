@@ -16,6 +16,20 @@
       "id": "1191571c9bd84094bbc10c8d884b03e1"
     }
   ],
+  "d1_databases": [
+    {
+      "database_name": "lauftrainer-billing",
+      "migrations_dir": "migrations",
+      "binding": "lauftrainer_billing",
+      "database_name": "lauftrainer-billing",
+      "database_id": "020deef6-2515-43c5-b1e2-30df754364b7"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
   "observability": {
     "enabled": true
   }

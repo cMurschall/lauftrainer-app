@@ -5,6 +5,7 @@ import * as strava from './strava'
 import { disconnect, listStatus, syncAll } from './connectors'
 import { createTrainingPlan } from './training'
 import type { Env } from './types'
+import { balance, createCheckout, createWallet, paddleWebhook, redeemVoucher, cleanupReservations } from './billing'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -25,10 +26,16 @@ export default {
       const disconnectMatch = path.match(/^\/api\/connectors\/(polar|strava)\/disconnect$/)
       if (request.method === 'POST' && disconnectMatch) return await disconnect(request, env, disconnectMatch[1])
       if (request.method === 'POST' && path === '/api/training-plan') return await createTrainingPlan(request, env)
+      if (request.method === 'POST' && path === '/api/billing/wallet') return await createWallet(request, env)
+      if (request.method === 'GET' && path === '/api/billing/balance') return await balance(request, env)
+      if (request.method === 'POST' && path === '/api/billing/checkout') return await createCheckout(request, env)
+      if (request.method === 'POST' && path === '/api/billing/voucher/redeem') return await redeemVoucher(request, env)
+      if (request.method === 'POST' && path === '/api/billing/webhook') return await paddleWebhook(request, env)
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
       console.error('Worker error:', error)
       return json({ detail: path.startsWith('/api/polar/') ? 'Polar-OAuth konnte nicht verarbeitet werden.' : 'KI-Aufruf konnte nicht verarbeitet werden.' }, 502, request, env)
     }
-  }
+  },
+  async scheduled(_event: ScheduledEvent, env: Env) { await cleanupReservations(env) }
 }

@@ -2,6 +2,7 @@ import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from '../analysis/analysisEngine'
 import type { TrainingGoal } from '../types/settings'
 import { API_URL } from './api'
+import { ensureWallet, idempotencyKey, walletToken } from './billingService'
 
 function round(value: number | undefined, digits = 1) {
   if (value === undefined || !Number.isFinite(value)) return undefined
@@ -16,11 +17,12 @@ export async function requestTrainingPlan(
   goals: TrainingGoal[],
   locale: 'de' | 'en',
 ): Promise<TrainingPlanDay[]> {
+  await ensureWallet()
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const latestLoad = analysis?.load.at(-1)
   const response = await fetch(`${API_URL}/training-plan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Wallet-Token': walletToken(), 'X-Idempotency-Key': idempotencyKey() },
     body: JSON.stringify({
       locale,
       profile: {
@@ -89,7 +91,10 @@ export async function requestTrainingPlan(
       })),
     }),
   })
-  if (!response.ok) throw new Error(`KI-Backend antwortete mit ${response.status}.`)
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null) as { detail?: string } | null
+    throw new Error(detail?.detail || `KI-Backend antwortete mit ${response.status}.`)
+  }
   const result = (await response.json()) as { plan: TrainingPlanDay[] }
   if (!Array.isArray(result.plan)) throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
   return result.plan

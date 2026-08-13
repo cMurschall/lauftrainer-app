@@ -24,6 +24,7 @@ const props = defineProps<{
     weekly: Array<{ weekStart: string; distanceKm: number; workoutCount: number }>
   }
   message: string
+  credits: number
   loading: boolean
   consent: boolean
   connectorLoading: boolean
@@ -91,6 +92,7 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     </button>
   </section>
   <div class="dashboard-flow">
+  <section class="card"><p class="eyebrow">CREDITS</p><strong class="metric">{{ credits }}</strong><span class="muted">1 Credit pro erfolgreicher Plan</span></section>
   <section class="stats dashboard-stats">
     <article class="card">
       <span>{{ t.workouts }}</span
