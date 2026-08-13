@@ -35,13 +35,17 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   const reservation = await reserveCredit(request, env, requestId)
   if (reservation.error) return reservation.error
   if (reservation.replay) return reservation.replay.result_json ? json({ plan: JSON.parse(reservation.replay.result_json), replay: true }, 200, request, env) : json({ detail: 'Diese Anfrage wird bereits verarbeitet.' }, 409, request, env)
-  if (!env.GEMINI_API_KEY) { await finishReservation(env, reservation.reservationId!, null, false); return json({ detail: 'GEMINI_API_KEY ist nicht konfiguriert.' }, 503, request, env) }
   const rawBody = await request.text()
   if (rawBody.length > 128 * 1024) return json({ detail: 'Request ist zu groß.' }, 413, request, env)
   let body: unknown
   try { body = JSON.parse(rawBody) } catch { return json({ detail: 'Ungültiges JSON.' }, 400, request, env) }
   const parsed = requestSchema.safeParse(body)
   if (!parsed.success) return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
+  if (!env.GEMINI_API_KEY) {
+    const plan = createDebugPlan(parsed.data.locale)
+    await finishReservation(env, reservation.reservationId!, plan, true)
+    return json({ plan, debug: true, detail: 'Testplan: GEMINI_API_KEY ist nicht konfiguriert.' }, 200, request, env)
+  }
   const prompt = createPrompt(parsed.data)
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
   let response: Response
@@ -58,6 +62,42 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   try { plan = planSchema.parse(parseJson(text)) } catch (error) { await finishReservation(env, reservation.reservationId!, null, false); throw error }
   await finishReservation(env, reservation.reservationId!, plan, true)
   return json({ plan }, 200, request, env)
+}
+
+function createDebugPlan(locale: 'de' | 'en'): z.infer<typeof planSchema> {
+  const english = locale === 'en'
+  const days = english
+    ? [
+        ['Monday', 'Rest', 'TEST PLAN — no Gemini key configured.', 'Recovery'],
+        ['Tuesday', 'Running', 'TEST PLAN — easy aerobic run.', 'Base endurance'],
+        ['Wednesday', 'Rest', 'TEST PLAN — recovery day.', 'Recovery'],
+        ['Thursday', 'Running', 'TEST PLAN — controlled interval session.', 'Speed'],
+        ['Friday', 'Rest', 'TEST PLAN — recovery day.', 'Recovery'],
+        ['Saturday', 'Running', 'TEST PLAN — relaxed long run.', 'Endurance'],
+        ['Sunday', 'Walking', 'TEST PLAN — easy active recovery.', 'Recovery'],
+      ]
+    : [
+        ['Montag', 'Rest', 'TESTPLAN — Gemini-Key ist nicht konfiguriert.', 'Erholung'],
+        ['Dienstag', 'Running', 'TESTPLAN — lockerer aerober Lauf.', 'Grundlagenausdauer'],
+        ['Mittwoch', 'Rest', 'TESTPLAN — Erholungstag.', 'Erholung'],
+        ['Donnerstag', 'Running', 'TESTPLAN — kontrollierte Intervalleinheit.', 'Schnelligkeit'],
+        ['Freitag', 'Rest', 'TESTPLAN — Erholungstag.', 'Erholung'],
+        ['Samstag', 'Running', 'TESTPLAN — entspannter langer Lauf.', 'Ausdauer'],
+        ['Sonntag', 'Walking', 'TESTPLAN — lockere aktive Erholung.', 'Erholung'],
+      ]
+  const durations = [0, 35, 0, 40, 0, 55, 25]
+  return planSchema.parse(days.map(([day, sport, description, focus], index) => ({
+    day,
+    sport,
+    description,
+    target_focus: focus,
+    total_duration_minutes: durations[index],
+    workout_steps: [{
+      step_duration: durations[index] ? `${durations[index]} min` : 'Ruhetag',
+      step_intensity: durations[index] ? 'Locker' : 'Erholung',
+      step_instruction: description,
+    }],
+  })))
 }
 
 function parseJson(text: string): unknown {

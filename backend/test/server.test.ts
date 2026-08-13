@@ -11,7 +11,7 @@ describe('worker routing', () => {
   it('returns health and CORS headers', async () => {
     const response = await server.fetch(new Request('http://worker.test/health', { headers: { Origin: 'http://localhost:5173' } }), env as never)
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { status: 'ok', version: '0.1.0' })
+    assert.deepEqual(await response.json(), { status: 'ok', version: '0.1.0', commit: '' })
     assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'http://localhost:5173')
   })
 

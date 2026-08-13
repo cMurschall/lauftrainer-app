@@ -45,17 +45,23 @@ onMounted(loadPrices)
     <div class="page-heading">
       <p class="eyebrow">LaufTrainer</p>
       <h1>Wähle deinen Trainingsplan</h1>
-      <p class="muted">Lokale Analyse, sichere KI-Planung und klare Fortschritte.</p>
+      <p class="pricing-lead">Dein persönlicher Trainingscoach — lokal ausgewertet, klar geplant.</p>
+      <p class="muted">Ein Credit genügt für einen vollständigen 7-Tage-Trainingsplan.</p>
     </div>
     <p v-if="country" class="muted pricing-country">Preis für {{ country }}</p>
     <p v-if="error" class="form-error">{{ error }}</p>
     <section class="pricing-grid" aria-live="polite">
       <article v-for="tier in tiers" :key="tier.name" class="card pricing-card">
-        <p class="eyebrow">{{ tier.name }}</p>
-        <h2>{{ tier.description }}</h2>
+        <div class="pricing-card-topline">
+          <p class="eyebrow">{{ tier.name }}</p>
+          <span class="pricing-badge">Einmalig</span>
+        </div>
+        <h2>10 Credits für deine Trainingsplanung</h2>
+        <p class="pricing-description">{{ tier.description }}</p>
         <div class="pricing-amount">{{ loading ? '…' : prices[tier.name] || '—' }}</div>
+        <p class="pricing-unit">10 KI-Trainingspläne · kein Abo</p>
         <ul><li v-for="feature in tier.features" :key="feature">{{ feature }}</li></ul>
-        <button class="button primary pricing-button" type="button" :disabled="loading || checkoutTier !== undefined" @click="subscribe(tier)">{{ checkoutTier === tier.name ? 'Checkout wird geöffnet …' : 'Abonnieren' }}</button>
+        <button class="button primary pricing-button" type="button" :disabled="loading || checkoutTier !== undefined" @click="subscribe(tier)">{{ checkoutTier === tier.name ? 'Checkout wird geöffnet …' : '10 Credits kaufen' }}</button>
       </article>
     </section>
     <button class="text-button" type="button" @click="router.push('/')">Zurück zum Dashboard</button>
