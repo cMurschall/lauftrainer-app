@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
@@ -12,6 +13,7 @@ import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
 import { clearAllData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
 
+const route = useRoute()
 const settings = useSettingsStore()
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -75,11 +77,25 @@ function openBackupFilePicker() {
   backupFileInput.value?.click()
 }
 
-onMounted(async () => {
-  if (window.location.hash !== '#connectors') return
+async function scrollToConnectors() {
+  if (route.hash !== '#connectors') return
   await nextTick()
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
   document.getElementById('connectors')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+onMounted(() => {
+  void scrollToConnectors()
 })
+
+watch(
+  () => route.hash,
+  () => {
+    void scrollToConnectors()
+  },
+)
 
 async function changeTheme(value: ThemePreference) {
   settings.updateTheme(value)
@@ -193,6 +209,88 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       </label>
     </div>
   </section>
+  <section id="connectors" class="card settings-section">
+    <p class="eyebrow">{{ t.connectors }}</p>
+    <div class="connector-list">
+      <article v-for="connector in connectors" :key="connector.id" class="connector-row">
+        <div>
+          <strong>{{ connector.name }}</strong
+          ><span class="muted">{{ connector.connected ? t.connectorConnected : t.connectorNotConnected }}</span>
+        </div>
+        <div class="connector-controls">
+          <button
+            v-if="!connector.connected"
+            class="button primary connector-action"
+            type="button"
+            @click="settings.connectConnector(connector.id)"
+          >
+            {{ t.connectConnector }}
+          </button>
+          <button v-else class="button secondary connector-action" type="button" @click="settings.removeConnector(connector.id)">
+            {{ t.disconnectConnector }}
+          </button>
+          <label class="switch"
+            ><input
+              :checked="connector.active"
+              type="checkbox"
+              @change="setConnectorActive(connector.id, ($event.target as HTMLInputElement).checked)"
+            /><span>{{
+              connector.active ? t.connectorActive : t.connectorInactive
+            }}</span></label
+          >
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="card settings-section">
+    <p class="eyebrow">{{ t.dataSettings }}</p>
+    <div class="local-data-summary">
+      <div>
+        <strong>{{ summaries.length }}</strong>
+        <span>{{ t.localWorkouts }}</span>
+      </div>
+      <div>
+        <strong>{{ workoutDateRange }}</strong>
+        <span>{{ t.localPeriod }}</span>
+      </div>
+      <div>
+        <strong>{{ goals.length }} · {{ plan.days.length }}</strong>
+        <span>{{ t.localGoalsAndPlan }}</span>
+      </div>
+      <div>
+        <strong>~{{ localDataSize }}</strong>
+        <span>{{ t.localStorageUsed }}</span>
+      </div>
+    </div>
+    <div class="settings-actions">
+      <input
+        ref="workoutFileInput"
+        :disabled="importProgress.active"
+        accept=".csv,.json,.tcx,.gpx,.fit"
+        multiple
+        type="file"
+        @change="onImportFiles"
+      />
+      <button class="button secondary data-action" type="button" @click="downloadBackup">{{ t.exportBackup }}</button>
+      <input ref="backupFileInput" accept=".json" type="file" @change="restoreBackup" />
+      <button class="button secondary data-action" type="button" @click="openBackupFilePicker">
+        {{ t.importBackup }}
+      </button>
+      <button class="button secondary data-action" type="button" @click="openWorkoutFilePicker">
+        {{ t.importFiles }}
+      </button>
+      <button class="button data-action danger-action" type="button" @click="clearAllData">{{ t.deleteData }}</button>
+    </div>
+    <div v-if="importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
+      <div class="card-heading">
+        <p class="eyebrow">{{ t.importProgressLabel }}</p>
+        <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
+      </div>
+      <progress :max="importProgress.total" :value="importProgress.current"></progress>
+      <small>{{ importProgress.fileName }}</small>
+    </div>
+    <p class="muted">{{ t.localUpload }}</p>
+  </section>
   <section class="card settings-section">
     <p class="eyebrow">{{ t.athleteProfile }}</p>
     <div class="form-grid">
@@ -283,82 +381,5 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       </article>
     </div>
     <p v-else class="muted">{{ t.noGoals }}</p>
-  </section>
-  <section id="connectors" class="card settings-section">
-    <p class="eyebrow">{{ t.connectors }}</p>
-    <div class="connector-list">
-      <article v-for="connector in connectors" :key="connector.id" class="connector-row">
-        <div>
-          <strong>{{ connector.name }}</strong
-          ><span class="muted">{{ connector.connected ? t.connectorConnected : t.connectorNotConnected }}</span>
-        </div>
-        <div class="connector-controls">
-          <button v-if="!connector.connected" class="button secondary connector-action" type="button" @click="settings.connectConnector(connector.id)">
-            {{ t.connectConnector }}
-          </button>
-          <button v-else class="button secondary connector-action" type="button" @click="settings.removeConnector(connector.id)">
-            {{ t.disconnectConnector }}
-          </button>
-          <label class="switch"
-            ><input
-              :checked="connector.active"
-              type="checkbox"
-              @change="setConnectorActive(connector.id, ($event.target as HTMLInputElement).checked)"
-            /><span>{{
-              connector.active ? t.connectorActive : t.connectorInactive
-            }}</span></label
-          >
-        </div>
-      </article>
-    </div>
-  </section>
-  <section class="card settings-section">
-    <p class="eyebrow">{{ t.dataSettings }}</p>
-    <div class="local-data-summary">
-      <div>
-        <strong>{{ summaries.length }}</strong>
-        <span>{{ t.localWorkouts }}</span>
-      </div>
-      <div>
-        <strong>{{ workoutDateRange }}</strong>
-        <span>{{ t.localPeriod }}</span>
-      </div>
-      <div>
-        <strong>{{ goals.length }} · {{ plan.days.length }}</strong>
-        <span>{{ t.localGoalsAndPlan }}</span>
-      </div>
-      <div>
-        <strong>~{{ localDataSize }}</strong>
-        <span>{{ t.localStorageUsed }}</span>
-      </div>
-    </div>
-    <div class="settings-actions">
-      <input
-        ref="workoutFileInput"
-        :disabled="importProgress.active"
-        accept=".csv,.json,.tcx,.gpx,.fit"
-        multiple
-        type="file"
-        @change="onImportFiles"
-      />
-      <button class="button secondary data-action" type="button" @click="downloadBackup">{{ t.exportBackup }}</button>
-      <input ref="backupFileInput" accept=".json" type="file" @change="restoreBackup" />
-      <button class="button secondary data-action" type="button" @click="openBackupFilePicker">
-        {{ t.importBackup }}
-      </button>
-      <button class="button primary data-action" type="button" @click="openWorkoutFilePicker">
-        {{ t.importFiles }}
-      </button>
-      <button class="button data-action danger-action" type="button" @click="clearAllData">{{ t.deleteData }}</button>
-    </div>
-    <div v-if="importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
-      <div class="card-heading">
-        <p class="eyebrow">{{ t.importProgressLabel }}</p>
-        <strong>{{ importProgress.current }} / {{ importProgress.total }}</strong>
-      </div>
-      <progress :max="importProgress.total" :value="importProgress.current"></progress>
-      <small>{{ importProgress.fileName }}</small>
-    </div>
-    <p class="muted">{{ t.localUpload }}</p>
   </section>
 </template>

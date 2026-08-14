@@ -109,7 +109,7 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
     </div>
   </Transition>
   <div class="dashboard-flow" :class="{ 'has-plan': hasPlan }">
-    <section class="stats dashboard-stats">
+    <section v-if="summaries.length" class="stats dashboard-stats">
       <article class="card">
         <span>{{ t.workouts }}</span>
         <strong class="metric">{{ summaries.length }}</strong>
@@ -151,8 +151,8 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
         {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
       </button>
     </section>
-    <p v-else class="connector-empty-banner muted" :data-banner="bannerKind">
-      <span>{{ bannerKind === 'localData' ? t.noSyncSourceWithData : t.noConnectedSource }}</span>
+    <p v-else-if="bannerKind === 'localData'" class="connector-empty-banner muted" :data-banner="bannerKind">
+      <span>{{ t.noSyncSourceWithData }}</span>
       <RouterLink class="button secondary connector-connect-button" to="/settings#connectors">
         {{ t.connectTrainingSource }}
       </RouterLink>
@@ -215,7 +215,7 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
       </article>
     </section>
 
-    <section class="card ai-plan-card" :class="{ compact: hasPlan }">
+    <section v-if="summaries.length" class="card ai-plan-card" :class="{ compact: hasPlan }">
       <div class="credits-summary">
         <p class="eyebrow">{{ t.creditLabel }}</p>
         <strong class="metric">{{ credits }}</strong>

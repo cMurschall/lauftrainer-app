@@ -121,12 +121,15 @@ describe('DashboardView UX', () => {
     expect(wrapper.text()).toMatch(/Local workouts|Lokale Workouts/)
   })
 
-  it('shows empty-source copy without workouts', async () => {
+  it('shows a single connect CTA without empty banner, stats, or create plan', async () => {
     const wrapper = await mountDashboard()
     useWorkoutStore().workouts = []
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('[data-banner="empty"]').exists()).toBe(true)
-    expect(wrapper.text()).toMatch(/No active training source|Keine aktive Trainingsquelle/)
+    expect(wrapper.find('[data-banner="empty"]').exists()).toBe(false)
+    expect(wrapper.find('.dashboard-stats').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-plan-button"]').exists()).toBe(false)
+    expect(wrapper.find('.dashboard-empty-hero').exists()).toBe(true)
+    expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
   })
 
   it('disables create for zero credits outside local mode', async () => {
