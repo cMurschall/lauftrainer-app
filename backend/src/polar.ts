@@ -42,6 +42,37 @@ export async function sync(request: Request, env: Env): Promise<Response> {
   if (access.x_user_id) { const registration = await fetch('https://www.polaraccesslink.com/v3/users', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ 'member-id': access.x_user_id }) }); if (!registration.ok && registration.status !== 409) return json({ detail: `Polar-Nutzer konnte nicht registriert werden (${registration.status}).` }, 502, request, env) }
   const response = await fetch('https://www.polaraccesslink.com/v3/exercises', { headers }); if (response.status === 204) return json({ workouts: [], count: 0 }, 200, request, env); if (!response.ok) return json({ detail: `Polar-Trainings konnten nicht geladen werden (${response.status}).` }, 502, request, env)
   const raw = await response.json() as unknown, exercises = Array.isArray(raw) ? raw : (raw as { exercises?: unknown[] }).exercises || []
-  const workouts = exercises.map((exercise, index) => { const item = exercise as Record<string, unknown>, date = String(item['start-time'] || item.start_time || item.startTime || item.date || new Date().toISOString()), distance = number(item.distance); return { id: `polar-${String(item.id || item['exercise-id'] || `${date}-${index}`)}`, source: 'polar-json', name: String(item.name || item.sport || 'Polar workout'), sport: String(item.sport || 'RUNNING'), date, durationSeconds: seconds(item.duration ?? item['duration-seconds']), distanceKm: distance !== undefined && distance > 100 ? distance / 1000 : distance, averageHeartRate: number(item['average-heart-rate'] ?? item.average_heart_rate ?? item.averageHeartRate), calories: number(item.calories), records: [], importedAt: new Date().toISOString() } })
+  const workouts = exercises.map((exercise, index) => {
+    const item = exercise as Record<string, unknown>
+    const date = String(item['start-time'] || item.start_time || item.startTime || item.date || new Date().toISOString())
+    const distance = number(item.distance)
+    const ascent = number(
+      item.ascent ??
+        item.climbing ??
+        item.elevation ??
+        item['ascent'] ??
+        item['climbing'] ??
+        item['elevation'] ??
+        item['total-ascent'] ??
+        item.total_ascent ??
+        item.altitude,
+    )
+    const elevationGainM = ascent !== undefined && ascent > 0 ? ascent : undefined
+    return {
+      id: `polar-${String(item.id || item['exercise-id'] || `${date}-${index}`)}`,
+      source: 'polar-json',
+      name: String(item.name || item.sport || 'Polar workout'),
+      sport: String(item.sport || 'RUNNING'),
+      date,
+      durationSeconds: seconds(item.duration ?? item['duration-seconds']),
+      distanceKm: distance !== undefined && distance > 100 ? distance / 1000 : distance,
+      averageHeartRate: number(item['average-heart-rate'] ?? item.average_heart_rate ?? item.averageHeartRate),
+      calories: number(item.calories),
+      ascentM: elevationGainM,
+      elevationGainM,
+      records: [],
+      importedAt: new Date().toISOString(),
+    }
+  })
   return json({ workouts, count: workouts.length }, 200, request, env)
 }

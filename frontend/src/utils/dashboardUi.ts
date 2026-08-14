@@ -25,6 +25,15 @@ export function connectorBannerKind(input: {
   return 'empty'
 }
 
+/** Polar→Strava users who sync both connectors risk double-counting workouts. */
+export function shouldWarnPolarStravaOverlap(
+  connectors: Array<{ id: string; connected: boolean; active: boolean }>,
+): boolean {
+  const polar = connectors.find((item) => item.id === 'polar')
+  const strava = connectors.find((item) => item.id === 'strava')
+  return Boolean(polar?.connected && polar.active && strava?.connected && strava.active)
+}
+
 export type CreatePlanButtonMode = 'create' | 'replace'
 
 export function createPlanButtonMode(input: { hasPlan: boolean }): CreatePlanButtonMode {

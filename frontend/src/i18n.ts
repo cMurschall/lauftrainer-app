@@ -73,6 +73,7 @@ const translations = {
     helpHrZones: [
       'Verteilung der Herzfrequenzzeit auf fünf Zonen je Woche.',
       'Viele Wochen mit viel Z4/Z5 ohne Basisanteil können auf zu harte Belastung hinweisen.',
+      'Dafür braucht es einen Pulsstrom in den Workouts — Sync liefert den oft nicht; Dateiimport (FIT, TCX, Polar-CSV) schon.',
     ],
     helpEfficiency: [
       'Lauf-Effizienz schätzt Tempo relativ zur Herzfrequenz.',
@@ -84,6 +85,8 @@ const translations = {
     save: 'Speichern',
     missingRpe: 'Trage RPE-Werte ein, um diese Auswertung zu aktivieren.',
     noHr: 'Keine ausreichenden Herzfrequenzwerte vorhanden.',
+    needHrStream:
+      'Für die 5-Zonen-Verteilung fehlt ein Pulsstrom. Polar-/Strava-Sync liefert meist nur Durchschnittswerte — importiere FIT, TCX oder Polar-CSV mit HR-Details.',
     greeting: 'Dein Training im Überblick',
     heroTitle: 'Deine Daten bleiben auf deinem Gerät.',
     heroText: 'Importiere Polar-Exporte, analysiere deine Historie lokal und fordere bei Bedarf einen KI-Plan an.',
@@ -202,6 +205,8 @@ const translations = {
     syncConnectors: 'Alle aktiven synchronisieren',
     syncingConnectors: 'Connectoren werden synchronisiert …',
     syncAllConnectors: 'Aktive Trainingsquellen',
+    polarStravaOverlapWarning:
+      'Polar und Strava sind gleichzeitig aktiv. Wenn Polar nach Strava synchronisiert, können dieselben Einheiten doppelt landen — die Deduplizierung erkennt das nicht immer. Am besten eine Quelle wählen und die andere deaktivieren oder trennen.',
     syncFailed: 'Synchronisierung fehlgeschlagen.',
     importSuccess: (count: number) => `${count} Datei(en) lokal verarbeitet.`,
     importFailed: 'Import fehlgeschlagen.',
@@ -330,6 +335,7 @@ const translations = {
     helpHrZones: [
       'Heart-rate time distribution across five zones per week.',
       'Many weeks with lots of Z4/Z5 and little base work can signal overly hard loading.',
+      'This needs a heart-rate stream in your workouts — sync often only provides averages; import FIT, TCX, or Polar CSV with HR details.',
     ],
     helpEfficiency: [
       'Run efficiency estimates pace relative to heart rate.',
@@ -341,6 +347,8 @@ const translations = {
     save: 'Save',
     missingRpe: 'Add RPE values to activate this analysis.',
     noHr: 'Not enough heart-rate data available.',
+    needHrStream:
+      'The 5-zone distribution needs a heart-rate stream. Polar/Strava sync usually only provides averages — import FIT, TCX, or Polar CSV with HR details.',
     greeting: 'Your training at a glance',
     heroTitle: 'Your data stays on your device.',
     heroText: 'Import Polar exports, analyze your history locally and request an AI plan when needed.',
@@ -459,6 +467,8 @@ const translations = {
     syncConnectors: 'Sync all active',
     syncingConnectors: 'Syncing connectors …',
     syncAllConnectors: 'Active training sources',
+    polarStravaOverlapWarning:
+      'Polar and Strava are both active. If Polar syncs to Strava, the same sessions can appear twice — deduplication is not always reliable. Prefer one source and deactivate or disconnect the other.',
     syncFailed: 'Synchronization failed.',
     importSuccess: (count: number) => `${count} file(s) processed locally.`,
     importFailed: 'Import failed.',

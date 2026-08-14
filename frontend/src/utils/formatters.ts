@@ -27,13 +27,10 @@ export function formatChartDate(value: string, locale = 'de-DE'): string {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
   const date = new Date(match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00Z` : value)
   if (!Number.isFinite(date.getTime())) return '–'
-  const dayMonth = new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(date)
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
   const week = isoWeekNumber(date)
-  return locale.toLowerCase().startsWith('de') ? `${dayMonth} · KW ${week}` : `${dayMonth} · W${week}`
+  return locale.toLowerCase().startsWith('de') ? `KW ${week} · ${day}.${month}.` : `W${week} · ${day}.${month}.`
 }
 
 export function formatWeekLabel(value: string, locale = 'de-DE'): string {

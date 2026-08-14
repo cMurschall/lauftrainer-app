@@ -76,6 +76,18 @@ const rpeWorkouts = computed(() =>
     .slice(0, 30),
 )
 const rpeFoster = computed(() => results.value.fosterRpe.filter((x) => inRange(x.weekStart)))
+const rangedWorkouts = computed(() => workoutsStore.workouts.filter((w) => inRange(w.date)))
+const hasHrStream = computed(() =>
+  rangedWorkouts.value.some((w) => w.records?.some((r) => Number.isFinite(r.heartRateBpm))),
+)
+const hasAvgHr = computed(() =>
+  rangedWorkouts.value.some((w) => Number.isFinite(w.averageHeartRate) && (w.averageHeartRate as number) > 0),
+)
+const hrZonesEmptyMessage = computed(() => {
+  if (!rangedWorkouts.value.length) return 'noData' as const
+  if (!hasHrStream.value && (hasAvgHr.value || rangedWorkouts.value.length > 0)) return 'needHrStream' as const
+  return 'noHr' as const
+})
 const weeklyChart = computed(() =>
   weeklyMetric.value === 'minutes'
     ? {
@@ -374,7 +386,18 @@ async function saveRpe(workout: Workout, value: string) {
           </div>
         </div>
       </div>
-      <p v-else>{{ t.noHr }}</p>
+      <div v-else class="analysis-empty">
+        <p v-if="hrZonesEmptyMessage === 'needHrStream'">{{ t.needHrStream }}</p>
+        <p v-else-if="hrZonesEmptyMessage === 'noData'">{{ t.noData }}</p>
+        <p v-else>{{ t.noHr }}</p>
+        <RouterLink
+          v-if="hrZonesEmptyMessage === 'needHrStream'"
+          class="button secondary"
+          to="/settings#connectors"
+        >
+          {{ t.importFiles }}
+        </RouterLink>
+      </div>
       <ChartHelp :summary="t.chartHelpSummary" :paragraphs="t.helpHrZones" />
     </section>
     <div class="analysis-grid analysis-chart-grid">

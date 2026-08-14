@@ -12,6 +12,7 @@ import { usePlanStore } from '../stores/plan'
 import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
 import { clearAllData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
+import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
 
 const route = useRoute()
 const settings = useSettingsStore()
@@ -68,6 +69,7 @@ const enduranceSports = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking'] a
 const supportSports = ['Strength', 'Mobility'] as const
 const sportLabel = (sport: TrainingSportCategory) => t.value[sport.toLowerCase() as 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility']
 const availableSportOptions = computed(() => TRAINING_SPORT_CATEGORIES.map((sport) => ({ value: sport, label: sportLabel(sport) })))
+const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
 
 function openWorkoutFilePicker() {
   workoutFileInput.value?.click()
@@ -211,6 +213,14 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
   </section>
   <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.connectors }}</p>
+    <p
+      v-if="showPolarStravaOverlapWarning"
+      class="notice notice-warning"
+      role="status"
+      data-banner="polarStravaOverlap"
+    >
+      {{ t.polarStravaOverlapWarning }}
+    </p>
     <div class="connector-list">
       <article v-for="connector in connectors" :key="connector.id" class="connector-row">
         <div>

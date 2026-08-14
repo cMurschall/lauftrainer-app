@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { canCreatePlan, connectorBannerKind, createPlanButtonMode, isTrainingPlanLocalMode } from './dashboardUi'
+import {
+  canCreatePlan,
+  connectorBannerKind,
+  createPlanButtonMode,
+  isTrainingPlanLocalMode,
+  shouldWarnPolarStravaOverlap,
+} from './dashboardUi'
 
 describe('dashboardUi helpers', () => {
   it('detects local training plan modes', () => {
@@ -33,6 +39,27 @@ describe('dashboardUi helpers', () => {
     expect(connectorBannerKind({ hasWorkouts: false, hasActiveConnected: false })).toBe('empty')
     expect(connectorBannerKind({ hasWorkouts: true, hasActiveConnected: false })).toBe('localData')
     expect(connectorBannerKind({ hasWorkouts: true, hasActiveConnected: true })).toBe('sync')
+  })
+
+  it('warns when Polar and Strava are both connected and active', () => {
+    expect(
+      shouldWarnPolarStravaOverlap([
+        { id: 'polar', connected: true, active: true },
+        { id: 'strava', connected: true, active: true },
+      ]),
+    ).toBe(true)
+    expect(
+      shouldWarnPolarStravaOverlap([
+        { id: 'polar', connected: true, active: true },
+        { id: 'strava', connected: true, active: false },
+      ]),
+    ).toBe(false)
+    expect(
+      shouldWarnPolarStravaOverlap([
+        { id: 'polar', connected: true, active: true },
+        { id: 'strava', connected: false, active: true },
+      ]),
+    ).toBe(false)
   })
 
   it('switches create vs replace button mode', () => {

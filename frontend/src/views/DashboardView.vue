@@ -23,6 +23,7 @@ import {
   connectorBannerKind,
   createPlanButtonMode,
   isTrainingPlanLocalMode,
+  shouldWarnPolarStravaOverlap,
 } from '../utils/dashboardUi'
 
 const workouts = useWorkoutStore()
@@ -45,6 +46,7 @@ const formatWorkoutDate = (value: string) =>
 const recentWorkouts = computed(() =>
   [...summaries.value].sort((a, b) => b.date.localeCompare(a.date)),
 )
+const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
 const strongestWeekDistance = computed(() =>
   Math.max(...analysis.value.weekly.map((week) => week.distanceKm).filter(Number.isFinite), 0),
 )
@@ -147,6 +149,14 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
         </div>
         <span class="connection-dot"></span>
       </div>
+      <p
+        v-if="showPolarStravaOverlapWarning"
+        class="notice notice-warning"
+        role="status"
+        data-banner="polarStravaOverlap"
+      >
+        {{ t.polarStravaOverlapWarning }}
+      </p>
       <button :disabled="connectorLoading" class="button primary" type="button" @click="syncConnectors">
         {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
       </button>
