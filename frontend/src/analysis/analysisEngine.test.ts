@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calculateAcwr,
+  calculateAnalysis,
   calculateEfficiency,
   calculateFosterMetrics,
   calculateHrZoneDistribution,
   calculatePolarization,
+  calculateRpeFosterMetrics,
   calculateTrainingLoad,
   isoWeekStart,
 } from './analysisEngine'
@@ -119,5 +122,76 @@ describe('analysis engine', () => {
         workout({ distanceKm: undefined }),
       ]),
     ).toHaveLength(1)
+  })
+
+  it('assigns ACWR risk bands low / optimal / spike', () => {
+    const steady: Workout[] = []
+    for (let day = 0; day < 42; day++) {
+      if (day % 2 !== 0) continue
+      const date = new Date(Date.UTC(2025, 0, 1 + day)).toISOString().slice(0, 10)
+      const [y, m, d] = date.split('-')
+      steady.push(
+        workout({
+          date: `${d}-${m}-${y}`,
+          averageHeartRate: 120,
+          durationSeconds: 1800,
+        }),
+      )
+    }
+    for (let day = 42; day < 49; day++) {
+      const date = new Date(Date.UTC(2025, 0, 1 + day)).toISOString().slice(0, 10)
+      const [y, m, d] = date.split('-')
+      steady.push(
+        workout({
+          date: `${d}-${m}-${y}`,
+          averageHeartRate: 165,
+          durationSeconds: 7200,
+        }),
+      )
+    }
+    const load = calculateTrainingLoad(steady, config)
+    const withAcwr = calculateAcwr(load)
+    expect(withAcwr.length).toBeGreaterThan(0)
+    expect(withAcwr.every((day) => day.ctl > 0)).toBe(true)
+    const spiked = withAcwr.filter((day) => day.risk === 'spike')
+    expect(spiked.length).toBeGreaterThan(0)
+    expect(spiked.every((day) => (day.acwr ?? 0) > 1.3)).toBe(true)
+  })
+
+  it('computes RPE Foster metrics only from sessions with valid RPE', () => {
+    const withRpe = calculateRpeFosterMetrics([
+      workout({ date: '06-01-2025', durationSeconds: 3600, sessionRpe: 5 }),
+      workout({ date: '08-01-2025', durationSeconds: 1800, sessionRpe: 7 }),
+      workout({ date: '09-01-2025', durationSeconds: 1800 }),
+    ])
+    expect(withRpe.length).toBeGreaterThan(0)
+    expect(withRpe[0].load).toBe(60 * 5 + 30 * 7)
+
+    const withoutRpe = calculateRpeFosterMetrics([workout({ date: '06-01-2025', sessionRpe: undefined })])
+    expect(withoutRpe.every((week) => week.load === 0)).toBe(true)
+  })
+
+  it('calculateAnalysis returns all top-level result keys', () => {
+    const result = calculateAnalysis(
+      [
+        workout({
+          date: '06-01-2025',
+          averageHeartRate: 140,
+          distanceKm: 8,
+          durationSeconds: 3600,
+          sessionRpe: 6,
+          records: [
+            { elapsedSeconds: 0, heartRateBpm: 130 },
+            { elapsedSeconds: 60, heartRateBpm: 145 },
+          ],
+        }),
+      ],
+      config,
+    )
+    expect(Object.keys(result).sort()).toEqual(
+      ['efficiency', 'foster', 'fosterRpe', 'hrZones', 'load', 'polarization', 'sports', 'triathlonGroups', 'weekly'].sort(),
+    )
+    expect(result.load.length).toBeGreaterThan(0)
+    expect(result.weekly.length).toBeGreaterThan(0)
   })
 })
