@@ -363,7 +363,7 @@ const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && complet
         <p class="eyebrow">{{ t.creditLabel }}</p>
         <strong class="metric">{{ credits }}</strong>
         <span class="muted">{{ t.creditPerPlan }}</span>
-        <RouterLink class="button secondary credits-link" to="/pricing">{{ t.buyCredits }}</RouterLink>
+        <RouterLink class="button primary credits-link" to="/pricing">{{ t.buyCredits }}</RouterLink>
         <p class="muted credits-device-note">{{ t.creditsDeviceNote }}</p>
       </div>
       <p class="eyebrow">{{ t.aiPlan }}</p>

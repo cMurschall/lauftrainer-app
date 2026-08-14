@@ -1077,7 +1077,7 @@
     width: fit-content;
     min-height: 34px;
     padding: 7px 11px;
-    color: var(--muted);
+    /* color: var(--text); */
     font-size: 0.78rem;
   }
   .credits-device-note {

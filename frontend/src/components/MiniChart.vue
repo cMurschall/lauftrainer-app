@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import {
+  BarController,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
   Filler,
   Legend,
   LinearScale,
+  LineController,
   LineElement,
   PointElement,
   Tooltip,
@@ -15,7 +17,20 @@ import {
 } from 'chart.js'
 import { Chart } from 'vue-chartjs'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
+// The controllers must be registered explicitly: the dev server pulls them in via
+// `chart.js/auto`, but a production build tree-shakes anything not imported here.
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  LineController,
+  BarController,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip,
+  Legend,
+  Filler,
+)
 
 export type MiniChartSeries = {
   name: string
