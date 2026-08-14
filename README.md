@@ -2,6 +2,14 @@
 
 Lokale Vue-3-PWA für Trainingsimport, Auswertung und KI-Trainingsplanung.
 
+```text
+lauftrainer-app/
+├── frontend/   # Vue 3, Pinia, Vue Router, Vite PWA, Chart.js
+└── backend/    # Cloudflare Worker (Wrangler), Gemini, Polar/Strava OAuth, Paddle/D1
+```
+
+Der Code ist die Quelle der Wahrheit. Trainingsrohdaten bleiben im Browser (IndexedDB); das Backend speichert keine Workout-Historie.
+
 ## Frontend
 
 ```powershell
@@ -10,54 +18,72 @@ npm install
 npm run dev
 ```
 
-Trainingsdateien werden im Browser verarbeitet und in IndexedDB gespeichert. CSV inklusive Polar-Zeitreihen, JSON und TCX werden unterstützt. Dateien werden per SHA-256 erkannt, sodass dieselbe Datei nicht doppelt importiert wird.
+Optional gegen einen lokalen Worker:
 
-Die lokale Übersicht berechnet bereits Gesamtzeit, Distanz, Wochenwerte, Trainingslast und Herzfrequenz-Zonen. Backups können als JSON exportiert und wieder eingelesen werden.
+```powershell
+$env:VITE_AI_API_URL = 'http://localhost:8787/api'
+npm run dev
+```
 
-GPX- und FIT-Dateien werden ebenfalls lokal im Browser verarbeitet. FIT wird über die browserkompatible Garmin FIT SDK dekodiert. Die Rohdaten verlassen den Browser beim Dateiimport nicht.
+### Was lokal passiert
 
-## KI-Backend (TypeScript)
+- Dateiimport: CSV (inkl. Polar-Zeitreihen), JSON, TCX, GPX, FIT (`@garmin/fitsdk`). Rohdaten verlassen den Browser beim Import nicht.
+- Dedup: SHA-256 für Dateien; zusätzliche Aktivitäts-Fingerprints nach Connector-Sync.
+- Speicherung: Custom IndexedDB (`frontend/src/db/database.ts`), nicht Dexie.
+- Analyse u. a.: Wochenvolumen, CTL/ATL/TSB, ACWR, Foster (± RPE), 3-Zonen-Polarisation, 5-HR-Zonen, Laufeffizienz.
+- Backup: JSON exportieren / wiederherstellen in den Einstellungen.
+- Navigation: Dashboard → Analysen → Einstellungen (Sidebar); Credits unter `/pricing`.
+
+### Frontend deploy (Cloudflare Pages)
+
+```powershell
+cd frontend
+npm run deploy
+```
+
+## Backend (Cloudflare Worker)
 
 ```powershell
 cd backend
 npm install
-Copy-Item .dev.vars.example .dev.vars
-# GEMINI_API_KEY in .dev.vars eintragen
+# Secrets/Vars lokal in .dev.vars (Datei selbst anlegen, kein .dev.vars.example im Repo)
+# Mindestens z. B.:
+#   GEMINI_API_KEY=...
+#   TRAINING_PLAN_MODE=local
+# Optional: POLAR_*, STRAVA_CLIENT_SECRET, PADDLE_*
 npm run dev
 ```
 
-Die Projektstruktur ist bewusst getrennt:
+`npm run dev` wendet lokale D1-Migrationen an und startet Wrangler (typisch Port `8787`).
 
-```text
-lauftrainer-app/
-├── frontend/   # Vue 3, TypeScript, Vite, PWA
-└── backend/    # Node.js, TypeScript, Express, Gemini API
-```
+### Modi
 
-Für die lokale Entwicklung das Frontend auf den lokalen Worker zeigen lassen:
+| `TRAINING_PLAN_MODE` | Verhalten |
+|----------------------|-----------|
+| unset / production   | Credits + Gemini |
+| `local`              | Gemini-Pläne ohne Credits (UI/Dev) |
+| `mock`               | Demo-Pläne ohne Gemini |
 
-```powershell
-$env:VITE_AI_API_URL = 'http://localhost:8787/api'
-```
+`GEMINI_API_KEY` bleibt ausschließlich im Backend.
 
-In `backend/.dev.vars` genügt für schnelle UI-Tests:
+### Wichtige Endpunkte
 
-```text
-TRAINING_PLAN_MODE=local
-```
+- `GET /health`
+- `POST /api/training-plan`
+- Connectoren: `/api/connectors/*`, legacy Polar unter `/api/polar/*`
+- Billing: `/api/billing/*` (Wallet, Balance, Checkout, Webhook, …)
 
-Im Modus `local` erstellt der Worker echte Gemini-Pläne ohne Credits. Für zufällige Demo-Pläne ohne Gemini `TRAINING_PLAN_MODE=mock` setzen. Produktionsaufrufe verwenden ohne diesen lokalen Modus das normale Creditsystem. `GEMINI_API_KEY` bleibt ausschließlich im Backend.
+OAuth-Tokens liegen in Cloudflare KV (`POLAR_SESSIONS`, auch für Strava-Sessions). Credits/Billing in D1 (`lauftrainer-billing`). Details: `backend/POLAR_KV_SETUP.md`.
 
-Das Backend speichert keine Trainingsdaten dauerhaft. Der Gemini-Key darf niemals im Frontend hinterlegt werden.
-
-### Cloudflare Worker Deployment
+### Worker deploy
 
 ```powershell
 cd backend
 npm run build
 npx wrangler login
 npx wrangler secret put GEMINI_API_KEY
+# weitere Secrets nach Bedarf (Polar/Strava/Paddle)
 npm run deploy
 ```
 
-Das Backend ist ein stateless Node-/TypeScript-Service. Die Endpunkte `/health` und `/api/training-plan` bleiben gegenüber der Vue-App unverändert.
+Bindings (KV, D1) stehen in `backend/wrangler.jsonc`.
