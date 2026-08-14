@@ -8,8 +8,10 @@ export interface ActivityRecord {
   latitude?: number
   longitude?: number
 }
-export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Triathlon', 'Other'] as const
+export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]
+export const TRAINING_SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking', 'Strength', 'Mobility'] as const
+export type TrainingSportCategory = (typeof TRAINING_SPORT_CATEGORIES)[number]
 export type MultisportDiscipline = 'Swimming' | 'Cycling' | 'Running'
 
 export interface Workout {
@@ -74,7 +76,7 @@ export interface UserConfig {
   hrZones: Record<string, [number, number]>
   thresholds: Record<string, number>
   primarySports?: SportCategory[]
-  availableSports?: SportCategory[]
+  availableSports?: TrainingSportCategory[]
   trainingGoal?: string
   sportSpecificThresholds?: Partial<Record<SportCategory, Record<string, number>>>
   performanceNotes?: string
@@ -92,11 +94,27 @@ export interface TrainingPlanStep {
   step_instruction: string
 }
 
+export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+export type TrainingPlanSport = 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility' | 'other'
+export type TrainingSessionType = 'training' | 'rest'
+
 export interface TrainingPlanDay {
-  day: string
-  sport: string
+  day: WeekDay
+  sport: TrainingPlanSport
+  session_type: TrainingSessionType
+  title: string
   description: string
   target_focus: string
   total_duration_minutes: number
   workout_steps: TrainingPlanStep[]
+}
+
+export interface TrainingWeekSummary {
+  focus_title: string
+  goal_description: string
+}
+
+export interface TrainingPlan {
+  week_summary: TrainingWeekSummary
+  days: TrainingPlanDay[]
 }

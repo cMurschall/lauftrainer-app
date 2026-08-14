@@ -1,13 +1,19 @@
-import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
+import type { TrainingPlan, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from '../analysis/analysisEngine'
 import type { TrainingGoal } from '../types/settings'
 import { API_URL } from './api'
 import { ensureWallet, idempotencyKey, walletToken } from './billingService'
 
 export interface TrainingPlanResponse {
-  plan: TrainingPlanDay[]
+  plan: TrainingPlan
   debug?: boolean
   detail?: string
+}
+
+function planSportKey(value: string): string {
+  const normalized = value.toLowerCase()
+  const aliases: Record<string, string> = { run: 'running', running: 'running', ride: 'cycling', cycling: 'cycling', swim: 'swimming', swimming: 'swimming', row: 'rowing', rowing: 'rowing', hike: 'hiking', hiking: 'hiking', strength: 'strength', mobility: 'mobility', yoga: 'mobility' }
+  return aliases[normalized] || 'other'
 }
 
 function round(value: number | undefined, digits = 1) {
@@ -23,7 +29,8 @@ export async function requestTrainingPlan(
   goals: TrainingGoal[],
   locale: 'de' | 'en',
 ): Promise<TrainingPlanResponse> {
-  await ensureWallet()
+  const localMode = ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
+  if (!localMode) await ensureWallet()
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const latestLoad = analysis?.load.at(-1)
   const response = await fetch(`${API_URL}/training-plan`, {
@@ -36,8 +43,8 @@ export async function requestTrainingPlan(
         training_goal: config.trainingGoal || config.trainingFocus,
         preferred_training_days: config.preferredTrainingDays,
         training_frequency_per_week: config.trainingFrequencyPerWeek,
-        primary_sports: config.primarySports,
-        available_sports: config.availableSports,
+        primary_sports: (config.primarySports || []).map(planSportKey),
+        available_sports: [...new Set([...(config.availableSports || []).map(planSportKey), ...(config.strengthTraining ? ['strength'] : [])])],
         max_weekly_training_minutes: config.maxWeeklyTrainingMinutes,
         max_training_minutes_per_day: config.maxTrainingMinutesPerDay,
         strength_training: config.strengthTraining,
@@ -102,6 +109,6 @@ export async function requestTrainingPlan(
     throw new Error(detail?.detail || `KI-Backend antwortete mit ${response.status}.`)
   }
   const result = (await response.json()) as TrainingPlanResponse
-  if (!Array.isArray(result.plan)) throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
+  if (!result.plan || !result.plan.week_summary || !Array.isArray(result.plan.days)) throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
   return result
 }

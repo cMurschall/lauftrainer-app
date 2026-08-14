@@ -8,3 +8,5 @@ backend/output/
 lauftrainer-backup-2026-08-13.json
 backend/scripts/test-training-plan.ts
 frontend/.env.local
+backend/.dev.vars
+.wrangler/

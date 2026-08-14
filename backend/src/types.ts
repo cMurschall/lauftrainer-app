@@ -2,6 +2,7 @@ export interface Env {
   COMMIT_SHA?: string
   GEMINI_API_KEY?: string
   GEMINI_MODEL?: string
+  TRAINING_PLAN_MODE?: 'mock' | 'local' | 'gemini'
   ALLOWED_ORIGIN?: string
   FRONTEND_URL?: string
   POLAR_CLIENT_ID?: string

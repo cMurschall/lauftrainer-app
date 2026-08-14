@@ -19,7 +19,7 @@ import { usePwaInstall } from './composables/usePwaInstall'
 import { type AppSettings, type ConnectorId, type ConnectorSettings, defaultAppSettings, type ThemePreference, type TrainingGoal } from './types/settings'
 import AppSidebar from './components/AppSidebar.vue'
 import BackendStatus from './components/BackendStatus.vue'
-import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from './types/workout'
+import type { AnalysisSummary, TrainingPlan, UserConfig, Workout } from './types/workout'
 import { useAnalysis } from './analysis/analysisService'
 import { diagnosticLog } from './services/logger'
 import PwaInstallBanner from './components/PwaInstallBanner.vue'
@@ -27,10 +27,12 @@ import frontendPackage from '../package.json'
 
 const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
+const emptyPlan: TrainingPlan = { week_summary: { focus_title: '', goal_description: '' }, days: [] }
 const workouts = ref<Workout[]>([]),
-  plan = ref<TrainingPlanDay[]>([]),
+  plan = ref<TrainingPlan>(emptyPlan),
   completedPlanDays = ref<string[]>([]),
   message = ref(''),
+  aiError = ref(''),
   loading = ref(false),
   consent = ref(false)
 const credits = ref(cachedBalance())
@@ -57,7 +59,8 @@ const config = ref<UserConfig>({
   hrZones: { z1: [90, 106], z2: [107, 124], z3: [125, 142], z4: [143, 160], z5: [161, 179] },
   thresholds: { lthr: 160, hr_max: 186 },
   primarySports: ['Running'],
-  availableSports: ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking'],
+  // Running is the safe default. Other sports must be explicitly enabled by the athlete.
+  availableSports: ['Running'],
   trainingGoal: 'base_endurance',
   sportSpecificThresholds: {},
   performanceNotes: '',
@@ -105,7 +108,7 @@ onMounted(async () => {
   const savedPlan = await workoutDb.getPlan()
   diagnosticLog('plan.load.startup', {
     found: Boolean(savedPlan),
-    dayCount: savedPlan?.plan?.length || 0,
+    dayCount: savedPlan?.plan?.days.length || 0,
     completedDayCount: savedPlan?.completedDays?.length || 0,
   })
   if (savedPlan?.plan) {
@@ -231,28 +234,30 @@ async function createPlan() {
     return
   }
   loading.value = true
+  aiError.value = ''
   const planRequestId = crypto.randomUUID()
   diagnosticLog('plan.create.start', { planRequestId, workoutCount: workouts.value.length, locale: locale.value })
   try {
     const result = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
     diagnosticLog('plan.create.response', {
       planRequestId,
-      dayCount: Array.isArray(result.plan) ? result.plan.length : 0,
-      days: Array.isArray(result.plan) ? result.plan.map((day) => day.day) : [],
+      dayCount: result.plan.days.length,
+      days: result.plan.days.map((day) => day.day),
+      hasWeekSummary: Boolean(result.plan.week_summary),
       debug: Boolean(result.debug),
     })
     plan.value = result.plan
     credits.value = await getBalance()
     completedPlanDays.value = []
-    diagnosticLog('plan.save.start', { planRequestId, dayCount: plan.value.length })
+    diagnosticLog('plan.save.start', { planRequestId, dayCount: plan.value.days.length, hasWeekSummary: Boolean(plan.value.week_summary) })
     // Vue makes ref contents reactive. IndexedDB cannot structured-clone Vue proxies.
     await workoutDb.savePlan(plain(plan.value))
     const persistedPlan = await workoutDb.getPlan()
     diagnosticLog('plan.save.verified', {
       planRequestId,
       found: Boolean(persistedPlan?.plan),
-      dayCount: persistedPlan?.plan?.length || 0,
-      days: persistedPlan?.plan?.map((day) => day.day) || [],
+      dayCount: persistedPlan?.plan?.days.length || 0,
+      days: persistedPlan?.plan?.days.map((day) => day.day) || [],
     })
     message.value = result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved
   } catch (error) {
@@ -260,7 +265,10 @@ async function createPlan() {
       planRequestId,
       error: error instanceof Error ? error.message : String(error),
     })
-    message.value = t.value.aiFailed
+    aiError.value = t.value.aiFailed
+    window.setTimeout(() => {
+      aiError.value = ''
+    }, 5000)
   } finally {
     loading.value = false
   }
@@ -331,7 +339,7 @@ async function clearData() {
   workouts.value = []
   goals.value = []
   await refreshAnalysis()
-  plan.value = []
+  plan.value = structuredClone(emptyPlan)
   completedPlanDays.value = []
   message.value = t.value.dataDeleted
 }
@@ -461,12 +469,11 @@ async function saveWorkout(workout: Workout) {
                     config,
                     analysis,
                   message,
+                  aiError,
                   credits,
                     loading,
                     consent,
                     connectorLoading,
-                    importFiles,
-                    importProgress,
                     createPlan,
                     togglePlanDay,
                     syncConnectors,

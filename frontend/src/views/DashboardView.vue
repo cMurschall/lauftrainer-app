@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
-import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
+import type { TrainingPlan, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
 import type { ConnectorSettings } from '../types/settings'
 import {
   formatSport,
@@ -16,7 +16,7 @@ import SportIcon from '../components/SportIcon.vue'
 const props = defineProps<{
   workouts: Workout[]
   connectors: ConnectorSettings[]
-  plan: TrainingPlanDay[]
+  plan: TrainingPlan
   completedPlanDays: string[]
   config: UserConfig
   analysis: {
@@ -25,6 +25,7 @@ const props = defineProps<{
     weekly: Array<{ weekStart: string; distanceKm: number; workoutCount: number }>
   }
   message: string
+  aiError: string
   credits: number
   loading: boolean
   consent: boolean
@@ -54,20 +55,25 @@ const workoutDebug = (workout: Workout) => ({
   sport: workout.sport,
   identity: workoutIdentity(workout),
 })
-const planMinutes = computed(() => props.plan.reduce((sum, day) => sum + day.total_duration_minutes, 0))
-const completedCount = computed(() => props.plan.filter((day) => props.completedPlanDays.includes(day.day)).length)
+const planMinutes = computed(() => props.plan.days.reduce((sum, day) => sum + day.total_duration_minutes, 0))
+const completedCount = computed(() => props.plan.days.filter((day) => props.completedPlanDays.includes(day.day)).length)
 const planDescription = (day: TrainingPlanDay) =>
-  day.description.startsWith('TESTPLAN')
+  day.session_type === 'rest'
+    ? t.value.restDayDescription
+    : day.description.startsWith('TESTPLAN')
     ? day.total_duration_minutes === 0
       ? 'Erholungstag.'
-      : day.sport === 'Walking'
-        ? 'Lockere aktive Erholung.'
-        : `${day.target_focus} mit kontrollierter Belastung.`
+      : `${day.target_focus} mit kontrollierter Belastung.`
     : day.description
 const activeConnectedConnectors = computed(() => props.connectors.filter((connector) => connector.active && connector.connected))
+const planDayLabel = (day: TrainingPlanDay) => t.value[day.day]
+const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t.value.restDay : t.value[day.sport]
 </script>
 <template>
   <p v-if="message" class="notice">{{ message }}</p>
+  <Transition name="toast">
+    <p v-if="aiError" class="toast toast-error" role="alert">{{ aiError }}</p>
+  </Transition>
   <div class="dashboard-flow">
   <section class="stats dashboard-stats">
     <article class="card">
@@ -133,14 +139,14 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
     ><button :disabled="loading || !workouts.length" class="button primary full" @click="createPlan">
       {{ loading ? t.creatingPlan : t.createPlan }}
     </button>
-    <div v-if="false && plan.length" class="plan">
-      <div v-for="day in plan" :key="day.day">
+    <div v-if="false && plan.days.length" class="plan">
+      <div v-for="day in plan.days" :key="day.day">
         <strong>{{ day.day }}</strong
         ><span>{{ day.description }} · {{ day.total_duration_minutes }} min</span>
       </div>
     </div>
   </section>
-    <section v-if="plan.length" class="card plan dashboard-plan">
+    <section v-if="plan.days.length" class="card plan dashboard-plan">
       <div class="plan-heading">
         <div>
           <p class="eyebrow">{{ t.aiPlan }}</p>
@@ -148,24 +154,28 @@ const activeConnectedConnectors = computed(() => props.connectors.filter((connec
         </div>
         <div class="plan-summary">
         <strong>{{ planMinutes }} min</strong>
-        <span>{{ completedCount }}/{{ plan.length }} {{ t.planCompleted }}</span>
+        <span>{{ completedCount }}/{{ plan.days.length }} {{ t.planCompleted }}</span>
         </div>
       </div>
-      <article v-for="(day, index) in plan" :key="`${day.day}-${index}`" class="plan-day" :class="{ completed: completedPlanDays.includes(day.day) }">
+      <div v-if="plan.week_summary?.focus_title || plan.week_summary?.goal_description" class="week-summary rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+        <strong class="font-semibold text-emerald-600 dark:text-emerald-400">{{ plan.week_summary?.focus_title || 'Wochenfokus' }}</strong>
+        <p v-if="plan.week_summary?.goal_description" class="text-xs italic text-zinc-600 dark:text-zinc-400">{{ plan.week_summary.goal_description }}</p>
+      </div>
+      <article v-for="(day, index) in plan.days" :key="`${day.day}-${index}`" class="plan-day" :class="{ completed: completedPlanDays.includes(day.day) }">
         <label class="plan-check">
           <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="togglePlanDay(day.day)" />
           <span>
-            <strong class="plan-day-name">{{ day.day }}</strong>
-            <strong>{{ day.day }} Â· {{ day.sport }} Â· {{ day.total_duration_minutes }} min</strong>
+            <strong class="plan-day-name">{{ planDayLabel(day) }}</strong>
+            <strong>{{ planDayLabel(day) }} · {{ planSportLabel(day) }} · {{ day.total_duration_minutes }} min</strong>
             <small>{{ day.target_focus }}</small>
           </span>
         </label>
         <div class="plan-day-meta">
-          <span class="plan-sport">{{ day.sport }}</span>
+          <span class="plan-sport">{{ planSportLabel(day) }}</span>
           <strong>{{ day.total_duration_minutes }} min</strong>
         </div>
         <p>{{ planDescription(day) }}</p>
-        <ul class="plan-steps">
+        <ul v-if="day.session_type !== 'rest'" class="plan-steps">
           <li v-for="step in day.workout_steps" :key="`${day.day}-${step.step_duration}-${step.step_instruction}`">
             <strong class="plan-step-duration">{{ step.step_duration }}</strong>
             <span class="plan-step-intensity">{{ step.step_intensity }}</span>

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { exportBackup, importBackup, workoutDb } from './database'
-import type { TrainingPlanDay, Workout } from '../types/workout'
+import type { TrainingPlan, TrainingPlanDay, Workout } from '../types/workout'
 
 const sample: Workout = {
   id: 'db-1',
@@ -23,8 +23,10 @@ describe('local database and backups', () => {
   it('persists the current training plan across reads', async () => {
     const plan: TrainingPlanDay[] = [
       {
-        day: 'Montag',
-        sport: 'Running',
+        day: 'monday',
+        sport: 'running',
+        session_type: 'training',
+        title: 'Lockerer Lauf',
         description: 'Lockerer Lauf',
         target_focus: 'Grundlagenausdauer',
         total_duration_minutes: 30,
@@ -32,9 +34,10 @@ describe('local database and backups', () => {
       },
     ]
 
-    await workoutDb.savePlan(plan)
+    const savedPlan: TrainingPlan = { week_summary: { focus_title: 'Basis', goal_description: 'Locker aufbauen.' }, days: plan }
+    await workoutDb.savePlan(savedPlan)
 
-    expect(await workoutDb.getPlan()).toMatchObject({ plan })
+    expect(await workoutDb.getPlan()).toMatchObject({ plan: savedPlan })
   })
 
   it('increments workout revision and clears analysis cache on writes', async () => {

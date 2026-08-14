@@ -1,4 +1,4 @@
-import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
+import type { AnalysisSummary, TrainingPlan, UserConfig, Workout } from '../types/workout'
 import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 import { diagnosticLog } from '../services/logger'
@@ -127,7 +127,7 @@ export const workoutDb = {
   listGoals: () => transaction<TrainingGoal[]>('goals', 'readonly', (store) => store.getAll()),
   saveGoal: (goal: TrainingGoal) => transaction<IDBValidKey>('goals', 'readwrite', (store) => store.put(goal)),
   deleteGoal: (id: string) => transaction<undefined>('goals', 'readwrite', (store) => store.delete(id)),
-  savePlan: (plan: TrainingPlanDay[]) =>
+  savePlan: (plan: TrainingPlan) =>
     transaction<IDBValidKey>('plans', 'readwrite', (store) =>
       store.put({
         id: 'current',
@@ -135,8 +135,10 @@ export const workoutDb = {
         plan,
       }),
     ),
-  getPlan: async () => (await transaction<{ plan?: TrainingPlanDay[]; completedDays?: string[] } | undefined>('plans', 'readonly', (store) => store.get('current'))) || undefined,
-  savePlanWithStatus: (plan: TrainingPlanDay[], completedDays: string[]) =>
+  getPlan: async () => {
+    return await transaction<{ plan?: TrainingPlan; completedDays?: string[] } | undefined>('plans', 'readonly', (store) => store.get('current'))
+  },
+  savePlanWithStatus: (plan: TrainingPlan, completedDays: string[]) =>
     transaction<IDBValidKey>('plans', 'readwrite', (store) =>
       store.put({
         id: 'current',

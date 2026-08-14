@@ -38,7 +38,12 @@ export default {
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
       console.error('Worker error:', error)
-      return json({ detail: path.startsWith('/api/polar/') ? 'Polar-OAuth konnte nicht verarbeitet werden.' : 'KI-Aufruf konnte nicht verarbeitet werden.' }, 502, request, env)
+      const detail = env.TRAINING_PLAN_MODE === 'local' && error instanceof Error
+        ? `Lokaler KI-Fehler: ${error.message}`
+        : path.startsWith('/api/polar/')
+          ? 'Polar-OAuth konnte nicht verarbeitet werden.'
+          : 'KI-Aufruf konnte nicht verarbeitet werden.'
+      return json({ detail }, 502, request, env)
     }
   },
   async scheduled(_event: ScheduledEvent, env: Env) { await cleanupReservations(env) }

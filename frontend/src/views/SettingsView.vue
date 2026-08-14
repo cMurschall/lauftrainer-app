@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
-import type { TrainingPlanDay, UserConfig, Workout } from '../types/workout'
+import { TRAINING_SPORT_CATEGORIES, type TrainingSportCategory, type TrainingPlan, type UserConfig, type Workout } from '../types/workout'
 import type { ConnectorId, ConnectorSettings, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
 
 const props = defineProps<{
@@ -18,7 +18,7 @@ const props = defineProps<{
   disconnectConnector: (id: ConnectorId) => void
   goals: TrainingGoal[]
   workouts: Workout[]
-  plan: TrainingPlanDay[]
+  plan: TrainingPlan
   saveGoal: (goal: TrainingGoal) => void
   deleteGoal: (id: string) => void
   importFiles: (event: Event) => void
@@ -67,6 +67,10 @@ const trainingGoalOptions = computed(() => [
   { label: t.value.goalRecovery, value: 'recovery' },
   { label: t.value.goalGeneralFitness, value: 'general_fitness' },
 ])
+const enduranceSports = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking'] as const
+const supportSports = ['Strength', 'Mobility'] as const
+const sportLabel = (sport: TrainingSportCategory) => t.value[sport.toLowerCase() as 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility']
+const availableSportOptions = computed(() => TRAINING_SPORT_CATEGORIES.map((sport) => ({ value: sport, label: sportLabel(sport) })))
 
 function openWorkoutFilePicker() {
   workoutFileInput.value?.click()
@@ -100,6 +104,14 @@ function togglePreferredDay(day: string) {
 
 function changeTrainingGoal(value: string) {
   props.config.trainingGoal = value
+  props.saveConfig()
+}
+
+function toggleAvailableSport(sport: TrainingSportCategory) {
+  const available = props.config.availableSports || []
+  props.config.availableSports = available.includes(sport)
+    ? available.filter((item) => item !== sport)
+    : [...available, sport]
   props.saveConfig()
 }
 
@@ -193,6 +205,20 @@ function submitGoal() {
       <label>{{ t.trainingFrequency }}<input v-model.number="config.trainingFrequencyPerWeek" min="0" max="14" step="1" type="number" @change="saveConfig" /></label>
       <label class="checkbox-field"><input v-model="config.strengthTraining" type="checkbox" @change="saveConfig" />{{ t.strengthTraining }}</label>
       <label>{{ t.maxWeeklyMinutes }}<input v-model.number="config.maxWeeklyTrainingMinutes" min="1" step="15" type="number" placeholder="optional" @change="saveConfig" /></label>
+    </div>
+    <p class="field-heading">{{ t.availableSports }}</p>
+    <p class="field-help settings-help">{{ t.availableSportsHelp }}</p>
+    <p class="field-heading">{{ t.enduranceSports }}</p>
+    <div class="weekday-picks">
+      <label v-for="option in availableSportOptions.filter((item) => enduranceSports.includes(item.value as (typeof enduranceSports)[number]))" :key="option.value" class="checkbox-field">
+        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
+      </label>
+    </div>
+    <p class="field-heading">{{ t.supportSports }}</p>
+    <div class="weekday-picks">
+      <label v-for="option in availableSportOptions.filter((item) => supportSports.includes(item.value as (typeof supportSports)[number]))" :key="option.value" class="checkbox-field">
+        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
+      </label>
     </div>
     <p class="field-heading">{{ t.preferredDays }}</p>
     <div class="weekday-picks">
@@ -289,7 +315,7 @@ function submitGoal() {
         <span>{{ t.localPeriod }}</span>
       </div>
       <div>
-        <strong>{{ props.goals.length }} · {{ props.plan.length }}</strong>
+        <strong>{{ props.goals.length }} · {{ props.plan.days.length }}</strong>
         <span>{{ t.localGoalsAndPlan }}</span>
       </div>
       <div>
