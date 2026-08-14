@@ -25,6 +25,7 @@ const daySchema = z.object({
 })
 const weekSummarySchema = z.object({ focus_title: z.string().min(1), goal_description: z.string().min(1) })
 const planSchema = z.object({ week_summary: weekSummarySchema, days: z.array(daySchema).length(7) })
+const localGeminiLogUrl = 'http://127.0.0.1:8790/gemini-log'
 
 const responseSchema = {
   type: 'OBJECT',
@@ -76,17 +77,23 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   }
   const prompt = createPromptEnglish(parsed.data)
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const geminiBody = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 } }
   let response: Response
   try { response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 } }),
+    body: JSON.stringify(geminiBody),
     signal: AbortSignal.timeout(45_000),
   }) } catch (error) {
+    await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { error: error instanceof Error ? error.message : String(error) })
     await releaseReservation()
     return json({ detail: 'Gemini ist momentan nicht erreichbar.' }, 502, request, env)
   }
+  const responseText = await response.text()
+  let responseBody: unknown = responseText
+  try { responseBody = JSON.parse(responseText) } catch { /* Keep non-JSON error responses readable in the log. */ }
+  await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { status: response.status, statusText: response.statusText, body: responseBody })
   if (!response.ok) { await releaseReservation(); return json({ detail: `Gemini antwortete mit ${response.status}.` }, 502, request, env) }
-  const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+  const payload = JSON.parse(responseText) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('')
   if (!text) {
     await releaseReservation()
@@ -96,6 +103,27 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   try { plan = planSchema.parse(normalizePlan(parseJson(text))) } catch (error) { await releaseReservation(); throw error }
   if (reservation.reservationId) await finishReservation(env, reservation.reservationId, plan, true)
   return json({ plan }, 200, request, env)
+}
+
+async function logLocalGeminiCall(
+  env: Env,
+  request: { requestId: string, model: string, prompt: string, geminiBody: unknown },
+  response: unknown,
+): Promise<void> {
+  if (env.TRAINING_PLAN_MODE !== 'local') return
+  try {
+    await fetch(localGeminiLogUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request: { ...request, sentAt: new Date().toISOString() },
+        response: { ...response as Record<string, unknown>, receivedAt: new Date().toISOString() },
+      }),
+      signal: AbortSignal.timeout(2_000),
+    })
+  } catch (error) {
+    console.warn('Lokales Gemini-Logging fehlgeschlagen:', error)
+  }
 }
 
 function normalizePlan(value: unknown): unknown {

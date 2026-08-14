@@ -55,6 +55,7 @@ npm run dev
 ```
 
 `npm run dev` wendet lokale D1-Migrationen an und startet Wrangler (typisch Port `8787`).
+Im Modus `TRAINING_PLAN_MODE=local` wird jeder Gemini-Aufruf zusätzlich als eigene JSON-Datei mit Request und Response unter `backend/output/gemini/` gespeichert.
 
 ### Modi
 
