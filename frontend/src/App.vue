@@ -103,6 +103,11 @@ onMounted(async () => {
   workouts.value = await workoutDb.deduplicate()
   goals.value = await workoutDb.listGoals()
   const savedPlan = await workoutDb.getPlan()
+  diagnosticLog('plan.load.startup', {
+    found: Boolean(savedPlan),
+    dayCount: savedPlan?.plan?.length || 0,
+    completedDayCount: savedPlan?.completedDays?.length || 0,
+  })
   if (savedPlan?.plan) {
     plan.value = savedPlan.plan
     completedPlanDays.value = savedPlan.completedDays || []
@@ -226,14 +231,34 @@ async function createPlan() {
     return
   }
   loading.value = true
+  const planRequestId = crypto.randomUUID()
+  diagnosticLog('plan.create.start', { planRequestId, workoutCount: workouts.value.length, locale: locale.value })
   try {
     const result = await requestTrainingPlan(workouts.value, config.value, analysisResult.value, goals.value, locale.value)
+    diagnosticLog('plan.create.response', {
+      planRequestId,
+      dayCount: Array.isArray(result.plan) ? result.plan.length : 0,
+      days: Array.isArray(result.plan) ? result.plan.map((day) => day.day) : [],
+      debug: Boolean(result.debug),
+    })
     plan.value = result.plan
     credits.value = await getBalance()
     completedPlanDays.value = []
+    diagnosticLog('plan.save.start', { planRequestId, dayCount: plan.value.length })
     await workoutDb.savePlan(plan.value)
+    const persistedPlan = await workoutDb.getPlan()
+    diagnosticLog('plan.save.verified', {
+      planRequestId,
+      found: Boolean(persistedPlan?.plan),
+      dayCount: persistedPlan?.plan?.length || 0,
+      days: persistedPlan?.plan?.map((day) => day.day) || [],
+    })
     message.value = result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved
-  } catch {
+  } catch (error) {
+    diagnosticLog('plan.create.error', {
+      planRequestId,
+      error: error instanceof Error ? error.message : String(error),
+    })
     message.value = t.value.aiFailed
   } finally {
     loading.value = false

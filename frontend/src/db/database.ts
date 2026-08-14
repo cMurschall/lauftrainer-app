@@ -1,6 +1,7 @@
 import type { AnalysisSummary, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
 import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
+import { diagnosticLog } from '../services/logger'
 
 const DB_NAME = 'lauftrainer-local'
 const DB_VERSION = 5
@@ -8,7 +9,8 @@ const DB_VERSION = 5
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
+      diagnosticLog('db.upgrade', { name: DB_NAME, version: DB_VERSION, oldVersion: event.oldVersion })
       const db = request.result
       if (!db.objectStoreNames.contains('workouts')) db.createObjectStore('workouts', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings')
@@ -17,8 +19,14 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('analysisCache')) db.createObjectStore('analysisCache', { keyPath: 'cacheKey' })
       if (!db.objectStoreNames.contains('goals')) db.createObjectStore('goals', { keyPath: 'id' })
     }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      diagnosticLog('db.open.success', { name: DB_NAME, version: request.result.version, stores: [...request.result.objectStoreNames] })
+      resolve(request.result)
+    }
+    request.onerror = () => {
+      diagnosticLog('db.open.error', { name: DB_NAME, error: request.error?.message || String(request.error) })
+      reject(request.error)
+    }
   })
 }
 
@@ -30,11 +38,19 @@ async function transaction<T>(
   const db = await openDatabase()
   return new Promise((resolve, reject) => {
     const dbTransaction = db.transaction(storeName, mode)
+    const transactionId = crypto.randomUUID()
+    diagnosticLog('db.transaction.start', { transactionId, storeName, mode })
     let result: T
     let settled = false
     const fail = (error: unknown) => {
       if (settled) return
       settled = true
+      diagnosticLog('db.transaction.error', {
+        transactionId,
+        storeName,
+        mode,
+        error: error instanceof Error ? error.message : String(error),
+      })
       db.close()
       reject(error)
     }
@@ -49,6 +65,7 @@ async function transaction<T>(
 
     request.onsuccess = () => {
       result = request.result as T
+      diagnosticLog('db.request.success', { transactionId, storeName, mode, resultType: typeof result })
     }
     request.onerror = () => fail(request.error)
     dbTransaction.onerror = () => fail(dbTransaction.error)
@@ -57,6 +74,7 @@ async function transaction<T>(
     dbTransaction.oncomplete = () => {
       if (settled) return
       settled = true
+      diagnosticLog('db.transaction.complete', { transactionId, storeName, mode })
       db.close()
       resolve(result)
     }
