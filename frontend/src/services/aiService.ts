@@ -45,7 +45,10 @@ export async function requestTrainingPlan(
         training_frequency_per_week: config.trainingFrequencyPerWeek,
         primary_sports: (config.primarySports || []).map(planSportKey),
         available_sports: [...new Set([...(config.availableSports || []).map(planSportKey), ...(config.strengthTraining ? ['strength'] : [])])],
-        max_weekly_training_minutes: config.maxWeeklyTrainingMinutes,
+        max_weekly_training_minutes:
+          typeof config.maxWeeklyTrainingMinutes === 'number' && config.maxWeeklyTrainingMinutes > 0
+            ? config.maxWeeklyTrainingMinutes
+            : undefined,
         max_training_minutes_per_day: config.maxTrainingMinutesPerDay,
         strength_training: config.strengthTraining,
         performance_notes: config.performanceNotes,

@@ -16,7 +16,7 @@ export const defaultUserConfig = (): UserConfig => ({
   strengthTraining: false,
   limitations: '',
   personalNotes: '',
-  maxWeeklyTrainingMinutes: 0,
+  maxWeeklyTrainingMinutes: undefined,
   maxTrainingMinutesPerDay: {
     monday: undefined,
     tuesday: undefined,

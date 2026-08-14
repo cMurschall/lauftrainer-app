@@ -890,6 +890,20 @@
     order: 2;
     margin-top: 14px;
   }
+  .dashboard-flow.has-plan .dashboard-plan { order: 2; }
+  .dashboard-flow.has-plan .ai-plan-card { order: 4; }
+  .dashboard-flow.has-plan .connector-card,
+  .dashboard-flow.has-plan .connector-empty-banner { order: 3; }
+  .ai-plan-card.compact {
+    margin-top: 10px;
+  }
+  .ai-plan-card.compact .credits-summary {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+  .create-hint {
+    margin: 8px 0 0;
+  }
   .credits-summary {
     display: grid;
     grid-template-columns: auto auto 1fr;
@@ -913,6 +927,21 @@
     }
     .credits-summary .muted {
       grid-column: 1 / -1;
+    }
+    .connector-empty-banner {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .connector-connect-button {
+      width: 100%;
+      white-space: normal;
+    }
+    .plan-day {
+      grid-template-columns: 1fr;
+    }
+    .plan-day-meta {
+      justify-content: flex-start;
+      margin-left: 1.65rem;
     }
   }
   .dashboard-plan { order: 4; }
@@ -1286,7 +1315,7 @@
   }
 
   .plan-check small {
-    color: var(--text-muted);
+    color: var(--muted);
   }
 
   .plan-day p {
