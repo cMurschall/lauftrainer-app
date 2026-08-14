@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json",
     "deploy": "wrangler deploy",
     "test": "tsx --test test/*.test.ts",
-    "test:plan": "tsx scripts/test-training-plan.ts"
+    "test:plan": "tsx scripts/evaluate-training-plans.ts",
+    "test:plan:legacy": "tsx scripts/test-training-plan.ts"
   },
   "dependencies": {
     "zod": "^3.24.2"

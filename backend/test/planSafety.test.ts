@@ -87,6 +87,7 @@ describe('computeLoadBudget', () => {
     assert.equal(budget.resume_long, false)
     assert.ok(budget.max_long_run_minutes <= budget.max_total_training_minutes)
     assert.equal(budget.max_quality_sessions, 0)
+    assert.equal(budget.max_training_sessions, 3)
     assert.equal(budget.max_endurance_sessions, 3)
     assert.equal(budget.max_strength_sessions, 2)
     assert.equal(budget.max_strength_minutes_per_session, 35)
@@ -117,8 +118,35 @@ describe('computeLoadBudget', () => {
     assert.equal(budget.resume_long, true)
     assert.equal(budget.max_long_run_minutes, 45)
     assert.equal(budget.max_endurance_sessions, 2)
+    assert.equal(budget.max_training_sessions, 3)
     assert.ok(budget.max_total_training_minutes >= budget.max_long_run_minutes + 15)
     assert.equal(budget.max_strength_minutes_per_session, 35)
+  })
+
+  it('enforces a reduced recovery budget for acute load spikes', () => {
+    const sanitized = sanitizePlanInputs({
+      metrics: {
+        weekly: [
+          { week_start: '2026-07-20', total_minutes: 180 },
+          { week_start: '2026-07-27', total_minutes: 200 },
+          { week_start: '2026-08-03', total_minutes: 240 },
+        ],
+        latest_load: { ctl: 40, atl: 70, tsb: -30, acwr: 1.65, risk: 'spike' },
+      },
+      recent_workouts: [
+        { sport: 'running', duration_minutes: 70, distance_km: 11 },
+        { sport: 'running', duration_minutes: 50, distance_km: 8 },
+      ],
+    })
+    const budget = computeLoadBudget(sanitized, {
+      training_frequency_per_week: 5,
+      max_weekly_training_minutes: 300,
+    })
+    assert.equal(budget.recovery_week, true)
+    assert.equal(budget.max_quality_sessions, 0)
+    assert.equal(budget.max_training_sessions, 3)
+    assert.ok(budget.max_total_training_minutes <= 144)
+    assert.ok(budget.max_long_run_minutes <= Math.round(budget.max_total_training_minutes * 0.45))
   })
 })
 
@@ -127,6 +155,7 @@ describe('reviewAndClampPlan', () => {
     max_total_training_minutes: 36,
     max_long_run_minutes: 26,
     max_quality_sessions: 0,
+    max_training_sessions: 3,
     max_endurance_sessions: 3,
     max_strength_sessions: 2,
     max_strength_minutes_per_session: 35,
@@ -134,6 +163,7 @@ describe('reviewAndClampPlan', () => {
     max_training_minutes_per_day: {},
     allow_quality: false,
     resume_long: false,
+    recovery_week: false,
   }
 
   it('clamps oversized volume, long run, quality count and foreign sports', () => {
@@ -232,5 +262,40 @@ describe('reviewAndClampPlan', () => {
     assert.equal(friday?.title, 'Leichter Wiedereinstiegslauf')
     assert.match(friday?.description || '', /leichter Lauf/i)
     assert.match(friday?.workout_steps[1]?.step_intensity || '', /Konversationstempo/)
+  })
+
+  it('normalizes malformed rest days and caps all structured sessions', () => {
+    const { plan, repairs } = reviewAndClampPlan(planFromDays([
+      day({ date: '2026-08-14', day: 'friday', sport: 'mobility', session_type: 'rest', total_duration_minutes: 20 }),
+      day({ date: '2026-08-15', day: 'saturday', sport: 'running', total_duration_minutes: 40 }),
+      day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 45 }),
+      day({ date: '2026-08-17', day: 'monday', sport: 'strength', total_duration_minutes: 30 }),
+      day({ date: '2026-08-18', day: 'tuesday', sport: 'running', total_duration_minutes: 30 }),
+      day({ date: '2026-08-19', day: 'wednesday', sport: 'strength', total_duration_minutes: 30 }),
+      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+    ]), {
+      ...baseBudget,
+      max_total_training_minutes: 150,
+      max_long_run_minutes: 60,
+      max_training_sessions: 3,
+      max_strength_sessions: 2,
+      max_strength_minutes_total: 70,
+    }, {
+      available_sports: ['running', 'strength', 'mobility'],
+      preferred_training_days: ['saturday', 'monday', 'wednesday'],
+    }, 'de')
+
+    const friday = plan.days.find((item) => item.date === '2026-08-14')
+    assert.equal(friday?.session_type, 'rest')
+    assert.equal(friday?.sport, 'other')
+    assert.equal(friday?.total_duration_minutes, 0)
+    assert.equal(plan.days.filter((item) => item.session_type === 'training').length, 3)
+    assert.deepEqual(
+      plan.days.filter((item) => item.session_type === 'training').map((item) => item.day).sort(),
+      ['monday', 'saturday', 'wednesday'],
+    )
+    assert.ok(repairs.some((item) => item.startsWith('rest_normalized')))
+    assert.ok(repairs.some((item) => item.startsWith('training_frequency')))
+    assert.doesNotMatch(plan.days.map((item) => item.description).join(' '), /Converted to rest/)
   })
 })

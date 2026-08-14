@@ -70,6 +70,8 @@ export interface LoadBudget {
   max_total_training_minutes: number
   max_long_run_minutes: number
   max_quality_sessions: number
+  /** All structured sessions combined, including strength and mobility. */
+  max_training_sessions: number
   max_endurance_sessions: number
   max_strength_sessions: number
   max_strength_minutes_per_session: number
@@ -77,6 +79,7 @@ export interface LoadBudget {
   max_training_minutes_per_day: Record<string, number>
   allow_quality: boolean
   resume_long: boolean
+  recovery_week: boolean
 }
 
 const ENDURANCE_SPORTS = new Set(['running', 'cycling', 'swimming', 'rowing', 'hiking'])
@@ -274,24 +277,36 @@ export function computeLoadBudget(
   }
 
   const ctl = sanitized.latest_load?.ctl ?? 0
+  const tsb = sanitized.latest_load?.tsb
+  const acwr = sanitized.latest_load?.acwr
   const risk = (sanitized.latest_load?.risk || '').toLowerCase()
   const lowConsistency = sanitized.reliable_run_count < 2 || best < 40
-  const allow_quality = ctl >= 20 && risk !== 'spike' && !lowConsistency
+  const limitations = String(profile.limitations || '').toLowerCase()
+  const activeLimitation = /\b(?:pain|injur|ache|schmerz|verletz|beschwerd|entzünd|reizung|rehab)/i.test(limitations)
+  const recovery_week = risk === 'spike' || (tsb !== undefined && tsb <= -20) || (acwr !== undefined && acwr >= 1.5)
+  const allow_quality = ctl >= 20 && !recovery_week && !activeLimitation && !lowConsistency
   const max_quality_sessions = allow_quality ? 1 : 0
 
   const frequency = asNumber(profile.training_frequency_per_week)
   const requestedFrequency = Math.max(1, Math.min(7, Math.round(frequency && frequency > 0 ? frequency : 3)))
-  const max_endurance_sessions = resume_long ? Math.min(2, requestedFrequency) : requestedFrequency
+  const max_training_sessions = recovery_week ? Math.min(3, requestedFrequency) : requestedFrequency
+  const max_endurance_sessions = resume_long ? Math.min(2, max_training_sessions) : max_training_sessions
   const strengthEnabled = Boolean(profile.strength_training) ||
     (Array.isArray(profile.available_sports) && profile.available_sports.map(normalizeSportKey).includes('strength'))
   const max_strength_sessions = strengthEnabled ? 2 : 0
   const max_strength_minutes_per_session = strengthEnabled ? 35 : 0
   const max_strength_minutes_total = strengthEnabled ? Math.min(70, max_strength_sessions * max_strength_minutes_per_session) : 0
 
+  if (recovery_week && best > 0) {
+    maxEndurance = Math.min(maxEndurance, Math.max(30, Math.round(best * 0.6)))
+    maxLong = Math.min(maxLong, Math.round(maxEndurance * 0.45))
+  }
+
   return {
     max_total_training_minutes: Math.max(0, maxEndurance),
     max_long_run_minutes: maxLong,
     max_quality_sessions,
+    max_training_sessions,
     max_endurance_sessions,
     max_strength_sessions,
     max_strength_minutes_per_session,
@@ -299,6 +314,7 @@ export function computeLoadBudget(
     max_training_minutes_per_day,
     allow_quality,
     resume_long,
+    recovery_week,
   }
 }
 
@@ -308,11 +324,13 @@ export function formatHardCapsBlock(budget: LoadBudget): string {
     `max_endurance_minutes: ${budget.max_total_training_minutes}`,
     `max_long_run_minutes: ${budget.max_long_run_minutes}`,
     `max_quality_sessions: ${budget.max_quality_sessions}`,
+    `max_training_sessions: ${budget.max_training_sessions}`,
     `max_endurance_sessions: ${budget.max_endurance_sessions}`,
     `max_strength_sessions: ${budget.max_strength_sessions}`,
     `max_strength_minutes_per_session: ${budget.max_strength_minutes_per_session}`,
     `max_strength_minutes_total: ${budget.max_strength_minutes_total}`,
     `resume_long: ${budget.resume_long}`,
+    `recovery_week: ${budget.recovery_week}`,
     `max_training_minutes_per_day: ${JSON.stringify(budget.max_training_minutes_per_day)}`,
     'Strength minutes do NOT count against max_endurance_minutes.',
   ].join('\n')
@@ -338,18 +356,19 @@ export function isQualitySession(day: PlanDay): boolean {
   return QUALITY_PATTERN.test(blob)
 }
 
-function toRestDay(day: PlanDay, reason: string): PlanDay {
+function toRestDay(day: PlanDay, reason: string, locale: 'de' | 'en' = 'en'): PlanDay {
+  const recovery = locale === 'de' ? 'Erholung' : 'Recovery'
   return {
     ...day,
     sport: 'other',
     session_type: 'rest',
     title: day.title || 'Rest',
     description: reason,
-    target_focus: 'Recovery',
+    target_focus: recovery,
     total_duration_minutes: 0,
     workout_steps: [{
       step_duration: '0 min',
-      step_intensity: 'Rest',
+      step_intensity: locale === 'de' ? 'Ruhe' : 'Rest',
       step_instruction: reason,
     }],
   }
@@ -429,6 +448,7 @@ export function reviewAndClampPlan(
   plan: TrainingPlanLike,
   budget: LoadBudget,
   profile: Record<string, unknown> = {},
+  locale: 'de' | 'en' = 'en',
 ): { plan: TrainingPlanLike; repairs: string[] } {
   const repairs: string[] = []
   const whitelist = availableSports(profile)
@@ -438,9 +458,16 @@ export function reviewAndClampPlan(
 
   let days = plan.days.map((day) => {
     const sport = normalizeSportKey(day.sport) as PlanSport
+    if (day.session_type === 'rest' && (day.total_duration_minutes !== 0 || sport !== 'other')) {
+      repairs.push(`rest_normalized:${day.date}`)
+      return toRestDay({ ...day, sport }, day.description, locale)
+    }
     if (day.session_type !== 'rest' && !whitelist.has(sport)) {
       repairs.push(`sport_whitelist:${day.date}:${sport}`)
-      return toRestDay({ ...day, sport }, 'Converted to rest: sport not in available_sports whitelist.')
+      const reason = locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: Sportart ist nicht in den verfügbaren Sportarten.'
+        : 'Converted to rest: sport not in available_sports whitelist.'
+      return toRestDay({ ...day, sport }, reason, locale)
     }
     const dayLimit = budget.max_training_minutes_per_day[day.day]
     return clampDayToLimit({ ...day, sport }, dayLimit)
@@ -473,7 +500,10 @@ export function reviewAndClampPlan(
   while (enduranceIndexes.length > budget.max_endurance_sessions) {
     const index = enduranceIndexes.shift()
     if (index === undefined) break
-    days[index] = toRestDay(days[index], 'Converted to rest: endurance session frequency cap reached.')
+    const reason = locale === 'de'
+      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Ausdauereinheiten erreicht.'
+      : 'Converted to rest: endurance session frequency cap reached.'
+    days[index] = toRestDay(days[index], reason, locale)
     repairs.push(`endurance_frequency:${days[index].date}`)
   }
 
@@ -484,7 +514,10 @@ export function reviewAndClampPlan(
   while (strengthIndexes.length > budget.max_strength_sessions) {
     const index = strengthIndexes.shift()
     if (index === undefined) break
-    days[index] = toRestDay(days[index], 'Converted to rest: strength session frequency cap reached.')
+    const reason = locale === 'de'
+      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Krafteinheiten erreicht.'
+      : 'Converted to rest: strength session frequency cap reached.'
+    days[index] = toRestDay(days[index], reason, locale)
     repairs.push(`strength_frequency:${days[index].date}`)
   }
 
@@ -521,7 +554,10 @@ export function reviewAndClampPlan(
       .sort((a, b) => a.day.total_duration_minutes - b.day.total_duration_minutes)
     if (!dropCandidates.length) break
     const drop = dropCandidates[0]
-    days[drop.index] = toRestDay(drop.day, 'Converted to rest: strength minutes cap reached.')
+    const reason = locale === 'de'
+      ? 'In einen Ruhetag umgewandelt: maximales Krafttrainingsvolumen erreicht.'
+      : 'Converted to rest: strength minutes cap reached.'
+    days[drop.index] = toRestDay(drop.day, reason, locale)
     repairs.push(`strength_total_drop:${drop.day.date}`)
   }
 
@@ -556,8 +592,29 @@ export function reviewAndClampPlan(
       .sort((a, b) => a.day.total_duration_minutes - b.day.total_duration_minutes)
     if (!dropCandidates.length) break
     const drop = dropCandidates[0]
-    days[drop.index] = toRestDay(drop.day, 'Converted to rest: endurance minutes cap reached.')
+    const reason = locale === 'de'
+      ? 'In einen Ruhetag umgewandelt: maximales Ausdauertrainingsvolumen erreicht.'
+      : 'Converted to rest: endurance minutes cap reached.'
+    days[drop.index] = toRestDay(drop.day, reason, locale)
     repairs.push(`total_drop:${drop.day.date}`)
+  }
+
+  const totalTrainingIndexes = () => days
+    .map((day, index) => ({ day, index }))
+    .filter(({ day }) => day.session_type === 'training')
+  while (totalTrainingIndexes().length > budget.max_training_sessions) {
+    const drop = totalTrainingIndexes()
+      .sort((a, b) => {
+        const aOutside = preferred.length && !preferred.includes(a.day.day) ? 1 : 0
+        const bOutside = preferred.length && !preferred.includes(b.day.day) ? 1 : 0
+        return bOutside - aOutside || a.day.total_duration_minutes - b.day.total_duration_minutes
+      })[0]
+    if (!drop) break
+    const reason = locale === 'de'
+      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Trainingseinheiten erreicht.'
+      : 'Converted to rest: total training session cap reached.'
+    days[drop.index] = toRestDay(drop.day, reason, locale)
+    repairs.push(`training_frequency:${drop.day.date}`)
   }
 
   if (preferred.length) {

@@ -162,6 +162,7 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
       createDebugPlan(parsed.data.locale, parsed.data.plan_start_date, budget),
       budget,
       parsed.data.profile,
+      parsed.data.locale,
     )
     if (reservation.reservationId) await finishReservation(env, reservation.reservationId, reviewed.plan, true)
     const payload = env.TRAINING_PLAN_MODE === 'local'
@@ -197,7 +198,7 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   let repairs: string[] = []
   try {
     plan = assertRollingPlan(planSchema.parse(normalizePlan(parseJson(text))), parsed.data.plan_start_date)
-    const reviewed = reviewAndClampPlan(plan, budget, parsed.data.profile)
+    const reviewed = reviewAndClampPlan(plan, budget, parsed.data.profile, parsed.data.locale)
     plan = planSchema.parse(reviewed.plan)
     repairs = reviewed.repairs
   } catch (error) {
@@ -428,12 +429,20 @@ function createPromptEnglish(
     'Treat profile.available_sports as a strict whitelist. Never schedule a sport that is not listed there.',
     'Use only sports from the available_sports whitelist, including rowing, strength, or mobility only when explicitly enabled.',
     'Respect profile, goals, preferred days, and all weekly/daily limits relative to this rolling window.',
+    'FREQUENCY: training_frequency_per_week is the maximum number of all structured training days combined, including endurance, strength, and mobility. Never add strength or active recovery on top of that count.',
+    'PREFERRED DAYS: Schedule structured sessions only on preferred_training_days when that list contains enough days for the requested frequency. Days outside that list should be rest days unless necessary to avoid unsafe back-to-back hard sessions.',
+    'REST INVARIANT: A rest day must use session_type "rest", sport "other", total_duration_minutes 0, and one no-exercise recovery TODO. Any active recovery, walk, mobility, or other timed activity is a training day and counts toward the frequency cap.',
     'Manage load conservatively using CTL, ATL, TSB, and ACWR. Schedule recovery when fatigue or risk signals are present.',
     'VOLUME GUARDRAIL: Obey HARD_CAPS exactly. max_endurance_minutes is for running/cycling/etc only; strength has its own caps and does not consume the endurance budget.',
+    'BUDGET CHECK: Before returning JSON, add all endurance-day durations and verify the sum is <= max_endurance_minutes, every run is <= max_long_run_minutes, and the count of all non-rest days is <= max_training_sessions. For very small budgets, use short run/walk sessions; do not draft a normal week and rely on later correction.',
     budget.resume_long
       ? 'RESUME_LONG: true. Athlete has proven longer runs despite a weak recent week. Prefer 1 long run near max_long_run_minutes plus at most one short easy run; do not crush the long into tiny minutes.'
       : 'If recent weeks are very low and resume_long is false, rebuild gradually with shorter sessions.',
     `INTENSITY GUARDRAIL: Prefer easy aerobic work when fitness is low or history is sparse. Schedule at most ${budget.max_quality_sessions} quality session(s) in these 7 days.`,
+    budget.recovery_week
+      ? 'RECOVERY_WEEK: true. Acute load is unsafe (risk spike, very negative TSB, or high ACWR). Reduce endurance volume substantially, keep every session easy, and prioritize full rest.'
+      : 'RECOVERY_WEEK: false.',
+    'LIMITATIONS: Treat stated pain, injury, rehabilitation, and explicit "do not" constraints as hard safety restrictions. Acknowledge relevant limitations in the week summary and include clear stop/adjust guidance without diagnosing.',
     'SESSION DETAIL: Every training day needs concrete warm-up, main set, and cool-down steps. For strength, prescribe specific exercises, sets, and reps (e.g. squats, lunges, hinge, plank, glute bridge) instead of vague "choose exercises".',
     'Create exactly one actionable TODO for each of seven days, including rest days.',
     sanitized.signals.hr_zones_may_be_miscalibrated
