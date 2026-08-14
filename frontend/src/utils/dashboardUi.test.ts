@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
+  averageWeeklyMinutes,
   canCreatePlan,
   connectorBannerKind,
   createPlanButtonMode,
   isTrainingPlanLocalMode,
   shouldWarnPolarStravaOverlap,
+  sportKind,
+  weeklyTrend,
 } from './dashboardUi'
+
+const week = (weekStart: string, durationMinutes: number, workoutCount = 1, distanceKm = 0) => ({
+  weekStart,
+  durationMinutes,
+  workoutCount,
+  distanceKm,
+})
 
 describe('dashboardUi helpers', () => {
   it('detects local training plan modes', () => {
@@ -65,5 +75,48 @@ describe('dashboardUi helpers', () => {
   it('switches create vs replace button mode', () => {
     expect(createPlanButtonMode({ hasPlan: false })).toBe('create')
     expect(createPlanButtonMode({ hasPlan: true })).toBe('replace')
+  })
+
+  it('maps sport names onto accent kinds', () => {
+    expect(sportKind('Running')).toBe('running')
+    expect(sportKind('laufen')).toBe('running')
+    expect(sportKind('Radfahren')).toBe('cycling')
+    expect(sportKind('Open water swim')).toBe('swimming')
+    expect(sportKind('Wandern')).toBe('hiking')
+    expect(sportKind('Walking')).toBe('walking')
+    expect(sportKind('Strength')).toBe('other')
+    expect(sportKind(undefined)).toBe('other')
+  })
+
+  it('scales weekly trend bars against the highest training time, newest first', () => {
+    const trend = weeklyTrend({
+      weekly: [week('2026-07-27', 60), week('2026-08-03', 120), week('2026-08-10', 30)],
+      currentWeekStart: '2026-08-10',
+      limit: 6,
+    })
+    expect(trend.map((entry) => entry.weekStart)).toEqual(['2026-08-10', '2026-08-03', '2026-07-27'])
+    expect(trend.map((entry) => entry.sharePercent)).toEqual([25, 100, 50])
+    expect(trend[0].isCurrentWeek).toBe(true)
+  })
+
+  it('limits the trend range and keeps an untrained current week visible', () => {
+    const trend = weeklyTrend({
+      weekly: [week('2026-06-29', 10), week('2026-07-06', 20), week('2026-07-13', 30)],
+      currentWeekStart: '2026-08-10',
+      limit: 2,
+    })
+    expect(trend.map((entry) => entry.weekStart)).toEqual(['2026-08-10', '2026-07-13'])
+    expect(trend[0]).toMatchObject({ durationMinutes: 0, workoutCount: 0, sharePercent: 0, isCurrentWeek: true })
+  })
+
+  it('averages completed weeks only and ignores the in-progress week', () => {
+    expect(
+      averageWeeklyMinutes({
+        weekly: [week('2026-07-20', 20), week('2026-07-27', 40), week('2026-08-10', 5)],
+        currentWeekStart: '2026-08-10',
+        weeks: 4,
+      }),
+    ).toBe(30)
+    expect(averageWeeklyMinutes({ weekly: [week('2026-08-10', 5)], currentWeekStart: '2026-08-10' })).toBe(0)
   })
 })

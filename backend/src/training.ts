@@ -2,9 +2,40 @@ import { z } from 'zod'
 import type { Env } from './types'
 import { json } from './http'
 import { finishReservation, reserveCredit } from './billing'
+import {
+  computeLoadBudget,
+  formatHardCapsBlock,
+  reviewAndClampPlan,
+  sanitizePlanInputs,
+  type LoadBudget,
+  type SanitizedInputs,
+} from './planSafety'
+
+const weekDayEnum = z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
+const coachStyleEnum = z.enum(['mentor', 'pragmatist', 'performance'])
+
+const previousPlanDaySchema = z.object({
+  date: z.string().optional(),
+  day: z.string(),
+  sport: z.string(),
+  session_type: z.string(),
+  title: z.string(),
+  total_duration_minutes: z.number().int().nonnegative(),
+  completed: z.boolean(),
+}).passthrough()
 
 const requestSchema = z.object({
   locale: z.enum(['de', 'en']).default('de'),
+  plan_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  coach_style: coachStyleEnum.default('pragmatist'),
+  previous_plan: z.object({
+    start_date: z.string().optional(),
+    week_summary: z.object({
+      focus_title: z.string(),
+      goal_description: z.string(),
+    }).optional(),
+    days: z.array(previousPlanDaySchema).max(7),
+  }).optional(),
   profile: z.record(z.unknown()).default({}),
   goals: z.array(z.record(z.unknown())).max(20).default([]),
   metrics: z.record(z.unknown()).default({}),
@@ -12,9 +43,11 @@ const requestSchema = z.object({
   config: z.record(z.unknown()).optional(),
   workouts: z.array(z.record(z.unknown())).max(14).optional(),
 })
+
 const stepSchema = z.object({ step_duration: z.string().min(1), step_intensity: z.string().min(1), step_instruction: z.string().min(1) })
 const daySchema = z.object({
-  day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  day: weekDayEnum,
   sport: z.enum(['running', 'cycling', 'swimming', 'rowing', 'hiking', 'strength', 'mobility', 'other']),
   session_type: z.enum(['training', 'rest']),
   title: z.string().min(1),
@@ -24,7 +57,11 @@ const daySchema = z.object({
   workout_steps: z.array(stepSchema).min(1),
 })
 const weekSummarySchema = z.object({ focus_title: z.string().min(1), goal_description: z.string().min(1) })
-const planSchema = z.object({ week_summary: weekSummarySchema, days: z.array(daySchema).length(7) })
+const planSchema = z.object({
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  week_summary: weekSummarySchema,
+  days: z.array(daySchema).length(7),
+})
 const localGeminiLogUrl = 'http://127.0.0.1:8790/gemini-log'
 
 const responseSchema = {
@@ -39,17 +76,60 @@ const responseSchema = {
       type: 'ARRAY', items: {
         type: 'OBJECT',
         properties: {
+          date: { type: 'STRING' },
           day: { type: 'STRING', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
           sport: { type: 'STRING', enum: ['running', 'cycling', 'swimming', 'rowing', 'hiking', 'strength', 'mobility', 'other'] },
-          session_type: { type: 'STRING', enum: ['training', 'rest'] }, title: { type: 'STRING' }, description: { type: 'STRING' }, target_focus: { type: 'STRING' },
+          session_type: { type: 'STRING', enum: ['training', 'rest'] },
+          title: { type: 'STRING' },
+          description: { type: 'STRING' },
+          target_focus: { type: 'STRING' },
           total_duration_minutes: { type: 'INTEGER' },
-          workout_steps: { type: 'ARRAY', items: { type: 'OBJECT', properties: { step_duration: { type: 'STRING' }, step_intensity: { type: 'STRING' }, step_instruction: { type: 'STRING' } }, required: ['step_duration', 'step_intensity', 'step_instruction'] } },
+          workout_steps: {
+            type: 'ARRAY',
+            minItems: 1,
+            items: {
+              type: 'OBJECT',
+              properties: {
+                step_duration: { type: 'STRING' },
+                step_intensity: { type: 'STRING' },
+                step_instruction: { type: 'STRING' },
+              },
+              required: ['step_duration', 'step_intensity', 'step_instruction'],
+            },
+          },
         },
-        required: ['day', 'sport', 'session_type', 'title', 'description', 'target_focus', 'total_duration_minutes', 'workout_steps'],
+        required: ['date', 'day', 'sport', 'session_type', 'title', 'description', 'target_focus', 'total_duration_minutes', 'workout_steps'],
       },
     },
   },
   required: ['week_summary', 'days'],
+}
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+
+export function weekdayFromDateKey(dateKey: string): (typeof WEEKDAYS)[number] {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return WEEKDAYS[date.getUTCDay()]
+}
+
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
+
+export function assertRollingPlan(plan: z.infer<typeof planSchema>, startDate: string): z.infer<typeof planSchema> {
+  const expected = Array.from({ length: 7 }, (_, index) => addDaysToDateKey(startDate, index))
+  const sortedDays = [...plan.days].sort((a, b) => a.date.localeCompare(b.date))
+  const dates = sortedDays.map((day) => day.date)
+  if (new Set(dates).size !== 7) throw new Error('Plan days must have unique dates.')
+  for (let index = 0; index < 7; index += 1) {
+    const day = sortedDays[index]
+    if (day.date !== expected[index]) throw new Error(`Plan day ${index + 1} must be ${expected[index]}.`)
+    if (day.day !== weekdayFromDateKey(day.date)) throw new Error(`Plan day ${day.date} has mismatched weekday.`)
+  }
+  return { ...plan, start_date: startDate, days: sortedDays }
 }
 
 export async function createTrainingPlan(request: Request, env: Env): Promise<Response> {
@@ -70,12 +150,26 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   try { body = JSON.parse(rawBody) } catch { return json({ detail: 'Ungültiges JSON.' }, 400, request, env) }
   const parsed = requestSchema.safeParse(body)
   if (!parsed.success) return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
+  const sanitized = sanitizePlanInputs({
+    metrics: parsed.data.metrics,
+    recent_workouts: parsed.data.recent_workouts,
+    workouts: parsed.data.workouts,
+    profile: parsed.data.profile,
+  })
+  const budget = computeLoadBudget(sanitized, parsed.data.profile)
   if (env.TRAINING_PLAN_MODE === 'mock' || (env.TRAINING_PLAN_MODE === 'local' && !env.GEMINI_API_KEY) || !env.GEMINI_API_KEY) {
-    const plan = createDebugPlan(parsed.data.locale)
-    if (reservation.reservationId) await finishReservation(env, reservation.reservationId, plan, true)
-    return json({ plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.' }, 200, request, env)
+    const reviewed = reviewAndClampPlan(
+      createDebugPlan(parsed.data.locale, parsed.data.plan_start_date, budget),
+      budget,
+      parsed.data.profile,
+    )
+    if (reservation.reservationId) await finishReservation(env, reservation.reservationId, reviewed.plan, true)
+    const payload = env.TRAINING_PLAN_MODE === 'local'
+      ? { plan: reviewed.plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.', meta: { load_budget: budget, repairs: reviewed.repairs } }
+      : { plan: reviewed.plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.' }
+    return json(payload, 200, request, env)
   }
-  const prompt = createPromptEnglish(parsed.data)
+  const prompt = createPromptEnglish(parsed.data, sanitized, budget)
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
   const geminiBody = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 } }
   let response: Response
@@ -100,8 +194,18 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
     return json({ detail: 'Gemini lieferte keine verwertbare Antwort.' }, 502, request, env)
   }
   let plan: z.infer<typeof planSchema>
-  try { plan = planSchema.parse(normalizePlan(parseJson(text))) } catch (error) { await releaseReservation(); throw error }
+  let repairs: string[] = []
+  try {
+    plan = assertRollingPlan(planSchema.parse(normalizePlan(parseJson(text))), parsed.data.plan_start_date)
+    const reviewed = reviewAndClampPlan(plan, budget, parsed.data.profile)
+    plan = planSchema.parse(reviewed.plan)
+    repairs = reviewed.repairs
+  } catch (error) {
+    await releaseReservation()
+    throw error
+  }
   if (reservation.reservationId) await finishReservation(env, reservation.reservationId, plan, true)
+  if (env.TRAINING_PLAN_MODE === 'local') return json({ plan, meta: { load_budget: budget, repairs } }, 200, request, env)
   return json({ plan }, 200, request, env)
 }
 
@@ -126,7 +230,22 @@ async function logLocalGeminiCall(
   }
 }
 
-function normalizePlan(value: unknown): unknown {
+function defaultWorkoutSteps(sessionType: string, description: unknown): Array<{
+  step_duration: string
+  step_intensity: string
+  step_instruction: string
+}> {
+  const instruction = typeof description === 'string' && description.trim()
+    ? description.trim()
+    : (sessionType === 'rest' ? 'Rest day' : 'Complete the session as planned.')
+  return [{
+    step_duration: sessionType === 'rest' ? 'Rest day' : 'Session',
+    step_intensity: sessionType === 'rest' ? 'Recovery' : 'Easy',
+    step_instruction: instruction,
+  }]
+}
+
+export function normalizePlan(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
   const plan = value as Record<string, unknown>
   if (!Array.isArray(plan.days)) return value
@@ -135,10 +254,18 @@ function normalizePlan(value: unknown): unknown {
     days: plan.days.map((day) => {
       if (!day || typeof day !== 'object' || Array.isArray(day)) return day
       const item = day as Record<string, unknown>
+      const date = typeof item.date === 'string' ? item.date : undefined
+      const session_type = normalizeSessionType(item.session_type)
+      const steps = Array.isArray(item.workout_steps)
+        ? item.workout_steps.filter((step) => step && typeof step === 'object' && !Array.isArray(step))
+        : []
       return {
         ...item,
+        date,
+        day: date ? weekdayFromDateKey(date) : item.day,
         sport: normalizeSport(item.sport),
-        session_type: normalizeSessionType(item.session_type),
+        session_type,
+        workout_steps: steps.length ? steps : defaultWorkoutSteps(session_type, item.description),
       }
     }),
   }
@@ -163,63 +290,54 @@ function normalizeSessionType(value: unknown): string {
   return 'training'
 }
 
-function createDebugPlan(locale: 'de' | 'en'): z.infer<typeof planSchema> {
+function createDebugPlan(locale: 'de' | 'en', startDate: string, budget: LoadBudget): z.infer<typeof planSchema> {
   const english = locale === 'en'
-  const days = english
+  const longMinutes = Math.max(0, Math.min(budget.max_long_run_minutes, Math.max(15, Math.round(budget.max_total_training_minutes * 0.45))))
+  const easyMinutes = Math.max(0, Math.min(30, Math.max(0, budget.max_total_training_minutes - longMinutes)))
+  const templates = english
     ? [
-        ['Monday', 'Rest', 'TEST PLAN — no Gemini key configured.', 'Recovery'],
-        ['Tuesday', 'Running', 'TEST PLAN — easy aerobic run.', 'Base endurance'],
-        ['Wednesday', 'Rest', 'TEST PLAN — recovery day.', 'Recovery'],
-        ['Thursday', 'Running', 'TEST PLAN — controlled interval session.', 'Speed'],
-        ['Friday', 'Rest', 'TEST PLAN — recovery day.', 'Recovery'],
-        ['Saturday', 'Running', 'TEST PLAN — relaxed long run.', 'Endurance'],
-        ['Sunday', 'Walking', 'TEST PLAN — easy active recovery.', 'Recovery'],
-      ]
+        ['Rest', 'TEST PLAN — no Gemini key configured.', 'Recovery', 0],
+        ['Running', 'TEST PLAN — easy aerobic run.', 'Base endurance', easyMinutes],
+        ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
+        ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
+        ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
+        ['Running', 'TEST PLAN — relaxed long run.', 'Endurance', longMinutes],
+        ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
+      ] as const
     : [
-        ['Montag', 'Rest', 'TESTPLAN — Gemini-Key ist nicht konfiguriert.', 'Erholung'],
-        ['Dienstag', 'Running', 'TESTPLAN — lockerer aerober Lauf.', 'Grundlagenausdauer'],
-        ['Mittwoch', 'Rest', 'TESTPLAN — Erholungstag.', 'Erholung'],
-        ['Donnerstag', 'Running', 'TESTPLAN — kontrollierte Intervalleinheit.', 'Schnelligkeit'],
-        ['Freitag', 'Rest', 'TESTPLAN — Erholungstag.', 'Erholung'],
-        ['Samstag', 'Running', 'TESTPLAN — entspannter langer Lauf.', 'Ausdauer'],
-        ['Sonntag', 'Walking', 'TESTPLAN — lockere aktive Erholung.', 'Erholung'],
-      ]
-  const variants = [
-    [0, 35, 0, 40, 0, 55, 25],
-    [0, 30, 35, 0, 45, 60, 20],
-    [25, 0, 40, 0, 35, 70, 0],
-  ]
-  const durations = variants[Math.floor(Math.random() * variants.length)]
-  const summaries = english
-    ? [
-        { focus_title: 'Aerobic base and recovery', goal_description: 'Build consistent endurance while allowing recovery between demanding sessions.' },
-        { focus_title: 'Controlled progression', goal_description: 'Increase training stimulus gradually without sacrificing recovery quality.' },
-        { focus_title: 'Endurance with strategic intensity', goal_description: 'Combine easy volume with one focused quality session and enough recovery.' },
-      ]
-    : [
-        { focus_title: 'Aerobe Basis und Erholung', goal_description: 'Baue deine Ausdauer kontinuierlich auf und lasse zwischen fordernden Einheiten bewusst Erholung zu.' },
-        { focus_title: 'Kontrollierte Steigerung', goal_description: 'Erhöhe den Trainingsreiz schrittweise, ohne die Qualität der Erholung zu beeinträchtigen.' },
-        { focus_title: 'Ausdauer mit gezielter Intensität', goal_description: 'Verbinde lockeren Umfang mit einer fokussierten Qualitätseinheit und ausreichend Erholung.' },
-      ]
-  const summary = summaries[Math.floor(Math.random() * summaries.length)]
-  const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-  return planSchema.parse({
+        ['Rest', 'TESTPLAN — Gemini-Key ist nicht konfiguriert.', 'Erholung', 0],
+        ['Running', 'TESTPLAN — lockerer aerober Lauf.', 'Grundlagenausdauer', easyMinutes],
+        ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
+        ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
+        ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
+        ['Running', 'TESTPLAN — entspannter langer Lauf.', 'Ausdauer', longMinutes],
+        ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
+      ] as const
+  const summary = english
+    ? { focus_title: 'Aerobic base and recovery', goal_description: 'Build consistent endurance while allowing recovery between demanding sessions over the next 7 days.' }
+    : { focus_title: 'Aerobe Basis und Erholung', goal_description: 'Baue deine Ausdauer in den nächsten 7 Tagen kontinuierlich auf und lasse zwischen fordernden Einheiten bewusst Erholung zu.' }
+  return assertRollingPlan(planSchema.parse({
+    start_date: startDate,
     week_summary: summary,
-    days: days.map(([, sport, description, focus], index) => ({
-    day: dayKeys[index],
-    sport: sport.toLowerCase() === 'walking' ? 'hiking' : sport.toLowerCase() === 'rest' ? 'other' : sport.toLowerCase(),
-    session_type: sport.toLowerCase() === 'rest' ? 'rest' : 'training',
-    title: focus,
-    description,
-    target_focus: focus,
-    total_duration_minutes: durations[index],
-    workout_steps: [{
-      step_duration: durations[index] ? `${durations[index]} min` : 'Ruhetag',
-      step_intensity: durations[index] ? 'Locker' : 'Erholung',
-      step_instruction: description,
-    }],
-    })),
-  })
+    days: templates.map(([sport, description, focus, duration], index) => {
+      const date = addDaysToDateKey(startDate, index)
+      return {
+        date,
+        day: weekdayFromDateKey(date),
+        sport: sport.toLowerCase() === 'rest' ? 'other' : sport.toLowerCase(),
+        session_type: sport.toLowerCase() === 'rest' ? 'rest' : 'training',
+        title: focus,
+        description,
+        target_focus: focus,
+        total_duration_minutes: duration,
+        workout_steps: [{
+          step_duration: duration ? `${duration} min` : (english ? 'Rest day' : 'Ruhetag'),
+          step_intensity: duration ? (english ? 'Easy' : 'Locker') : (english ? 'Recovery' : 'Erholung'),
+          step_instruction: description,
+        }],
+      }
+    }),
+  }), startDate)
 }
 
 function parseJson(text: string): unknown {
@@ -227,71 +345,134 @@ function parseJson(text: string): unknown {
   try { return JSON.parse(trimmed) } catch {
     const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]
     if (fenced) return JSON.parse(fenced)
-    const start = trimmed.indexOf('['), end = trimmed.lastIndexOf(']')
+    const start = trimmed.indexOf('{'), end = trimmed.lastIndexOf('}')
     if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1))
-    throw new Error('Gemini lieferte kein gültiges JSON-Array.')
+    throw new Error('Gemini lieferte kein gültiges JSON-Objekt.')
   }
 }
 
-function createPromptEnglish(data: z.infer<typeof requestSchema>): string {
+function coachStyleBlock(style: z.infer<typeof coachStyleEnum>): string {
+  if (style === 'mentor') {
+    return [
+      'COACH_STYLE: mentor',
+      'Tone: encouraging, empathetic, sustainable. Prioritize joy, recovery, and listening to the body.',
+      'Do not ignore safety guardrails. Soft language never overrides load limits.',
+    ].join('\n')
+  }
+  if (style === 'performance') {
+    return [
+      'COACH_STYLE: performance',
+      'Tone: focused, disciplined, direct. Emphasize pacing discipline and race goals when safe.',
+      'Do not ignore safety guardrails. Ambition never overrides recovery or volume caps.',
+    ].join('\n')
+  }
+  return [
+    'COACH_STYLE: pragmatist',
+    'Tone: concise, practical, low-jargon. Keep instructions everyday-ready and simple.',
+    'Do not ignore safety guardrails.',
+  ].join('\n')
+}
+
+function goalContext(goals: Array<Record<string, unknown>>, planStartDate: string): string {
+  const upcoming = goals
+    .map((goal) => {
+      const date = typeof goal.date === 'string' ? goal.date.slice(0, 10) : ''
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < planStartDate) return null
+      const start = Date.parse(`${planStartDate}T00:00:00Z`)
+      const target = Date.parse(`${date}T00:00:00Z`)
+      const daysToGoal = Math.round((target - start) / 86_400_000)
+      return {
+        title: goal.title,
+        date,
+        days_to_goal: daysToGoal,
+        distance_km: goal.distance_km,
+        priority: goal.priority || 'B',
+        sport: goal.sport,
+        notes: goal.notes,
+      }
+    })
+    .filter(Boolean)
+  const pastIgnored = goals.filter((goal) => {
+    const date = typeof goal.date === 'string' ? goal.date.slice(0, 10) : ''
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) && date < planStartDate
+  }).length
+  return [
+    `PLAN_START_DATE: ${planStartDate}`,
+    `PLAN_END_DATE: ${addDaysToDateKey(planStartDate, 6)}`,
+    `UPCOMING_GOALS: ${JSON.stringify(upcoming)}`,
+    `IGNORED_PAST_GOALS_COUNT: ${pastIgnored}`,
+    'Prioritize A-goals. If the nearest A/B race is within 14 days, bias toward sharpening/taper rather than big volume jumps. If 15-42 days, use controlled base/build. If farther or none, rebuild conservatively from recent load.',
+  ].join('\n')
+}
+
+function createPromptEnglish(
+  data: z.infer<typeof requestSchema>,
+  sanitized: SanitizedInputs,
+  budget: LoadBudget,
+): string {
   const outputLanguage = data.locale === 'de' ? 'German' : 'English'
+  const expectedDates = Array.from({ length: 7 }, (_, index) => {
+    const date = addDaysToDateKey(data.plan_start_date, index)
+    return `${date} (${weekdayFromDateKey(date)})`
+  })
   const instructions = [
     'You are a professional endurance training coach.',
-    'Create a safe and realistic 7-day training plan.',
+    'Create a safe and realistic rolling 7-day training plan starting on PLAN_START_DATE (day 1 = that calendar date, not Monday).',
     `OUTPUT_LANGUAGE: ${outputLanguage}. Write all human-readable text in this language.`,
     'Keep all JSON property names and enum values exactly as defined in the schema; do not translate them.',
     'Return a JSON object with week_summary and days, never a bare array.',
-    'week_summary must contain a personalized focus_title and goal_description explaining why this week is structured this way.',
+    'week_summary must contain a personalized focus_title and goal_description explaining why these next 7 days are structured this way.',
+    'days must contain exactly 7 objects in chronological order for the dates listed in EXPECTED_DATES.',
+    'Each day needs date (YYYY-MM-DD) and day (weekday enum matching that date).',
     'Use measured local metrics as the primary basis for load decisions.',
     'Treat profile.available_sports as a strict whitelist. Never schedule a sport that is not listed there.',
     'Use only sports from the available_sports whitelist, including rowing, strength, or mobility only when explicitly enabled.',
-    'Respect profile, goals, preferred days, and all weekly/daily limits.',
+    'Respect profile, goals, preferred days, and all weekly/daily limits relative to this rolling window.',
     'Manage load conservatively using CTL, ATL, TSB, and ACWR. Schedule recovery when fatigue or risk signals are present.',
+    'VOLUME GUARDRAIL: Obey HARD_CAPS exactly. max_endurance_minutes is for running/cycling/etc only; strength has its own caps and does not consume the endurance budget.',
+    budget.resume_long
+      ? 'RESUME_LONG: true. Athlete has proven longer runs despite a weak recent week. Prefer 1 long run near max_long_run_minutes plus at most one short easy run; do not crush the long into tiny minutes.'
+      : 'If recent weeks are very low and resume_long is false, rebuild gradually with shorter sessions.',
+    `INTENSITY GUARDRAIL: Prefer easy aerobic work when fitness is low or history is sparse. Schedule at most ${budget.max_quality_sessions} quality session(s) in these 7 days.`,
+    'SESSION DETAIL: Every training day needs concrete warm-up, main set, and cool-down steps. For strength, prescribe specific exercises, sets, and reps (e.g. squats, lunges, hinge, plank, glute bridge) instead of vague "choose exercises".',
     'Create exactly one actionable TODO for each of seven days, including rest days.',
-    'Use heart-rate zones only when they are provided.',
+    sanitized.signals.hr_zones_may_be_miscalibrated
+      ? 'HR_ZONES_MAY_BE_MISCALIBRATED: true. Prioritize perceived effort / conversational pace; treat HR zones only as rough guidance.'
+      : 'Use heart-rate zones only when they are provided.',
     'All step_duration, step_intensity, and step_instruction values must be JSON strings.',
     'Unknown personal information stays unknown. Do not invent it.',
+    'If PREVIOUS_PLAN is provided, continue logically from completion status: completed sessions can progress; skipped/incomplete hard sessions should be delayed or softened; do not blindly repeat an unfinished aggressive plan.',
     'Return only valid JSON without Markdown.',
+    coachStyleBlock(data.coach_style),
   ]
-  const schema = 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Each step needs step_duration, step_intensity, and step_instruction.'
-  return [...instructions, schema, '', 'USER_PROFILE:', JSON.stringify(data.profile), 'GOALS:', JSON.stringify(data.goals), 'MEASURED_METRICS:', JSON.stringify(data.metrics), 'RECENT_WORKOUTS:', JSON.stringify(data.recent_workouts || data.workouts || [])].join('\n')
-}
-
-function createPromptV2(data: z.infer<typeof requestSchema>): string {
-  const english = data.locale === 'en'
-  const instructions = english
-    ? ['Create a safe and realistic 7-day training plan.', 'Answer exclusively in English.', 'Return a JSON object with week_summary and days, never a bare array.', 'week_summary must contain a personalized focus_title and goal_description explaining why this week is structured this way.', 'Use measured local metrics as the primary basis for load decisions.', 'Treat profile.available_sports as a strict whitelist: never schedule cycling, climbing, swimming, or any other sport that is not listed there.', 'Only include climbing when the athlete explicitly has climbing in available_sports or requests it as a goal.', 'Respect profile, goals, preferred days, and all weekly/daily limits.', 'Manage load conservatively using CTL, ATL, TSB, and ACWR. Schedule recovery when fatigue or risk signals are present.', 'Create exactly one actionable TODO for each of seven days, including rest days.', 'Use only available sports and use HR zones only when provided.', 'All step_duration, step_intensity, and step_instruction values must be JSON strings.', 'Unknown personal information stays unknown. Do not invent it.']
-    : ['Erstelle einen sicheren und realistischen 7-Tage-Trainingsplan.', 'Antworte ausschließlich auf Deutsch.', 'Gib ein JSON-Objekt mit week_summary und days zurück, niemals ein reines Array.', 'week_summary muss einen personalisierten focus_title und eine goal_description enthalten, die erklären, warum diese Woche so aufgebaut ist.', 'Nutze die lokal gemessenen Kennzahlen als wichtigste Grundlage für die Belastung.', 'Behandle profile.available_sports als strikte Whitelist: Plane niemals Radfahren, Klettern, Schwimmen oder eine andere Sportart ein, die dort nicht enthalten ist.', 'Plane Klettern nur ein, wenn der Athlet Klettern ausdrücklich als verfügbare Sportart oder Ziel angegeben hat.', 'Beachte Ziele, bevorzugte Tage sowie Wochen- und Tageslimits.', 'Steuere konservativ anhand von CTL, ATL, TSB und ACWR. Plane bei Ermüdung oder Risiko Erholung.', 'Erstelle für jeden der sieben Tage genau eine TODO, einschließlich Ruhetagen.', 'Nutze Herzfrequenzzonen nur, wenn sie angegeben sind.', 'Alle Werte von step_duration, step_intensity und step_instruction müssen JSON-Strings sein.', 'Unbekannte persönliche Angaben bleiben unbekannt. Erfinde sie nicht.']
-  const schema = english
-    ? 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs day, sport, description, target_focus, total_duration_minutes, and workout_steps. Each step needs step_duration, step_intensity, and step_instruction.'
-    : 'JSON-Schema: week_summary enthält focus_title und goal_description; days ist ein Array mit genau sieben Objekten. Jeder Tag benötigt day, sport, description, target_focus, total_duration_minutes und workout_steps. Jeder Schritt benötigt step_duration, step_intensity und step_instruction.'
-  return [...instructions, schema, 'Return only valid JSON without Markdown.', '', 'USER_PROFILE:', JSON.stringify(data.profile), 'GOALS:', JSON.stringify(data.goals), 'MEASURED_METRICS:', JSON.stringify(data.metrics), 'RECENT_WORKOUTS:', JSON.stringify(data.recent_workouts || data.workouts || [])].join('\n')
-}
-
-function createPrompt(data: z.infer<typeof requestSchema>): string {
-  const english = data.locale === 'en'
-  const rules = english
-    ? ['Use measured local metrics as the primary basis for load decisions.', 'Respect profile, goals, available sports, preferred days, and all weekly/daily limits.', 'Manage load conservatively using CTL, ATL, TSB, and ACWR. Schedule recovery when fatigue or risk signals are present.', 'Create exactly one actionable TODO for each of seven days, including rest days.', 'Use only available sports and use HR zones only when provided.', 'All step_duration, step_intensity, and step_instruction values must be JSON strings. Never use a number for step_duration.', 'Return only a JSON array with exactly seven objects, without Markdown.']
-    : ['Nutze die lokal gemessenen Kennzahlen als wichtigste Grundlage für die Belastung.', 'Beachte Profil, Ziele, verfügbare Sportarten, bevorzugte Tage sowie Wochen- und Tageslimits.', 'Steuere konservativ anhand von CTL, ATL, TSB und ACWR. Plane bei Ermüdung oder Risiko Erholung.', 'Erstelle für jeden der sieben Tage genau eine TODO, einschließlich Ruhetagen.', 'Nutze nur verfügbare Sportarten und Herzfrequenzzonen nur, wenn sie angegeben sind.', 'Alle Werte von step_duration, step_intensity und step_instruction müssen JSON-Strings sein. Verwende niemals eine Zahl für step_duration.', 'Gib ausschließlich ein JSON-Array mit genau sieben Objekten ohne Markdown zurück.']
-  const schema = english ? 'Each object needs day, sport, description, target_focus, total_duration_minutes, and workout_steps. Each workout_steps item needs the three string fields step_duration, step_intensity, and step_instruction.' : 'Jedes Objekt benötigt day, sport, description, target_focus, total_duration_minutes und workout_steps. Jeder Schritt benötigt die drei String-Felder step_duration, step_intensity und step_instruction.'
-  return [english ? 'Create a safe and realistic 7-day training plan.' : 'Erstelle einen sicheren und realistischen 7-Tage-Trainingsplan.', english ? 'Answer exclusively in English.' : 'Antworte ausschließlich auf Deutsch.', english ? 'Unknown personal information stays unknown. Do not invent it.' : 'Unbekannte persönliche Angaben bleiben unbekannt. Erfinde sie nicht.', ...rules, schema, '', 'USER_PROFILE:', JSON.stringify(data.profile), 'GOALS:', JSON.stringify(data.goals), 'MEASURED_METRICS:', JSON.stringify(data.metrics), 'RECENT_WORKOUTS:', JSON.stringify(data.recent_workouts || data.workouts || [])].join('\n')
-}
-
-async function legacyCreateTrainingPlan(request: Request, env: Env): Promise<Response> {
-  if (!env.GEMINI_API_KEY) return json({ detail: 'GEMINI_API_KEY ist nicht konfiguriert.' }, 503, request, env)
-  const rawBody = await request.text()
-  if (rawBody.length > 128 * 1024) return json({ detail: 'Request ist zu groß.' }, 413, request, env)
-  let body: unknown
-  try { body = JSON.parse(rawBody) } catch { return json({ detail: 'Ungültiges JSON.' }, 400, request, env) }
-  const parsed = requestSchema.safeParse(body)
-  if (!parsed.success) return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
-  const prompt = ['Erstelle einen sicheren, realistischen 7-Tage-Lauftrainingsplan.', 'Nutze ausschließlich die angegebenen Herzfrequenzzonen.', 'Gib ausschließlich ein JSON-Array zurück, ohne Markdown oder zusätzliche Erklärung.', '', `ATHLET: ${JSON.stringify(parsed.data.config)}`, `TRAININGSHISTORIE: ${JSON.stringify(parsed.data.workouts)}`].join('\n')
-  const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{responseMimeType:'application/json'} }), signal:AbortSignal.timeout(45_000) })
-  if (!response.ok) return json({ detail: `Gemini antwortete mit ${response.status}.` }, 502, request, env)
-  const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Gemini lieferte keinen Text zurück.')
-  const plan = z.array(daySchema).min(1).parse(JSON.parse(text))
-  return json({ plan }, 200, request, env)
+  const schema = 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Each step needs step_duration, step_intensity, and step_instruction.'
+  return [
+    ...instructions,
+    schema,
+    '',
+    goalContext(data.goals, data.plan_start_date),
+    `EXPECTED_DATES: ${expectedDates.join(', ')}`,
+    formatHardCapsBlock(budget),
+    `SANITIZED_SIGNALS: ${JSON.stringify(sanitized.signals)}`,
+    `BUDGET_BASIS: ${JSON.stringify({
+      best_recent_week_minutes: sanitized.best_recent_week_minutes,
+      longest_reliable_run_minutes: sanitized.longest_reliable_run_minutes,
+      reliable_run_count: sanitized.reliable_run_count,
+    })}`,
+    '',
+    'USER_PROFILE:',
+    JSON.stringify(data.profile),
+    'GOALS:',
+    JSON.stringify(data.goals),
+    'MEASURED_METRICS:',
+    JSON.stringify({
+      ...data.metrics,
+      weekly: sanitized.weekly,
+      latest_load: sanitized.latest_load,
+    }),
+    'RECENT_WORKOUTS:',
+    JSON.stringify(sanitized.recent_workouts),
+    'PREVIOUS_PLAN:',
+    JSON.stringify(data.previous_plan || null),
+  ].join('\n')
 }

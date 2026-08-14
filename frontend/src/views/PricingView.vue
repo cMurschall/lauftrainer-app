@@ -41,6 +41,7 @@ onMounted(loadPrices)
 <template>
   <main class="pricing-page max-w-md mx-auto flex flex-col justify-center py-8">
     <h1 class="pricing-title">{{ t.creditsTitle }}</h1>
+    <p class="pricing-lead">{{ t.creditsLead }}</p>
     <p v-if="error" class="form-error">{{ error }}</p>
     <section class="pricing-grid flex justify-center" aria-live="polite">
       <article v-for="tier in tiers" :key="tier.name" class="card pricing-card">

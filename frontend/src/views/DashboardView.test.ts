@@ -33,9 +33,11 @@ const sampleWorkout: Workout = {
 }
 
 const samplePlan = {
+  start_date: '2026-08-10',
   week_summary: { focus_title: 'Base', goal_description: 'Build aerobic fitness.' },
   days: [
     {
+      date: '2026-08-10',
       day: 'monday' as const,
       sport: 'running' as const,
       session_type: 'training' as const,
@@ -64,7 +66,7 @@ async function mountDashboard() {
   return mount(DashboardView, {
     global: {
       plugins: [pinia, router],
-      stubs: { SportIcon: true, Transition: false },
+      stubs: { Transition: false },
     },
   })
 }
@@ -90,7 +92,7 @@ describe('DashboardView UX', () => {
     expect(wrapper.text()).toMatch(/consent|Einverständnis|Please consent|Bitte zuerst/i)
   })
 
-  it('shows replace secondary when a plan exists and enables create in local mode with consent', async () => {
+  it('shows replace primary when a plan exists and enables create in local mode with consent', async () => {
     const wrapper = await mountDashboard()
     const workouts = useWorkoutStore()
     const plan = usePlanStore()
@@ -101,11 +103,11 @@ describe('DashboardView UX', () => {
     ui.credits = 0
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toMatch(/Your week|Deine Woche/)
+    expect(wrapper.text()).toMatch(/Next 7 days|Nächste 7 Tage/)
     expect(wrapper.find('.dashboard-flow.has-plan').exists()).toBe(true)
     const button = wrapper.get('[data-testid="create-plan-button"]')
     expect(button.text()).toMatch(/Replace plan|Plan ersetzen/)
-    expect(button.classes()).toContain('secondary')
+    expect(button.classes()).toContain('primary')
     expect(button.attributes('disabled')).toBeUndefined()
   })
 

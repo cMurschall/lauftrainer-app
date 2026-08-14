@@ -89,10 +89,15 @@
     min-height: min(560px, calc(100vh - 96px));
   }
   .pricing-title {
-    margin: 0 0 24px;
+    margin: 0 0 10px;
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.25;
+    text-align: center;
+  }
+  .pricing-page > .pricing-lead {
+    margin: 0 auto 24px;
+    max-width: 28rem;
     text-align: center;
   }
   .pricing-page::before {
@@ -761,7 +766,7 @@
     cursor: pointer;
     font-size: 0.88rem;
   }
-  .workouts {
+  .activities {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -774,74 +779,82 @@
     width: 100%;
     accent-color: var(--accent);
   }
-  .workouts li {
+  .activities li {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 12px;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
   }
-  .workout-row > div {
+  .activities li:last-child {
+    border-bottom: 0;
+  }
+  .activity-accent {
+    flex: 0 0 3px;
+    min-height: 30px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .activity-accent.accent-cycling {
+    background: #60a5fa;
+  }
+  .activity-accent.accent-swimming {
+    background: #38bdf8;
+  }
+  .activity-accent.accent-hiking {
+    background: #a3e635;
+  }
+  .activity-accent.accent-walking {
+    background: #c084fc;
+  }
+  .activity-accent.accent-other {
+    background: var(--subtle);
+  }
+  .activity-row > div {
     min-width: 0;
   }
-  .workout-row strong,
-  .workout-row span {
+  .activity-row strong {
     display: block;
-  }
-  .workout-row strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .workout-row > div > span {
+  .activity-row > div > span {
+    display: block;
     margin-top: 3px;
     color: var(--muted);
     font-size: 0.78rem;
   }
-  .sport-icon {
-    display: grid;
-    flex: 0 0 30px;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .sport-icon svg {
-    width: 18px;
-    height: 18px;
-  }
-  .sport-icon-cycling {
-    color: #60a5fa;
-    background: rgba(96, 165, 250, 0.12);
-  }
-  .sport-icon-swimming {
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.12);
-  }
-  .sport-icon-hiking {
-    color: #a3e635;
-    background: rgba(163, 230, 53, 0.12);
-  }
-  .sport-icon-walking {
-    color: #c084fc;
-    background: rgba(192, 132, 252, 0.12);
-  }
-  .sport-icon-other {
+  .activity-empty {
     color: var(--muted);
-    background: var(--surface-raised);
   }
-  .workouts li:last-child {
-    border-bottom: 0;
-  }
-  .workouts li strong,
+  .activities li strong,
   .plan strong,
   .connector-row strong {
     color: var(--text);
     font-weight: 550;
+  }
+  .trend-summary {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trend-summary-label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .trend-summary .metric {
+    font-size: 1.5rem;
+  }
+  .trend-summary span {
+    font-size: 0.78rem;
   }
   .weeks {
     display: grid;
@@ -883,6 +896,15 @@
     background: var(--accent);
     opacity: 0.85;
   }
+  .trend-weeks i {
+    opacity: 0.5;
+  }
+  .trend-weeks div.current strong {
+    color: var(--accent);
+  }
+  .trend-weeks div.current i {
+    opacity: 1;
+  }
 
   .settings-section {
     padding: 18px;
@@ -910,8 +932,75 @@
     margin-bottom: 12px;
     padding-bottom: 10px;
   }
+  .ai-disclaimer,
+  .plan-disclaimer {
+    margin: 0.35rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+  .plan-disclaimer {
+    margin: 0.25rem 0 0.55rem;
+  }
   .create-hint {
     margin: 8px 0 0;
+  }
+  .plan-progress {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .plan-progress-bar {
+    position: relative;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .plan-progress-bar span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -40%;
+    width: 40%;
+    border-radius: inherit;
+    background: var(--accent);
+    animation: plan-progress-slide 1.4s ease-in-out infinite;
+  }
+  .plan-progress-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .spinner {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    animation: spinner-rotate 0.8s linear infinite;
+  }
+  @keyframes plan-progress-slide {
+    0% { left: -40%; }
+    50% { left: 60%; }
+    100% { left: 100%; }
+  }
+  @keyframes spinner-rotate {
+    to { transform: rotate(360deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plan-progress-bar span {
+      left: 0;
+      width: 100%;
+      animation: none;
+      opacity: 0.6;
+    }
+    .spinner {
+      animation-duration: 1.6s;
+    }
   }
   .credits-summary {
     display: grid;
@@ -990,6 +1079,21 @@
     padding: 7px 11px;
     color: var(--muted);
     font-size: 0.78rem;
+  }
+  .credits-device-note {
+    grid-column: 1 / -1;
+    margin: 2px 0 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  .local-storage-explainer {
+    margin: 12px 0 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+  .local-storage-tech {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
   }
   .local-data-summary {
     display: grid;
@@ -1118,6 +1222,58 @@
     background: rgba(239, 68, 68, 0.2);
     border-color: var(--danger);
   }
+  .delete-panel {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  }
+  .delete-panel-help {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  .delete-options {
+    display: grid;
+    gap: 8px;
+  }
+  .delete-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .delete-option input {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--danger);
+  }
+  .delete-option span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .delete-option strong {
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 550;
+  }
+  .delete-option small {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .delete-panel-actions {
+    margin-top: 2px;
+  }
   .goal-form {
     margin: 16px 0 18px;
     padding: 14px;
@@ -1243,19 +1399,25 @@
     padding-bottom: 0.9rem;
   }
   .plan-heading h3 {
-    margin: 0.15rem 0 0;
+    margin: 0;
   }
-  .plan div {
+  .plan-heading-title {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 11px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.85rem;
+    gap: 0.5rem;
+    min-width: 0;
   }
-  .plan div:last-child {
-    border-bottom: 0;
+  .plan-badge {
+    flex: none;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.62rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .plan-summary {
@@ -1275,6 +1437,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    font-size: 0.85rem;
   }
 
   .plan-day {
@@ -1335,32 +1498,73 @@
   .plan-steps {
     grid-column: 1 / -1;
     display: grid;
-    gap: 0.3rem;
-    margin: 0 0 0 1.65rem;
+    gap: 0.45rem;
+    margin: 0.15rem 0 0 1.65rem;
     padding-left: 1rem;
+    list-style: none;
   }
 
   .plan-steps li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 0.45rem;
-    font-size: 0;
-  }
-
-  .plan-steps li .plan-step-duration,
-  .plan-steps li .plan-step-intensity,
-  .plan-steps li .plan-step-instruction {
+    display: grid;
+    gap: 0.15rem;
     font-size: 0.8rem;
   }
 
-  .plan-steps li span:first-of-type {
+  .plan-steps li .plan-step-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.6rem;
+  }
+
+  .plan-steps li .plan-step-duration {
+    font-weight: 650;
+  }
+
+  .plan-steps li .plan-step-intensity {
     color: var(--accent);
+  }
+
+  .plan-steps li .plan-step-instruction {
+    display: block;
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .weekday-picks {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem 1rem;
+  }
+
+  .coach-style-picks {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .coach-style-option {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    cursor: pointer;
+  }
+
+  .coach-style-option.active {
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25);
+  }
+
+  .coach-style-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .coach-style-option strong {
+    color: var(--text);
   }
   footer {
     display: flex;

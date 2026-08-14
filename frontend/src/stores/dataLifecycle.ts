@@ -1,4 +1,11 @@
-import { exportBackup, importBackup, workoutDb } from '../db/database'
+import {
+  defaultClearDataSelection,
+  exportBackup,
+  hasClearDataSelection,
+  importBackup,
+  workoutDb,
+  type ClearDataSelection,
+} from '../db/database'
 import { syncActiveConnectors } from '../services/connectorService'
 import { diagnosticLog } from '../services/logger'
 import { useI18n } from '../i18n'
@@ -44,21 +51,32 @@ export async function restoreBackup(event: Event) {
   }
 }
 
-export async function clearAllData() {
+export async function clearLocalData(selection: ClearDataSelection) {
   const ui = useUiStore()
   const workouts = useWorkoutStore()
   const settings = useSettingsStore()
   const plan = usePlanStore()
   const analysis = useAnalysisStore()
   const { t } = useI18n()
-  if (!window.confirm(t.value.confirmDelete)) return
-  await workoutDb.clearAllUserData()
-  workouts.reset()
-  settings.resetAthleteData()
-  plan.reset()
-  analysis.reset()
+  if (!hasClearDataSelection(selection)) {
+    ui.notify(t.value.deleteNothingSelected, 'info')
+    return false
+  }
+  if (!window.confirm(t.value.confirmDeleteSelected)) return false
+  await workoutDb.clearUserData(selection)
+  if (selection.workouts) workouts.reset()
+  if (selection.goals) settings.resetGoals()
+  if (selection.profile) settings.resetConfig()
+  if (selection.plan) plan.reset()
+  if (selection.workouts || selection.profile) analysis.reset()
   await analysis.refreshAnalysis()
   ui.notify(t.value.dataDeleted, 'success')
+  return true
+}
+
+/** Clears every athlete-data category; theme/locale/connectors stay. */
+export async function clearAllData() {
+  return clearLocalData(defaultClearDataSelection())
 }
 
 export async function syncConnectors() {

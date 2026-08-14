@@ -5,13 +5,14 @@ import { storeToRefs } from 'pinia'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
 import { TRAINING_SPORT_CATEGORIES, type TrainingSportCategory } from '../types/workout'
-import type { ConnectorId, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
+import type { CoachStyle, ConnectorId, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
-import { clearAllData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
+import { clearLocalData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
+import { defaultClearDataSelection, hasClearDataSelection, type ClearDataSelection } from '../db/database'
 import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
 
 const route = useRoute()
@@ -21,7 +22,7 @@ const planStore = usePlanStore()
 const ui = useUiStore()
 const analysis = useAnalysisStore()
 
-const { theme, connectors, goals, config } = storeToRefs(settings)
+const { theme, connectors, goals, config, coachStyle } = storeToRefs(settings)
 const { summaries } = storeToRefs(workouts)
 const { plan } = storeToRefs(planStore)
 const { importProgress } = storeToRefs(ui)
@@ -65,11 +66,33 @@ const trainingGoalOptions = computed(() => [
   { label: t.value.goalRecovery, value: 'recovery' },
   { label: t.value.goalGeneralFitness, value: 'general_fitness' },
 ])
+const coachStyleOptions = computed(() => [
+  { value: 'mentor' as const, label: t.value.coachMentor, description: t.value.coachMentorHelp },
+  { value: 'pragmatist' as const, label: t.value.coachPragmatist, description: t.value.coachPragmatistHelp },
+  { value: 'performance' as const, label: t.value.coachPerformance, description: t.value.coachPerformanceHelp },
+])
 const enduranceSports = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking'] as const
 const supportSports = ['Strength', 'Mobility'] as const
 const sportLabel = (sport: TrainingSportCategory) => t.value[sport.toLowerCase() as 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility']
 const availableSportOptions = computed(() => TRAINING_SPORT_CATEGORIES.map((sport) => ({ value: sport, label: sportLabel(sport) })))
 const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
+const showDeletePanel = ref(false)
+const deleteSelection = ref<ClearDataSelection>(defaultClearDataSelection())
+const canDeleteSelection = computed(() => hasClearDataSelection(deleteSelection.value))
+
+function openDeletePanel() {
+  deleteSelection.value = defaultClearDataSelection()
+  showDeletePanel.value = true
+}
+
+function closeDeletePanel() {
+  showDeletePanel.value = false
+}
+
+async function confirmDeleteSelection() {
+  const deleted = await clearLocalData({ ...deleteSelection.value })
+  if (deleted) showDeletePanel.value = false
+}
 
 function openWorkoutFilePicker() {
   workoutFileInput.value?.click()
@@ -107,6 +130,10 @@ async function changeTheme(value: ThemePreference) {
 async function changeLocale(value: Locale) {
   settings.updateLocale(value)
   await settings.saveSettings()
+}
+
+async function changeCoachStyle(value: CoachStyle) {
+  await settings.updateCoachStyle(value)
 }
 
 async function saveConfigAndRefresh() {
@@ -211,6 +238,119 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       </label>
     </div>
   </section>
+  <section class="card settings-section">
+    <p class="eyebrow">{{ t.athleteProfile }}</p>
+    <div class="form-grid">
+      <label>{{ t.name }}<input v-model="config.name" @change="saveConfigAndRefresh" /></label
+      ><label>{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfigAndRefresh" /><span class="field-help">{{ t.lthrHelp }}</span></label>
+      <label>{{ t.trainingGoal }}<UiSelect :model-value="config.trainingGoal || config.trainingFocus || 'base_endurance'" :ariaLabel="t.trainingGoal" :options="trainingGoalOptions" @update:model-value="changeTrainingGoal" /></label>
+      <label>{{ t.performanceNotes }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
+      <label>{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea></label>
+      <label>{{ t.personalNotes }}<textarea v-model="config.personalNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
+    </div>
+  </section>
+  <section class="card settings-section">
+    <p class="eyebrow">{{ t.trainingFramework }}</p>
+    <div class="form-grid">
+      <label>{{ t.trainingFrequency }}<input v-model.number="config.trainingFrequencyPerWeek" min="0" max="14" step="1" type="number" @change="saveConfigAndRefresh" /></label>
+      <label class="checkbox-field"><input v-model="config.strengthTraining" type="checkbox" @change="saveConfigAndRefresh" />{{ t.strengthTraining }}</label>
+      <label>{{ t.maxWeeklyMinutes }}<input v-model.number="config.maxWeeklyTrainingMinutes" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
+    </div>
+    <p class="field-heading">{{ t.availableSports }}</p>
+    <p class="field-help settings-help">{{ t.availableSportsHelp }}</p>
+    <p class="field-heading">{{ t.enduranceSports }}</p>
+    <div class="weekday-picks">
+      <label v-for="option in availableSportOptions.filter((item) => enduranceSports.includes(item.value as (typeof enduranceSports)[number]))" :key="option.value" class="checkbox-field">
+        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
+      </label>
+    </div>
+    <p class="field-heading">{{ t.supportSports }}</p>
+    <div class="weekday-picks">
+      <label v-for="option in availableSportOptions.filter((item) => supportSports.includes(item.value as (typeof supportSports)[number]))" :key="option.value" class="checkbox-field">
+        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
+      </label>
+    </div>
+    <p class="field-heading">{{ t.preferredDays }}</p>
+    <div class="weekday-picks">
+      <label v-for="day in weekdays" :key="day" class="checkbox-field">
+        <input :checked="config.preferredTrainingDays.includes(day)" type="checkbox" @change="togglePreferredDay(day)" />{{ weekdayLabels[day] }}
+      </label>
+    </div>
+    <p class="field-heading">{{ t.maxDailyMinutes }}</p>
+    <p class="field-help settings-help">{{ t.trainingLimitsHelp }}</p>
+    <div class="daily-limits">
+      <template v-for="day in weekdays" :key="day">
+        <label v-if="config.preferredTrainingDays.includes(day)">{{ weekdayLabels[day] }}<input v-model.number="config.maxTrainingMinutesPerDay![day]" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
+      </template>
+      <span v-if="!config.preferredTrainingDays.length" class="muted">{{ t.trainingLimitsHelp }}</span>
+    </div>
+  </section>
+  <section class="card settings-section">
+    <p class="eyebrow">{{ t.coachStyle }}</p>
+    <p class="field-help settings-help">{{ t.coachStyleHelp }}</p>
+    <div class="coach-style-picks">
+      <label
+        v-for="option in coachStyleOptions"
+        :key="option.value"
+        class="coach-style-option"
+        :class="{ active: coachStyle === option.value }"
+      >
+        <input
+          :checked="coachStyle === option.value"
+          name="coach-style"
+          type="radio"
+          :value="option.value"
+          @change="changeCoachStyle(option.value)"
+        />
+        <strong>{{ option.label }}</strong>
+        <span class="muted">{{ option.description }}</span>
+      </label>
+    </div>
+  </section>
+  <section class="card settings-section">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">{{ t.goals }}</p>
+        <p class="muted">{{ t.goalsIntro }}</p>
+      </div>
+      <button class="button secondary" type="button" @click="showGoalForm = !showGoalForm">{{ t.addGoal }}</button>
+    </div>
+    <form v-if="showGoalForm" class="goal-form" @submit.prevent="submitGoal">
+      <div class="goal-type-switch">
+        <button class="button" :class="goalType === 'personal' ? 'primary' : 'secondary'" type="button" @click="goalType = 'personal'">{{ t.personalGoal }}</button>
+        <button class="button" :class="goalType === 'race' ? 'primary' : 'secondary'" type="button" @click="goalType = 'race'">{{ t.race }}</button>
+      </div>
+      <div class="form-grid">
+        <label>{{ t.goalTitle }} *<input v-model="goalForm.title" required /></label>
+        <label>{{ t.goalDate }}<input v-model="goalForm.date" :required="goalType === 'race'" type="date" /></label>
+        <label>{{ t.goalSport }}<input v-model="goalForm.sport" /></label>
+        <label>{{ t.goalDistance }}<input v-model.number="goalForm.distanceKm" min="0" step="0.1" type="number" /></label>
+        <label>{{ t.targetTime }}<input v-model="goalForm.targetTime" placeholder="z. B. 1:45:00" /></label>
+        <label>{{ t.targetPace }}<input v-model="goalForm.targetPace" placeholder="z. B. 5:00 min/km" /></label>
+        <label v-if="goalType === 'race'">{{ t.priority }}<UiSelect v-model="goalForm.priority" :ariaLabel="t.priority" :options="[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }]" /></label>
+        <label>{{ t.goalNotes }}<input v-model="goalForm.notes" /></label>
+      </div>
+      <p v-if="goalError" class="form-error">{{ goalError }}</p>
+      <div class="settings-actions">
+        <button class="button primary" type="submit">{{ editingGoalId ? t.updateGoal : t.saveGoal }}</button>
+        <button class="button secondary" type="button" @click="showGoalForm = false">{{ t.cancel }}</button>
+      </div>
+    </form>
+    <div v-if="sortedGoals.length" class="goal-list">
+      <article v-for="goal in sortedGoals" :key="goal.id" class="goal-row">
+        <button class="text-button" type="button" :aria-label="t.editGoal" @click="editGoal(goal)">{{ t.editGoal }}</button>
+        <span v-if="goal.targetTime || goal.targetPace || goal.priority" class="goal-target">
+          <template v-if="goal.priority">{{ goal.priority }}</template><template v-if="goal.targetTime"> · {{ goal.targetTime }}</template><template v-if="goal.targetPace"> · {{ goal.targetPace }}</template>
+        </span>
+        <div class="goal-date">{{ goal.date ? new Date(`${goal.date}T12:00:00`).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }}</div>
+        <div class="goal-copy"><strong>{{ goal.title }}</strong><span>{{ goal.type === 'race' ? t.race : t.personalGoal }}<template v-if="goal.sport"> · {{ goal.sport }}</template><template v-if="goal.distanceKm"> · {{ goal.distanceKm }} km</template><template v-if="goal.target"> · {{ goal.target }}</template></span></div>
+        <button class="icon-button danger" type="button" :aria-label="t.deleteGoal" :title="t.deleteGoal" @click="settings.deleteGoal(goal.id)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        </button>
+      </article>
+    </div>
+    <p v-else class="muted">{{ t.noGoals }}</p>
+  </section>
   <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.connectors }}</p>
     <p
@@ -289,7 +429,60 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       <button class="button secondary data-action" type="button" @click="openWorkoutFilePicker">
         {{ t.importFiles }}
       </button>
-      <button class="button data-action danger-action" type="button" @click="clearAllData">{{ t.deleteData }}</button>
+      <button
+        v-if="!showDeletePanel"
+        class="button data-action danger-action"
+        type="button"
+        @click="openDeletePanel"
+      >
+        {{ t.deleteData }}
+      </button>
+    </div>
+    <div v-if="showDeletePanel" class="delete-panel" role="group" :aria-label="t.deleteData">
+      <p class="muted delete-panel-help">{{ t.deleteDataHelp }}</p>
+      <div class="delete-options">
+        <label class="delete-option">
+          <input v-model="deleteSelection.workouts" type="checkbox" />
+          <span>
+            <strong>{{ t.deleteWorkouts }}</strong>
+            <small>{{ summaries.length }}</small>
+          </span>
+        </label>
+        <label class="delete-option">
+          <input v-model="deleteSelection.plan" type="checkbox" />
+          <span>
+            <strong>{{ t.deletePlan }}</strong>
+            <small>{{ plan.days.length }}</small>
+          </span>
+        </label>
+        <label class="delete-option">
+          <input v-model="deleteSelection.goals" type="checkbox" />
+          <span>
+            <strong>{{ t.deleteGoals }}</strong>
+            <small>{{ goals.length }}</small>
+          </span>
+        </label>
+        <label class="delete-option">
+          <input v-model="deleteSelection.profile" type="checkbox" />
+          <span>
+            <strong>{{ t.deleteProfile }}</strong>
+            <small>{{ t.deleteProfileHelp }}</small>
+          </span>
+        </label>
+      </div>
+      <div class="settings-actions delete-panel-actions">
+        <button
+          class="button data-action danger-action"
+          type="button"
+          :disabled="!canDeleteSelection"
+          @click="confirmDeleteSelection"
+        >
+          {{ t.deleteConfirmAction }}
+        </button>
+        <button class="button secondary data-action" type="button" @click="closeDeletePanel">
+          {{ t.deleteCancelAction }}
+        </button>
+      </div>
     </div>
     <div v-if="importProgress.active" class="import-progress" aria-live="polite" aria-busy="true">
       <div class="card-heading">
@@ -299,97 +492,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       <progress :max="importProgress.total" :value="importProgress.current"></progress>
       <small>{{ importProgress.fileName }}</small>
     </div>
-    <p class="muted">{{ t.localUpload }}</p>
-  </section>
-  <section class="card settings-section">
-    <p class="eyebrow">{{ t.athleteProfile }}</p>
-    <div class="form-grid">
-      <label>{{ t.name }}<input v-model="config.name" @change="saveConfigAndRefresh" /></label
-      ><label>{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfigAndRefresh" /><span class="field-help">{{ t.lthrHelp }}</span></label>
-      <label>{{ t.trainingGoal }}<UiSelect :model-value="config.trainingGoal || config.trainingFocus || 'base_endurance'" :ariaLabel="t.trainingGoal" :options="trainingGoalOptions" @update:model-value="changeTrainingGoal" /></label>
-      <label>{{ t.performanceNotes }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
-      <label>{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea></label>
-      <label>{{ t.personalNotes }}<textarea v-model="config.personalNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
-    </div>
-  </section>
-  <section class="card settings-section">
-    <p class="eyebrow">{{ t.trainingFramework }}</p>
-    <div class="form-grid">
-      <label>{{ t.trainingFrequency }}<input v-model.number="config.trainingFrequencyPerWeek" min="0" max="14" step="1" type="number" @change="saveConfigAndRefresh" /></label>
-      <label class="checkbox-field"><input v-model="config.strengthTraining" type="checkbox" @change="saveConfigAndRefresh" />{{ t.strengthTraining }}</label>
-      <label>{{ t.maxWeeklyMinutes }}<input v-model.number="config.maxWeeklyTrainingMinutes" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
-    </div>
-    <p class="field-heading">{{ t.availableSports }}</p>
-    <p class="field-help settings-help">{{ t.availableSportsHelp }}</p>
-    <p class="field-heading">{{ t.enduranceSports }}</p>
-    <div class="weekday-picks">
-      <label v-for="option in availableSportOptions.filter((item) => enduranceSports.includes(item.value as (typeof enduranceSports)[number]))" :key="option.value" class="checkbox-field">
-        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.supportSports }}</p>
-    <div class="weekday-picks">
-      <label v-for="option in availableSportOptions.filter((item) => supportSports.includes(item.value as (typeof supportSports)[number]))" :key="option.value" class="checkbox-field">
-        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.preferredDays }}</p>
-    <div class="weekday-picks">
-      <label v-for="day in weekdays" :key="day" class="checkbox-field">
-        <input :checked="config.preferredTrainingDays.includes(day)" type="checkbox" @change="togglePreferredDay(day)" />{{ weekdayLabels[day] }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.maxDailyMinutes }}</p>
-    <p class="field-help settings-help">{{ t.trainingLimitsHelp }}</p>
-    <div class="daily-limits">
-      <template v-for="day in weekdays" :key="day">
-        <label v-if="config.preferredTrainingDays.includes(day)">{{ weekdayLabels[day] }}<input v-model.number="config.maxTrainingMinutesPerDay![day]" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
-      </template>
-      <span v-if="!config.preferredTrainingDays.length" class="muted">{{ t.trainingLimitsHelp }}</span>
-    </div>
-  </section>
-  <section class="card settings-section">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">{{ t.goals }}</p>
-        <p class="muted">{{ t.goalsIntro }}</p>
-      </div>
-      <button class="button secondary" type="button" @click="showGoalForm = !showGoalForm">{{ t.addGoal }}</button>
-    </div>
-    <form v-if="showGoalForm" class="goal-form" @submit.prevent="submitGoal">
-      <div class="goal-type-switch">
-        <button class="button" :class="goalType === 'personal' ? 'primary' : 'secondary'" type="button" @click="goalType = 'personal'">{{ t.personalGoal }}</button>
-        <button class="button" :class="goalType === 'race' ? 'primary' : 'secondary'" type="button" @click="goalType = 'race'">{{ t.race }}</button>
-      </div>
-      <div class="form-grid">
-        <label>{{ t.goalTitle }} *<input v-model="goalForm.title" required /></label>
-        <label>{{ t.goalDate }}<input v-model="goalForm.date" :required="goalType === 'race'" type="date" /></label>
-        <label>{{ t.goalSport }}<input v-model="goalForm.sport" /></label>
-        <label>{{ t.goalDistance }}<input v-model.number="goalForm.distanceKm" min="0" step="0.1" type="number" /></label>
-        <label>{{ t.targetTime }}<input v-model="goalForm.targetTime" placeholder="z. B. 1:45:00" /></label>
-        <label>{{ t.targetPace }}<input v-model="goalForm.targetPace" placeholder="z. B. 5:00 min/km" /></label>
-        <label v-if="goalType === 'race'">{{ t.priority }}<UiSelect v-model="goalForm.priority" :ariaLabel="t.priority" :options="[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }]" /></label>
-        <label>{{ t.goalNotes }}<input v-model="goalForm.notes" /></label>
-      </div>
-      <p v-if="goalError" class="form-error">{{ goalError }}</p>
-      <div class="settings-actions">
-        <button class="button primary" type="submit">{{ editingGoalId ? t.updateGoal : t.saveGoal }}</button>
-        <button class="button secondary" type="button" @click="showGoalForm = false">{{ t.cancel }}</button>
-      </div>
-    </form>
-    <div v-if="sortedGoals.length" class="goal-list">
-      <article v-for="goal in sortedGoals" :key="goal.id" class="goal-row">
-        <button class="text-button" type="button" :aria-label="t.editGoal" @click="editGoal(goal)">{{ t.editGoal }}</button>
-        <span v-if="goal.targetTime || goal.targetPace || goal.priority" class="goal-target">
-          <template v-if="goal.priority">{{ goal.priority }}</template><template v-if="goal.targetTime"> · {{ goal.targetTime }}</template><template v-if="goal.targetPace"> · {{ goal.targetPace }}</template>
-        </span>
-        <div class="goal-date">{{ goal.date ? new Date(`${goal.date}T12:00:00`).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }}</div>
-        <div class="goal-copy"><strong>{{ goal.title }}</strong><span>{{ goal.type === 'race' ? t.race : t.personalGoal }}<template v-if="goal.sport"> · {{ goal.sport }}</template><template v-if="goal.distanceKm"> · {{ goal.distanceKm }} km</template><template v-if="goal.target"> · {{ goal.target }}</template></span></div>
-        <button class="icon-button danger" type="button" :aria-label="t.deleteGoal" :title="t.deleteGoal" @click="settings.deleteGoal(goal.id)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
-        </button>
-      </article>
-    </div>
-    <p v-else class="muted">{{ t.noGoals }}</p>
+    <p class="muted local-storage-explainer">{{ t.localStorageExplainer }}</p>
+    <p class="muted local-storage-tech">{{ t.localUpload }}</p>
   </section>
 </template>

@@ -1,17 +1,19 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../i18n'
 import type { TrainingPlanDay } from '../types/workout'
 import {
+  formatActivityDate,
   formatSport,
-  formatWeekLabel,
-  formatWorkoutDate as formatDateValue,
+  formatTrainingMinutes,
+  formatWeekStartShort,
   formatWorkoutDistance,
   formatWorkoutDuration,
 } from '../utils/formatters'
+import { isoWeekStart } from '../analysis/analysisEngine'
+import { localDateKey } from '../utils/planDates'
 import { workoutIdentity } from '../services/workoutIdentity'
-import SportIcon from '../components/SportIcon.vue'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useSettingsStore } from '../stores/settings'
@@ -19,11 +21,15 @@ import { useAnalysisStore } from '../stores/analysis'
 import { useUiStore } from '../stores/ui'
 import { syncConnectors } from '../stores/dataLifecycle'
 import {
+  averageWeeklyMinutes,
   canCreatePlan,
   connectorBannerKind,
   createPlanButtonMode,
   isTrainingPlanLocalMode,
   shouldWarnPolarStravaOverlap,
+  sportKind,
+  weeklyTrend,
+  type WeeklyTrendEntry,
 } from '../utils/dashboardUi'
 
 const workouts = useWorkoutStore()
@@ -33,23 +39,111 @@ const analysisStore = useAnalysisStore()
 const ui = useUiStore()
 
 const { summaries } = storeToRefs(workouts)
-const { plan, completedPlanDays } = storeToRefs(planStore)
+const { plan, completedPlanDates } = storeToRefs(planStore)
 const { connectors } = storeToRefs(settings)
 const { analysis } = storeToRefs(analysisStore)
 const { notification, credits, loading, consent, connectorLoading } = storeToRefs(ui)
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const localMode = isTrainingPlanLocalMode()
 const showWorkoutDebug = import.meta.env.DEV && localStorage.getItem('lauftrainer-debug') === '1'
-const formatWorkoutDate = (value: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatWeekLabel(value) : formatDateValue(value)
-const recentWorkouts = computed(() =>
+const DEFAULT_ACTIVITY_FIT = 6
+const sortedActivities = computed(() =>
   [...summaries.value].sort((a, b) => b.date.localeCompare(a.date)),
 )
-const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
-const strongestWeekDistance = computed(() =>
-  Math.max(...analysis.value.weekly.map((week) => week.distanceKm).filter(Number.isFinite), 0),
+const activityFit = ref(DEFAULT_ACTIVITY_FIT)
+const recentActivities = computed(() =>
+  sortedActivities.value.slice(0, Math.max(1, activityFit.value)),
 )
+const activitiesCardRef = ref<HTMLElement | null>(null)
+const activitiesListRef = ref<HTMLElement | null>(null)
+const trendCardRef = ref<HTMLElement | null>(null)
+const trendContentRef = ref<HTMLElement | null>(null)
+
+/**
+ * Fill the recent-activities list to match the neighboring trend card height instead of a
+ * fixed count. Measured against the trend card's natural content height (not the grid-stretched
+ * card) so growing the list can never feed back into the available space.
+ */
+function recomputeActivityFit() {
+  const total = sortedActivities.value.length
+  if (!total) return
+  const card = activitiesCardRef.value
+  const list = activitiesListRef.value
+  const trendCard = trendCardRef.value
+  const trendContent = trendContentRef.value
+  if (!card || !list || !trendCard || !trendContent) return
+
+  const cardRect = card.getBoundingClientRect()
+  const trendRect = trendCard.getBoundingClientRect()
+  const sideBySide = Math.abs(cardRect.top - trendRect.top) < 4 && Math.abs(cardRect.left - trendRect.left) > 1
+  if (!sideBySide) {
+    activityFit.value = Math.min(DEFAULT_ACTIVITY_FIT, total)
+    return
+  }
+
+  const row = list.querySelector<HTMLElement>('.activity-row')
+  const rowHeight = row?.getBoundingClientRect().height ?? 0
+  if (rowHeight <= 0) return
+
+  const available = trendContent.getBoundingClientRect().bottom - list.getBoundingClientRect().top
+  const fit = Math.floor((available + 1) / rowHeight)
+  activityFit.value = Math.max(1, Math.min(total, fit))
+}
+
+let recomputeScheduled = false
+function scheduleActivityFit() {
+  if (recomputeScheduled) return
+  recomputeScheduled = true
+  requestAnimationFrame(() => {
+    recomputeScheduled = false
+    recomputeActivityFit()
+  })
+}
+
+let activityFitObserver: ResizeObserver | undefined
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined') {
+    activityFitObserver = new ResizeObserver(scheduleActivityFit)
+    if (trendContentRef.value) activityFitObserver.observe(trendContentRef.value)
+    if (activitiesCardRef.value) activityFitObserver.observe(activitiesCardRef.value)
+  }
+  window.addEventListener('resize', scheduleActivityFit)
+  scheduleActivityFit()
+})
+onBeforeUnmount(() => {
+  activityFitObserver?.disconnect()
+  window.removeEventListener('resize', scheduleActivityFit)
+})
+watch([sortedActivities, locale], () => nextTick(scheduleActivityFit))
+const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
+const currentWeekStart = computed(() => isoWeekStart(localDateKey()))
+const trendWeeks = computed(() =>
+  weeklyTrend({ weekly: analysis.value.weekly, currentWeekStart: currentWeekStart.value, limit: 6 }),
+)
+const currentWeek = computed(() => trendWeeks.value.find((week) => week.isCurrentWeek))
+const averageMinutes = computed(() =>
+  averageWeeklyMinutes({
+    weekly: analysis.value.weekly,
+    currentWeekStart: currentWeekStart.value,
+    weeks: 4,
+  }),
+)
+const activityMeta = (workout: (typeof summaries.value)[number]) =>
+  [
+    formatWorkoutDuration(workout.durationSeconds),
+    workout.distanceKm && workout.distanceKm > 0 ? formatWorkoutDistance(workout.distanceKm) : '',
+    workout.averageHeartRate ? `⌀ ${Math.round(workout.averageHeartRate)} bpm` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+const sessionsLabel = (count: number) => `${count} ${count === 1 ? t.value.unit : t.value.units}`
+const weekVolumeMeta = (week: WeeklyTrendEntry) =>
+  [sessionsLabel(week.workoutCount), week.distanceKm > 0 ? formatWorkoutDistance(week.distanceKm) : '']
+    .filter(Boolean)
+    .join(' · ')
+const weekRowMeta = (week: WeeklyTrendEntry) =>
+  [formatTrainingMinutes(week.durationMinutes), weekVolumeMeta(week)].join(' · ')
 const workoutDebug = (workout: (typeof summaries.value)[number]) => ({
   source: workout.source,
   id: workout.id,
@@ -60,17 +154,28 @@ const workoutDebug = (workout: (typeof summaries.value)[number]) => ({
   identity: workoutIdentity(workout),
 })
 const planMinutes = computed(() => plan.value.days.reduce((sum, day) => sum + day.total_duration_minutes, 0))
-const completedCount = computed(() => plan.value.days.filter((day) => completedPlanDays.value.includes(day.day)).length)
+const completedCount = computed(() =>
+  plan.value.days.filter((day) => day.date && completedPlanDates.value.includes(day.date)).length,
+)
 const hasPlan = computed(() => plan.value.days.length > 0)
 const buttonMode = computed(() => createPlanButtonMode({ hasPlan: hasPlan.value }))
-const planDescription = (day: TrainingPlanDay) =>
-  day.session_type === 'rest'
-    ? t.value.restDayDescription
-    : day.description.startsWith('TESTPLAN')
-    ? day.total_duration_minutes === 0
+const planDescription = (day: TrainingPlanDay) => {
+  const description = day.description?.trim() || ''
+  if (day.session_type === 'rest') {
+    if (description && !description.startsWith('Converted to rest:') && !description.startsWith('TESTPLAN')) {
+      return description
+    }
+    return t.value.restDayDescription
+  }
+  if (description.startsWith('TESTPLAN')) {
+    return day.total_duration_minutes === 0
       ? t.value.restDayDescriptionFallback
       : t.value.testPlanFocusDescription(day.target_focus)
-    : day.description
+  }
+  return description || t.value.restDayDescriptionFallback
+}
+const showPlanSteps = (day: TrainingPlanDay) =>
+  day.workout_steps.some((step) => Boolean(step.step_instruction?.trim() || step.step_duration?.trim()))
 const activeConnectedConnectors = computed(() =>
   connectors.value.filter((connector) => connector.active && connector.connected),
 )
@@ -95,8 +200,33 @@ const createHint = computed(() => {
   if (!localMode && credits.value < 1) return t.value.needCredits
   return ''
 })
-const planDayLabel = (day: TrainingPlanDay) => t.value[day.day]
+const planStepIndex = ref(0)
+let planStepTimer: number | undefined
+const planStepText = computed(() => {
+  const steps = t.value.creatingPlanSteps
+  return steps[Math.min(planStepIndex.value, steps.length - 1)]
+})
+watch(loading, (isLoading) => {
+  window.clearInterval(planStepTimer)
+  if (!isLoading) return
+  planStepIndex.value = 0
+  planStepTimer = window.setInterval(() => {
+    const steps = t.value.creatingPlanSteps
+    if (planStepIndex.value < steps.length - 1) planStepIndex.value += 1
+  }, 1600)
+})
+onBeforeUnmount(() => window.clearInterval(planStepTimer))
+const planDayLabel = (day: TrainingPlanDay) => {
+  const weekday = t.value[day.day]
+  if (!day.date) return weekday
+  const formatted = new Intl.DateTimeFormat(locale.value, { day: '2-digit', month: '2-digit' }).format(
+    new Date(`${day.date}T12:00:00`),
+  )
+  return `${weekday}, ${formatted}`
+}
 const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? t.value.restDay : t.value[day.sport])
+const planDayKey = (day: TrainingPlanDay, index: number) => day.date || `${day.day}-${index}`
+const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && completedPlanDates.value.includes(day.date))
 </script>
 <template>
   <Transition name="toast">
@@ -170,15 +300,16 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
 
     <section v-if="hasPlan" class="card plan dashboard-plan">
       <div class="plan-heading">
-        <div>
-          <p class="eyebrow">{{ t.aiPlan }}</p>
-          <h3>{{ t.yourWeek }}</h3>
+        <div class="plan-heading-title">
+          <h3>{{ t.nextSevenDays }}</h3>
+          <span class="plan-badge">{{ t.aiPlanBadge }}</span>
         </div>
         <div class="plan-summary">
           <strong>{{ planMinutes }} min</strong>
           <span>{{ completedCount }}/{{ plan.days.length }} {{ t.planCompleted }}</span>
         </div>
       </div>
+      <p class="muted plan-disclaimer">{{ t.aiDisclaimer }}</p>
       <div
         v-if="plan.week_summary?.focus_title || plan.week_summary?.goal_description"
         class="week-summary rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"
@@ -192,15 +323,15 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
       </div>
       <article
         v-for="(day, index) in plan.days"
-        :key="`${day.day}-${index}`"
+        :key="planDayKey(day, index)"
         class="plan-day"
-        :class="{ completed: completedPlanDays.includes(day.day) }"
+        :class="{ completed: isPlanDayCompleted(day) }"
       >
         <label class="plan-check">
           <input
-            :checked="completedPlanDays.includes(day.day)"
+            :checked="isPlanDayCompleted(day)"
             type="checkbox"
-            @change="planStore.togglePlanDay(day.day)"
+            @change="planStore.togglePlanDate(day.date)"
           />
           <span>
             <strong class="plan-day-name">{{ planDayLabel(day) }}</strong>
@@ -212,13 +343,15 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
           <strong>{{ day.total_duration_minutes }} min</strong>
         </div>
         <p>{{ planDescription(day) }}</p>
-        <ul v-if="day.session_type !== 'rest'" class="plan-steps">
+        <ul v-if="showPlanSteps(day)" class="plan-steps">
           <li
             v-for="step in day.workout_steps"
-            :key="`${day.day}-${step.step_duration}-${step.step_instruction}`"
+            :key="`${planDayKey(day, index)}-${step.step_duration}-${step.step_instruction}`"
           >
-            <strong class="plan-step-duration">{{ step.step_duration }}</strong>
-            <span class="plan-step-intensity">{{ step.step_intensity }}</span>
+            <div class="plan-step-meta">
+              <strong class="plan-step-duration">{{ step.step_duration }}</strong>
+              <span class="plan-step-intensity">{{ step.step_intensity }}</span>
+            </div>
             <span class="plan-step-instruction">{{ step.step_instruction }}</span>
           </li>
         </ul>
@@ -231,9 +364,11 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
         <strong class="metric">{{ credits }}</strong>
         <span class="muted">{{ t.creditPerPlan }}</span>
         <RouterLink class="button secondary credits-link" to="/pricing">{{ t.buyCredits }}</RouterLink>
+        <p class="muted credits-device-note">{{ t.creditsDeviceNote }}</p>
       </div>
       <p class="eyebrow">{{ t.aiPlan }}</p>
       <p>{{ t.aiDescription }}</p>
+      <p class="muted ai-disclaimer">{{ t.aiDisclaimer }}</p>
       <label class="consent">
         <input
           :checked="consent"
@@ -244,54 +379,60 @@ const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? 
       </label>
       <button
         :disabled="!createEnabled"
-        class="button full"
-        :class="buttonMode === 'replace' ? 'secondary' : 'primary'"
+        class="button full primary"
         type="button"
         data-testid="create-plan-button"
         @click="planStore.createPlan()"
       >
         {{ loading ? t.creatingPlan : buttonMode === 'replace' ? t.replacePlan : t.createPlan }}
       </button>
-      <p v-if="createHint" class="muted create-hint">{{ createHint }}</p>
+      <div v-if="loading" class="plan-progress" role="status" aria-live="polite">
+        <div class="plan-progress-bar" aria-hidden="true"><span></span></div>
+        <p class="plan-progress-step">
+          <span class="spinner" aria-hidden="true"></span>
+          {{ planStepText }}
+        </p>
+      </div>
+      <p v-else-if="createHint" class="muted create-hint">{{ createHint }}</p>
     </section>
 
     <section class="grid dashboard-grid">
-      <article class="card">
-        <p class="eyebrow">{{ t.history }}</p>
-        <ul class="workouts">
-          <li v-for="workout in recentWorkouts.slice(0, 12)" :key="workout.id" class="workout-row">
-            <SportIcon :sport="workout.sport" />
+      <article ref="activitiesCardRef" class="card">
+        <p class="eyebrow">{{ t.recentActivities }}</p>
+        <ul ref="activitiesListRef" class="activities">
+          <li v-for="workout in recentActivities" :key="workout.id" class="activity-row">
+            <span class="activity-accent" :class="`accent-${sportKind(workout.sport)}`" aria-hidden="true"></span>
             <div>
-              <strong>{{ formatWorkoutDate(workout.date) }}</strong>
-              <span
-                >{{ formatSport(workout.sport) }} · {{ formatWorkoutDuration(workout.durationSeconds) }} ·
-                {{ formatWorkoutDistance(workout.distanceKm) }}</span
-              >
+              <strong>{{ formatSport(workout.sport) }} · {{ formatActivityDate(workout.date, locale) }}</strong>
+              <span>{{ activityMeta(workout) }}</span>
               <details v-if="showWorkoutDebug" class="workout-debug">
                 <summary>{{ t.debugDetails }}</summary>
                 <code>{{ JSON.stringify(workoutDebug(workout), null, 2) }}</code>
               </details>
             </div>
           </li>
-          <li v-if="!recentWorkouts.length">{{ t.noWorkouts }}</li>
+          <li v-if="!recentActivities.length" class="activity-empty">{{ t.noWorkouts }}</li>
         </ul>
       </article>
-      <article class="card">
-        <p class="eyebrow">{{ t.weekOverview }}</p>
-        <div class="weeks">
-          <div v-for="week in analysis.weekly.slice(-8).reverse()" :key="week.weekStart">
-            <strong>{{ formatWorkoutDate(week.weekStart) }}</strong>
-            <span
-              >{{ Number.isFinite(week.distanceKm) ? week.distanceKm.toFixed(1) : '–' }} km · {{ week.workoutCount }}
-              {{ t.units }}</span
-            >
-            <i
-              :style="{
-                width: `${strongestWeekDistance ? Math.min(100, Math.max(0, ((Number.isFinite(week.distanceKm) ? week.distanceKm : 0) / strongestWeekDistance) * 100)) : 0}%`,
-              }"
-            ></i>
-          </div>
-          <p v-if="!analysis.weekly.length">{{ t.noWeeks }}</p>
+      <article ref="trendCardRef" class="card">
+        <div ref="trendContentRef" class="trend-content">
+          <p class="eyebrow">{{ t.trainingTrend }}</p>
+          <template v-if="analysis.weekly.length">
+            <div class="trend-summary">
+              <p class="trend-summary-label">{{ t.thisWeekToDate }}</p>
+              <strong class="metric">{{ formatTrainingMinutes(currentWeek?.durationMinutes || 0) }}</strong>
+              <span class="muted">{{ currentWeek ? weekVolumeMeta(currentWeek) : sessionsLabel(0) }}</span>
+              <span class="muted">{{ t.weeklyAverage(formatTrainingMinutes(averageMinutes)) }}</span>
+            </div>
+            <div class="weeks trend-weeks">
+              <div v-for="week in trendWeeks" :key="week.weekStart" :class="{ current: week.isCurrentWeek }">
+                <strong>{{ week.isCurrentWeek ? t.thisWeek : t.weekFrom(formatWeekStartShort(week.weekStart, locale)) }}</strong>
+                <span>{{ weekRowMeta(week) }}</span>
+                <i :style="{ width: `${week.sharePercent}%` }"></i>
+              </div>
+            </div>
+          </template>
+          <p v-else class="muted">{{ t.noWeeks }}</p>
         </div>
       </article>
     </section>

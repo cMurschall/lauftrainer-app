@@ -97,8 +97,11 @@ export interface TrainingPlanStep {
 export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 export type TrainingPlanSport = 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility' | 'other'
 export type TrainingSessionType = 'training' | 'rest'
+export type CoachStyle = 'mentor' | 'pragmatist' | 'performance'
 
 export interface TrainingPlanDay {
+  /** ISO calendar date YYYY-MM-DD for this plan day (rolling 7-day window). */
+  date: string
   day: WeekDay
   sport: TrainingPlanSport
   session_type: TrainingSessionType
@@ -118,10 +121,14 @@ export interface TrainingPlanHistoryEntry {
   id: string
   createdAt: string
   plan: TrainingPlan
+  completedDates?: string[]
+  /** @deprecated legacy weekday keys; ignored when plan days have dates */
   completedDays?: string[]
 }
 
 export interface TrainingPlan {
+  /** First day of the rolling window (YYYY-MM-DD). */
+  start_date?: string
   week_summary: TrainingWeekSummary
   days: TrainingPlanDay[]
 }

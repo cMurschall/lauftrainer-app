@@ -1,13 +1,34 @@
-import type { TrainingPlan, UserConfig, Workout } from '../types/workout'
+import type { CoachStyle, TrainingPlan, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from '../analysis/analysisEngine'
 import type { TrainingGoal } from '../types/settings'
 import { API_URL } from './api'
 import { ensureWallet, idempotencyKey, walletToken } from './billingService'
+import { localDateKey } from '../utils/planDates'
 
 export interface TrainingPlanResponse {
   plan: TrainingPlan
   debug?: boolean
   detail?: string
+}
+
+export interface PreviousPlanPayload {
+  start_date?: string
+  week_summary?: { focus_title: string; goal_description: string }
+  days: Array<{
+    date?: string
+    day: string
+    sport: string
+    session_type: string
+    title: string
+    total_duration_minutes: number
+    completed: boolean
+  }>
+}
+
+export interface TrainingPlanRequestOptions {
+  planStartDate?: string
+  coachStyle?: CoachStyle
+  previousPlan?: PreviousPlanPayload
 }
 
 function planSportKey(value: string): string {
@@ -28,16 +49,22 @@ export async function requestTrainingPlan(
   analysis: AnalysisResult | null,
   goals: TrainingGoal[],
   locale: 'de' | 'en',
+  options: TrainingPlanRequestOptions = {},
 ): Promise<TrainingPlanResponse> {
   const localMode = ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
   if (!localMode) await ensureWallet()
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const latestLoad = analysis?.load.at(-1)
+  const planStartDate = options.planStartDate || localDateKey()
+  const coachStyle = options.coachStyle === 'mentor' || options.coachStyle === 'performance' ? options.coachStyle : 'pragmatist'
   const response = await fetch(`${API_URL}/training-plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Wallet-Token': walletToken(), 'X-Idempotency-Key': idempotencyKey() },
     body: JSON.stringify({
       locale,
+      plan_start_date: planStartDate,
+      coach_style: coachStyle,
+      previous_plan: options.previousPlan,
       profile: {
         name: config.name,
         training_goal: config.trainingGoal || config.trainingFocus,

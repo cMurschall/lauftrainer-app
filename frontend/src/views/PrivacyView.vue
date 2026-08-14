@@ -17,10 +17,14 @@
     <section>
       <h2>2. Grundprinzip von LaufTrainer</h2>
       <p>
-        LaufTrainer ist als local-first Trainingsanwendung konzipiert. Trainingshistorie,
-        Ziele, Einstellungen und Analyseergebnisse werden grundsätzlich lokal im Browser in
-        IndexedDB und teilweise im LocalStorage gespeichert. Es gibt keinen automatischen
-        Upload deiner lokalen Trainingsdaten.
+        LaufTrainer speichert deine Trainingsdaten local-first: Workouts, Ziele, Pläne,
+        Einstellungen und Analysen liegen in der Regel nur in diesem Browser auf diesem Gerät
+        (technisch in IndexedDB und teilweise im LocalStorage). IndexedDB ist der lokale
+        Datenspeicher des Browsers — vergleichbar mit Dateien auf dem Gerät, nicht mit einem
+        Cloud-Konto. Es gibt keinen automatischen Upload deiner lokalen Trainingsdaten und
+        keinen Abgleich zwischen Geräten. PC und Handy sehen also nicht automatisch dieselben
+        Pläne oder Workouts. Zum Wechseln zwischen Geräten kannst du in den Einstellungen ein
+        Backup exportieren und auf dem anderen Gerät wieder importieren.
       </p>
     </section>
 
@@ -66,9 +70,11 @@
     <section>
       <h2>6. Credits und Zahlungen</h2>
       <p>
-        Für Credits wird ein gerätespezifisches Wallet verwendet. Zahlungsabwicklungen können
-        über Paddle erfolgen. Dabei verarbeitet Paddle die für die Zahlung erforderlichen Daten
-        als eigenständiger Zahlungsdienstleister. Es gelten ergänzend die
+        Für Credits wird ein gerätespezifisches Wallet verwendet. Das Guthaben ist dem Browser
+        bzw. Gerät zugeordnet, auf dem der Kauf erfolgt — nicht einem Benutzerkonto mit Login.
+        Auf einem anderen Gerät startest du daher mit einem eigenen Wallet. Zahlungsabwicklungen
+        können über Paddle erfolgen. Dabei verarbeitet Paddle die für die Zahlung erforderlichen
+        Daten als eigenständiger Zahlungsdienstleister. Es gelten ergänzend die
         <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noreferrer">Datenschutzinformationen von Paddle</a>.
       </p>
     </section>

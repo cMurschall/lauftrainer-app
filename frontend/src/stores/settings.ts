@@ -4,9 +4,11 @@ import { workoutDb } from '../db/database'
 import { useI18n, type Locale } from '../i18n'
 import {
   type AppSettings,
+  type CoachStyle,
   type ConnectorId,
   type ConnectorSettings,
   defaultAppSettings,
+  normalizeAppSettings,
   type ThemePreference,
   type TrainingGoal,
 } from '../types/settings'
@@ -31,6 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const theme = ref<ThemePreference>(initialTheme)
   const connectors = ref<ConnectorSettings[]>(structuredClone(defaultAppSettings.connectors))
+  const coachStyle = ref<CoachStyle>(defaultAppSettings.coachStyle)
   const goals = ref<TrainingGoal[]>([])
   const config = ref<UserConfig>(defaultUserConfig())
 
@@ -42,14 +45,16 @@ export const useSettingsStore = defineStore('settings', () => {
     if (stored) config.value = normalizeUserConfig(stored)
     const saved = await workoutDb.getAppSettings()
     if (saved) {
+      const normalized = normalizeAppSettings(saved)
       diagnosticLog('theme.settings-loaded', {
-        savedPreference: saved.theme,
+        savedPreference: normalized.theme,
         currentPreference: theme.value,
       })
-      theme.value = saved.theme
-      localStorage.setItem('lauftrainer-theme', saved.theme)
-      setLocale(saved.locale)
-      connectors.value = saved.connectors || connectors.value
+      theme.value = normalized.theme
+      localStorage.setItem('lauftrainer-theme', normalized.theme)
+      setLocale(normalized.locale)
+      connectors.value = normalized.connectors
+      coachStyle.value = normalized.coachStyle
     } else {
       const old = localStorage.getItem('lauftrainer-locale')
       if (old === 'de' || old === 'en') setLocale(old)
@@ -59,7 +64,12 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function saveSettings() {
     const { locale } = useI18n()
-    const settings: AppSettings = plain({ theme: theme.value, locale: locale.value, connectors: connectors.value })
+    const settings: AppSettings = plain({
+      theme: theme.value,
+      locale: locale.value,
+      connectors: connectors.value,
+      coachStyle: coachStyle.value,
+    })
     await workoutDb.saveAppSettings(settings)
     localStorage.setItem('lauftrainer-theme', theme.value)
   }
@@ -73,6 +83,11 @@ export const useSettingsStore = defineStore('settings', () => {
   function updateLocale(value: Locale) {
     const { setLocale } = useI18n()
     setLocale(value)
+  }
+
+  async function updateCoachStyle(value: CoachStyle) {
+    coachStyle.value = value
+    await saveSettings()
   }
 
   async function saveConfig() {
@@ -142,20 +157,30 @@ export const useSettingsStore = defineStore('settings', () => {
     if (connector) connector.active = active
   }
 
-  function resetAthleteData() {
+  function resetConfig() {
     config.value = defaultUserConfig()
+  }
+
+  function resetGoals() {
     goals.value = []
+  }
+
+  function resetAthleteData() {
+    resetConfig()
+    resetGoals()
   }
 
   return {
     theme,
     connectors,
+    coachStyle,
     goals,
     config,
     load,
     saveSettings,
     updateTheme,
     updateLocale,
+    updateCoachStyle,
     saveConfig,
     saveGoal,
     deleteGoal,
@@ -163,6 +188,8 @@ export const useSettingsStore = defineStore('settings', () => {
     connectConnector,
     removeConnector,
     setConnectorActive,
+    resetConfig,
+    resetGoals,
     resetAthleteData,
   }
 })

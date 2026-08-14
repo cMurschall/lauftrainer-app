@@ -25,9 +25,11 @@ const config: UserConfig = {
 }
 
 const samplePlan: TrainingPlan = {
+  start_date: '2026-08-10',
   week_summary: { focus_title: 'Basis', goal_description: 'Locker aufbauen.' },
   days: [
     {
+      date: '2026-08-10',
       day: 'monday',
       sport: 'running',
       session_type: 'training',
@@ -69,7 +71,7 @@ describe('local database and backups', () => {
     await workoutDb.put(sample)
     await workoutDb.saveConfig(config)
     await workoutDb.savePlan(samplePlan)
-    await workoutDb.savePlanWithStatus(samplePlan, ['monday'])
+    await workoutDb.savePlanWithStatus(samplePlan, ['2026-08-10'])
     await workoutDb.saveGoal({
       id: 'goal-1',
       type: 'race',
@@ -77,11 +79,11 @@ describe('local database and backups', () => {
       date: '2026-09-01',
       createdAt: new Date().toISOString(),
     })
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [] })
+    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'pragmatist' })
 
     const backup = await exportBackup()
     expect(backup.currentPlan?.plan?.days).toHaveLength(1)
-    expect(backup.currentPlan?.completedDays).toEqual(['monday'])
+    expect(backup.currentPlan?.completedDates).toEqual(['2026-08-10'])
     expect(backup.goals).toHaveLength(1)
 
     await workoutDb.clearAllUserData()
@@ -94,7 +96,7 @@ describe('local database and backups', () => {
     expect(await workoutDb.getConfig()).toMatchObject({ name: 'Athlet' })
     expect(await workoutDb.getPlan()).toMatchObject({
       plan: samplePlan,
-      completedDays: ['monday'],
+      completedDates: ['2026-08-10'],
     })
     expect(await workoutDb.listGoals()).toHaveLength(1)
     expect(await workoutDb.getAppSettings()).toMatchObject({ theme: 'dark' })
@@ -105,12 +107,34 @@ describe('local database and backups', () => {
     await workoutDb.put(sample)
     await workoutDb.saveConfig(config)
     await workoutDb.savePlan(samplePlan)
-    await workoutDb.saveAppSettings({ theme: 'light', locale: 'en', connectors: [] })
+    await workoutDb.saveAppSettings({ theme: 'light', locale: 'en', connectors: [], coachStyle: 'mentor' })
     await workoutDb.clearAllUserData()
     expect(await workoutDb.list()).toEqual([])
     expect(await workoutDb.getConfig()).toBeUndefined()
     expect(await workoutDb.getPlan()).toBeUndefined()
     expect(await workoutDb.getAppSettings()).toMatchObject({ theme: 'light', locale: 'en' })
+  })
+
+  it('clears only selected categories and keeps the rest', async () => {
+    await workoutDb.put(sample)
+    await workoutDb.saveConfig(config)
+    await workoutDb.savePlan(samplePlan)
+    await workoutDb.saveGoal({
+      id: 'goal-1',
+      type: 'personal',
+      title: 'Base',
+      createdAt: '2026-08-01T00:00:00.000Z',
+    })
+    await workoutDb.clearUserData({ workouts: true, plan: false, goals: false, profile: false })
+    expect(await workoutDb.list()).toEqual([])
+    expect((await workoutDb.getPlan())?.plan?.days).toHaveLength(1)
+    expect(await workoutDb.listGoals()).toHaveLength(1)
+    expect((await workoutDb.getConfig())?.name).toBe(config.name)
+
+    await workoutDb.clearUserData({ workouts: false, plan: true, goals: true, profile: false })
+    expect(await workoutDb.getPlan()).toBeUndefined()
+    expect(await workoutDb.listGoals()).toEqual([])
+    expect((await workoutDb.getConfig())?.name).toBe(config.name)
   })
 
   it('batches putMany with a single revision bump', async () => {
@@ -134,15 +158,25 @@ describe('local database and backups', () => {
     await workoutDb.savePlan(samplePlan)
     const first = await workoutDb.getPlan()
     await new Promise((resolve) => setTimeout(resolve, 5))
-    await workoutDb.savePlanWithStatus(samplePlan, ['monday'])
+    await workoutDb.savePlanWithStatus(samplePlan, ['2026-08-10'])
     const second = await workoutDb.getPlan()
     expect(second?.createdAt).toBe(first?.createdAt)
-    expect(second?.completedDays).toEqual(['monday'])
+    expect(second?.completedDates).toEqual(['2026-08-10'])
+  })
+
+  it('discards completion when plan days are not dated', async () => {
+    const undatedPlan = {
+      week_summary: samplePlan.week_summary,
+      days: [{ ...samplePlan.days[0], date: '' }],
+    } as TrainingPlan
+    await workoutDb.savePlan(undatedPlan)
+    await workoutDb.savePlanWithStatus(undatedPlan, ['monday'])
+    expect((await workoutDb.getPlan())?.completedDates).toEqual([])
   })
 
   it('does not bump analysis revision for app-only settings', async () => {
     const before = await workoutDb.getWorkoutRevision()
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [] })
+    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'performance' })
     expect(await workoutDb.getWorkoutRevision()).toBe(before)
   })
 })

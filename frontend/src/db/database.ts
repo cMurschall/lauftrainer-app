@@ -4,12 +4,20 @@ import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 import { diagnosticLog } from '../services/logger'
 import { toWorkoutSummary, type WorkoutSummary } from '../utils/workoutSummary'
+import { planHasDatedDays } from '../utils/planDates'
 
 const DB_NAME = 'lauftrainer-local'
 const DB_VERSION = 6
 const USER_DATA_STORES = ['workouts', 'settings', 'plans', 'planHistory', 'goals', 'analysisCache'] as const
 
-type StoredPlan = { id: 'current'; plan?: TrainingPlan; completedDays?: string[]; createdAt?: string }
+type StoredPlan = {
+  id: 'current'
+  plan?: TrainingPlan
+  completedDates?: string[]
+  /** @deprecated legacy weekday keys */
+  completedDays?: string[]
+  createdAt?: string
+}
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -237,24 +245,27 @@ export const workoutDb = {
           id: `plan-${Date.now()}-${crypto.randomUUID()}`,
           createdAt: previous.createdAt || new Date().toISOString(),
           plan: previous.plan,
-          completedDays: previous.completedDays,
+          completedDates: previous.completedDates,
         })
       }
       return transaction<IDBValidKey>('plans', 'readwrite', (store) =>
-        store.put({ id: 'current', createdAt: new Date().toISOString(), plan, completedDays: [] }),
+        store.put({ id: 'current', createdAt: new Date().toISOString(), plan, completedDates: [] }),
       )
     })(),
 
-  getPlan: () => transaction<StoredPlan | undefined>('plans', 'readonly', (store) => store.get('current')),
+  getPlan: async () => {
+    const stored = await transaction<StoredPlan | undefined>('plans', 'readonly', (store) => store.get('current'))
+    return normalizeStoredPlan(stored)
+  },
 
-  savePlanWithStatus: async (plan: TrainingPlan, completedDays: string[]) => {
+  savePlanWithStatus: async (plan: TrainingPlan, completedDates: string[]) => {
     const previous = await workoutDb.getPlan()
     return transaction<IDBValidKey>('plans', 'readwrite', (store) =>
       store.put({
         id: 'current',
         createdAt: previous?.createdAt || new Date().toISOString(),
         plan,
-        completedDays,
+        completedDates,
       }),
     )
   },
@@ -288,23 +299,63 @@ export const workoutDb = {
     return next
   },
 
-  /** Atomically wipe athlete data (keeps app theme/locale settings). */
-  clearAllUserData: async () => {
+  /**
+   * Selectively wipe athlete data. App theme/locale/connectors/coach style stay.
+   * Clearing workouts always invalidates the analysis cache and bumps the revision.
+   */
+  clearUserData: async (selection: ClearDataSelection) => {
+    if (!hasClearDataSelection(selection)) return
     await multiStoreTransaction(USER_DATA_STORES, 'readwrite', async (stores) => {
-      stores.workouts.clear()
-      stores.goals.clear()
-      stores.plans.clear()
-      stores.planHistory.clear()
-      stores.analysisCache.clear()
-      stores.settings.delete('config')
-      const revision = ((await requestToPromise(stores.settings.get('workoutRevision'))) as number | undefined) || 0
-      stores.settings.put(revision + 1, 'workoutRevision')
+      if (selection.workouts) stores.workouts.clear()
+      if (selection.goals) stores.goals.clear()
+      if (selection.plan) {
+        stores.plans.clear()
+        stores.planHistory.clear()
+      }
+      if (selection.profile) stores.settings.delete('config')
+      if (selection.workouts || selection.profile) {
+        stores.analysisCache.clear()
+        await bumpRevisionInStore(stores.settings)
+      }
     })
   },
+
+  /** Atomically wipe all athlete data (keeps app theme/locale settings). */
+  clearAllUserData: async () => {
+    await workoutDb.clearUserData(defaultClearDataSelection())
+  },
+}
+
+export type ClearDataKey = 'workouts' | 'plan' | 'goals' | 'profile'
+
+export type ClearDataSelection = Record<ClearDataKey, boolean>
+
+export function defaultClearDataSelection(): ClearDataSelection {
+  return { workouts: true, plan: true, goals: true, profile: true }
+}
+
+export function hasClearDataSelection(selection: ClearDataSelection): boolean {
+  return Object.values(selection).some(Boolean)
 }
 
 function analysisConfig(config?: UserConfig) {
   return config ? { hrZones: config.hrZones, thresholds: config.thresholds } : undefined
+}
+
+function normalizeStoredPlan(stored: StoredPlan | undefined): StoredPlan | undefined {
+  if (!stored?.plan) return stored
+  const days = stored.plan.days || []
+  const hasDates = planHasDatedDays(days)
+  const completedDates = hasDates
+    ? (stored.completedDates || []).filter((date) => days.some((day) => day.date === date))
+    : []
+  const startDate = stored.plan.start_date || (hasDates ? days[0]?.date : undefined)
+  return {
+    ...stored,
+    plan: startDate ? { ...stored.plan, start_date: startDate } : stored.plan,
+    completedDates,
+    completedDays: undefined,
+  }
 }
 
 export interface AnalysisCacheEntry {
@@ -363,12 +414,14 @@ export async function importBackup(backup: LocalBackup): Promise<void> {
     if (backup.config) stores.settings.put(backup.config, 'config')
     if (backup.appSettings) stores.settings.put(backup.appSettings, 'app')
     if (backup.currentPlan?.plan) {
-      stores.plans.put({
+      const normalized = normalizeStoredPlan({
         id: 'current',
         createdAt: backup.currentPlan.createdAt || new Date().toISOString(),
         plan: backup.currentPlan.plan,
-        completedDays: backup.currentPlan.completedDays || [],
+        completedDates: backup.currentPlan.completedDates,
+        completedDays: backup.currentPlan.completedDays,
       })
+      if (normalized) stores.plans.put(normalized)
     }
     for (const entry of backup.planHistory || []) stores.planHistory.put(entry)
 

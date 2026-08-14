@@ -72,4 +72,43 @@ describe('requestTrainingPlan payload', () => {
     )
     expect(requestBody(fetchMock, 2).profile.max_weekly_training_minutes).toBe(300)
   })
+
+  it('sends rolling start date, coach style and previous plan', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        plan: {
+          start_date: '2026-08-14',
+          week_summary: { focus_title: 'Base', goal_description: 'Build' },
+          days: [],
+        },
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await requestTrainingPlan([workout], config, null, [], 'de', {
+      planStartDate: '2026-08-14',
+      coachStyle: 'mentor',
+      previousPlan: {
+        start_date: '2026-08-07',
+        week_summary: { focus_title: 'Alt', goal_description: 'Vorher' },
+        days: [
+          {
+            date: '2026-08-07',
+            day: 'friday',
+            sport: 'running',
+            session_type: 'training',
+            title: 'Easy',
+            total_duration_minutes: 30,
+            completed: true,
+          },
+        ],
+      },
+    })
+
+    const body = requestBody(fetchMock, 0)
+    expect(body.plan_start_date).toBe('2026-08-14')
+    expect(body.coach_style).toBe('mentor')
+    expect(body.previous_plan.days[0]).toMatchObject({ date: '2026-08-07', completed: true })
+  })
 })

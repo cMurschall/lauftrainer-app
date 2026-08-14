@@ -1,8 +1,13 @@
-export function formatWorkoutDate(value: string, locale = 'de-DE'): string {
+/** Accepts ISO timestamps as well as the DD-MM-YYYY shape produced by some CSV imports. */
+function parseWorkoutDate(value: string): Date | undefined {
   const match = value.match(/^(\d{2})-(\d{2})-(\d{4})$/)
-  const normalized = match ? `${match[3]}-${match[2]}-${match[1]}` : value
-  const date = new Date(normalized)
-  if (!Number.isFinite(date.getTime())) return '–'
+  const date = new Date(match ? `${match[3]}-${match[2]}-${match[1]}` : value)
+  return Number.isFinite(date.getTime()) ? date : undefined
+}
+
+export function formatWorkoutDate(value: string, locale = 'de-DE'): string {
+  const date = parseWorkoutDate(value)
+  if (!date) return '–'
   return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     day: '2-digit',
@@ -38,6 +43,30 @@ export function formatWeekLabel(value: string, locale = 'de-DE'): string {
   const date = new Date(match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00Z` : value)
   if (!Number.isFinite(date.getTime())) return 'Woche ab –'
   return `Woche ab ${new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date)}`
+}
+
+/** Compact activity list label, e.g. "Mi., 12. Aug.". */
+export function formatActivityDate(value: string, locale = 'de-DE'): string {
+  const date = parseWorkoutDate(value)
+  if (!date) return '–'
+  return new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(date)
+}
+
+/** Short week-start label without the year, e.g. "10. Aug.". */
+export function formatWeekStartShort(value: string, locale = 'de-DE'): string {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const date = new Date(match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00Z` : value)
+  if (!Number.isFinite(date.getTime())) return '–'
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date)
+}
+
+/** Training time as "45 min" below an hour, otherwise "1:20 h". */
+export function formatTrainingMinutes(minutes: number | undefined): string {
+  if (!Number.isFinite(minutes) || (minutes || 0) < 0) return '–'
+  const total = Math.round(minutes || 0)
+  if (total < 60) return `${total} min`
+  const rest = total % 60
+  return rest ? `${Math.floor(total / 60)}:${String(rest).padStart(2, '0')} h` : `${total / 60} h`
 }
 
 export function formatWorkoutDuration(seconds: number | undefined): string {

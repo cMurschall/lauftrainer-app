@@ -11,9 +11,11 @@ import type { Workout } from '../types/workout'
 vi.mock('../services/aiService', () => ({
   requestTrainingPlan: vi.fn(async () => ({
     plan: {
+      start_date: '2026-08-10',
       week_summary: { focus_title: 'Test', goal_description: 'Demo' },
       days: [
         {
+          date: '2026-08-10',
           day: 'monday',
           sport: 'running',
           session_type: 'training',
