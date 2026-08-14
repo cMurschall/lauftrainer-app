@@ -6,7 +6,7 @@ import { type AnalysisResult, toDateKey } from '../analysis/analysisEngine'
 import type { Workout } from '../types/workout'
 import MiniChart from '../components/MiniChart.vue'
 import ChartHelp from '../components/ChartHelp.vue'
-import { formatChartDate, formatWorkoutDate } from '../utils/formatters'
+import { formatChartDate, formatRelativeChartDate, formatWorkoutDate } from '../utils/formatters'
 import { useWorkoutStore } from '../stores/workouts'
 import { useAnalysisStore } from '../stores/analysis'
 import { WEEKLY_TOTAL_COLOR, showsWeeklyTotal, weeklySportSeries } from '../utils/analysisCharts'
@@ -41,6 +41,22 @@ const latest = computed(
       .filter(Number.isFinite)
       .sort((a, b) => b - a)[0],
 )
+const earliest = computed(
+  () =>
+    summaries.value
+      .map((w) => w.date)
+      .map((x) => new Date(x.match(/^\d{2}-\d{2}-\d{4}$/) ? x.split('-').reverse().join('-') : x).getTime())
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b)[0],
+)
+const historySpanDays = computed(() =>
+  latest.value && earliest.value ? (latest.value - earliest.value) / 86400000 : 0,
+)
+const useRelativeChartLabels = computed(() => range.value === 0 && historySpanDays.value > 365)
+const referenceDateKey = computed(() =>
+  latest.value ? new Date(latest.value).toISOString().slice(0, 10) : '',
+)
+const chartLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 const cutoff = computed(() =>
   range.value === 0 || !latest.value ? '' : new Date(latest.value - range.value * 86400000).toISOString().slice(0, 10),
 )
@@ -149,7 +165,18 @@ const polarizationSeries = computed(() => [
 ])
 
 function chartLabels(items: Array<{ weekStart?: string; date?: string }>) {
-  return items.map((x) => formatChartDate(x.weekStart || x.date || '', locale.value === 'de' ? 'de-DE' : 'en-US'))
+  const loc = chartLocale.value
+  if (useRelativeChartLabels.value && referenceDateKey.value) {
+    return items.map((x) =>
+      formatRelativeChartDate(x.weekStart || x.date || '', referenceDateKey.value, loc),
+    )
+  }
+  return items.map((x) => formatChartDate(x.weekStart || x.date || '', loc))
+}
+
+function chartTooltipLabels(items: Array<{ weekStart?: string; date?: string }>) {
+  if (!useRelativeChartLabels.value) return undefined
+  return items.map((x) => formatChartDate(x.weekStart || x.date || '', chartLocale.value, { includeYear: true }))
 }
 
 function localizedSport(value: string) {
@@ -264,6 +291,7 @@ async function saveRpe(workout: Workout, value: string) {
         v-if="weeklyChart.series.length"
         :y-unit="weeklyChart.unit"
         :labels="chartLabels(weekly)"
+        :tooltip-labels="chartTooltipLabels(weekly)"
         :series="weeklyChart.series"
       />
       <p v-else>{{ t.noData }}</p>
@@ -298,6 +326,7 @@ async function saveRpe(workout: Workout, value: string) {
         y-unit="load"
         :max-ticks-limit="8"
         :labels="chartLabels(load)"
+        :tooltip-labels="chartTooltipLabels(load)"
         :reference-lines="[{ y: 0, color: 'var(--muted)', dash: [4, 4] }]"
         :series="[
           { name: t.ctl, values: load.map((x) => x.ctl), color: 'var(--accent)' },
@@ -315,6 +344,7 @@ async function saveRpe(workout: Workout, value: string) {
         y-unit="acwr"
         :max-ticks-limit="8"
         :labels="chartLabels(acwrPoints)"
+        :tooltip-labels="chartTooltipLabels(acwrPoints)"
         :bands="[
           { yMin: 0, yMax: 0.8, color: 'rgba(185, 140, 242, 0.12)' },
           { yMin: 0.8, yMax: 1.3, color: 'rgba(16, 185, 129, 0.16)' },
@@ -346,6 +376,7 @@ async function saveRpe(workout: Workout, value: string) {
           y-unit="load"
           right-y-unit="strain"
           :labels="chartLabels(foster)"
+          :tooltip-labels="chartTooltipLabels(foster)"
           :series="fosterSeries"
         />
         <p v-else>{{ t.noData }}</p>
@@ -361,6 +392,7 @@ async function saveRpe(workout: Workout, value: string) {
           y-unit="%"
           right-y-unit="idx"
           :labels="chartLabels(polarization)"
+          :tooltip-labels="chartTooltipLabels(polarization)"
           :series="polarizationSeries"
         />
         <p v-else>{{ t.noHr }}</p>
@@ -409,6 +441,7 @@ async function saveRpe(workout: Workout, value: string) {
           :dynamic-y="true"
           y-unit="efficiency"
           :labels="chartLabels(efficiency)"
+          :tooltip-labels="chartTooltipLabels(efficiency)"
           :series="[
             {
               name: t.workoutsLabel,
@@ -438,6 +471,7 @@ async function saveRpe(workout: Workout, value: string) {
           y-unit="load"
           right-y-unit="strain"
           :labels="chartLabels(rpeFoster)"
+          :tooltip-labels="chartTooltipLabels(rpeFoster)"
           :series="[
             {
               name: t.load,

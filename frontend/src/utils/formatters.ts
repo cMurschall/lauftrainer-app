@@ -28,14 +28,50 @@ function isoWeekNumber(date: Date): number {
   return Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
-export function formatChartDate(value: string, locale = 'de-DE'): string {
+function parseChartDate(value: string): Date | undefined {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
   const date = new Date(match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00Z` : value)
-  if (!Number.isFinite(date.getTime())) return '–'
+  return Number.isFinite(date.getTime()) ? date : undefined
+}
+
+export function formatChartDate(
+  value: string,
+  locale = 'de-DE',
+  options?: { includeYear?: boolean },
+): string {
+  const date = parseChartDate(value)
+  if (!date) return '–'
   const day = String(date.getUTCDate()).padStart(2, '0')
   const month = String(date.getUTCMonth() + 1).padStart(2, '0')
   const week = isoWeekNumber(date)
-  return locale.toLowerCase().startsWith('de') ? `KW ${week} · ${day}.${month}.` : `W${week} · ${day}.${month}.`
+  const dayMonth = options?.includeYear ? `${day}.${month}.${date.getUTCFullYear()}` : `${day}.${month}.`
+  return locale.toLowerCase().startsWith('de') ? `KW ${week} · ${dayMonth}` : `W${week} · ${dayMonth}`
+}
+
+/** Compact age relative to a reference day, e.g. "−4 Wo", "−3 Mon", "−1,5 J". */
+export function formatRelativeChartDate(value: string, reference: string, locale = 'de-DE'): string {
+  const date = parseChartDate(value)
+  const ref = parseChartDate(reference)
+  if (!date || !ref) return '–'
+  const days = Math.round((ref.getTime() - date.getTime()) / 86400000)
+  const de = locale.toLowerCase().startsWith('de')
+  if (days <= 0) return de ? 'jetzt' : 'now'
+  if (days < 7) return de ? `−${days} T` : `−${days}d`
+  if (days < 60) {
+    const weeks = Math.max(1, Math.round(days / 7))
+    return de ? `−${weeks} Wo` : `−${weeks}w`
+  }
+  if (days < 365) {
+    const months = Math.max(1, Math.round(days / 30.4375))
+    return de ? `−${months} Mon` : `−${months}mo`
+  }
+  const years = Math.round((days / 365.25) * 2) / 2
+  const text = Number.isInteger(years)
+    ? String(years)
+    : de
+      ? years.toFixed(1).replace('.', ',')
+      : years.toFixed(1)
+  return de ? `−${text} J` : `−${text}y`
 }
 
 export function formatWeekLabel(value: string, locale = 'de-DE'): string {

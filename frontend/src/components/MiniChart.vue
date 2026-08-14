@@ -63,6 +63,8 @@ const props = withDefaults(
   defineProps<{
     series: MiniChartSeries[]
     labels: string[]
+    /** Absolute dates (or richer titles) for tooltips when `labels` are relative. */
+    tooltipLabels?: string[]
     yUnit?: string
     rightYUnit?: string
     type?: 'line' | 'bar'
@@ -74,6 +76,7 @@ const props = withDefaults(
     bands?: MiniChartBand[]
   }>(),
   {
+    tooltipLabels: () => [],
     yUnit: '',
     type: 'line',
     stacked: false,
@@ -200,6 +203,11 @@ const options = computed<ChartOptions>(() => ({
     },
     tooltip: {
       callbacks: {
+        title: (items) => {
+          const index = items[0]?.dataIndex
+          if (index != null && props.tooltipLabels[index]) return props.tooltipLabels[index]
+          return items[0]?.label ?? ''
+        },
         label: (context) => {
           const axisId = (context.dataset as { yAxisID?: string }).yAxisID
           const unit = axisId === 'yRight' ? props.rightYUnit || props.yUnit : props.yUnit
