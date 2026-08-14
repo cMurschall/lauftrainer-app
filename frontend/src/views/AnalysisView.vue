@@ -1,30 +1,39 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from '../i18n'
 import { type AnalysisResult, toDateKey } from '../analysis/analysisEngine'
-import type { UserConfig, Workout } from '../types/workout'
+import type { Workout } from '../types/workout'
 import MiniChart from '../components/MiniChart.vue'
 import { formatChartDate, formatWorkoutDate } from '../utils/formatters'
+import { useWorkoutStore } from '../stores/workouts'
+import { useAnalysisStore } from '../stores/analysis'
 
-const props = defineProps<{
-  workouts: Workout[]
-  config: UserConfig
-  saveWorkout: (workout: Workout) => Promise<void>
-  results: AnalysisResult | null
-  isCalculating: boolean
-  calculationError: string
-  retryAnalysis: () => Promise<void>
-}>()
+const workoutsStore = useWorkoutStore()
+const analysisStore = useAnalysisStore()
+const { summaries } = storeToRefs(workoutsStore)
+const { analysisResult, isCalculating, calculationError } = storeToRefs(analysisStore)
+
 const { locale, t } = useI18n()
 const range = ref(90)
 const weeklyMetric = ref<'minutes' | 'distance'>('minutes')
 const results = computed<AnalysisResult>(
   () =>
-    props.results || { weekly: [], load: [], foster: [], fosterRpe: [], polarization: [], hrZones: [], efficiency: [], sports: [], triathlonGroups: [] },
+    analysisResult.value || {
+      weekly: [],
+      load: [],
+      foster: [],
+      fosterRpe: [],
+      polarization: [],
+      hrZones: [],
+      efficiency: [],
+      sports: [],
+      triathlonGroups: [],
+    },
 )
 const latest = computed(
   () =>
-    props.workouts
+    summaries.value
       .map((w) => w.date)
       .map((x) => new Date(x.match(/^\d{2}-\d{2}-\d{4}$/) ? x.split('-').reverse().join('-') : x).getTime())
       .filter(Number.isFinite)
@@ -53,9 +62,8 @@ const efficiencyTrend = computed(() =>
 )
 const lastLoad = computed(() => [...load.value].at(-1))
 const tsbContext = computed(() => (lastLoad.value && lastLoad.value.tsb < 0 ? t.value.tsbFatigue : t.value.tsbFresh))
-const lastEfficiency = computed(() => efficiency.value.at(-1))
 const rpeWorkouts = computed(() =>
-  props.workouts
+  summaries.value
     .filter((w) => inRange(w.date))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 30),
@@ -100,14 +108,16 @@ function localizedSport(value: string) {
 async function saveRpe(workout: Workout, value: string) {
   const numeric = value === '' ? undefined : Number(value)
   if (numeric !== undefined && (!Number.isInteger(numeric) || numeric < 1 || numeric > 10)) return
-  await props.saveWorkout({ ...workout, sessionRpe: numeric })
+  const full = workoutsStore.workouts.find((item) => item.id === workout.id) || workout
+  await workoutsStore.saveWorkout({ ...full, sessionRpe: numeric })
+  analysisStore.scheduleAnalysisRefresh()
 }
 </script>
 <template>
   <div class="analysis-view">
   <div v-if="isCalculating" class="card" role="status">{{ t.analysisCalculating }}</div>
   <div v-if="calculationError" class="card" role="alert">
-    {{ calculationError }} <button class="button secondary" @click="retryAnalysis">{{ t.retryAnalysis }}</button>
+    {{ calculationError }} <button class="button secondary" @click="analysisStore.refreshAnalysis()">{{ t.retryAnalysis }}</button>
   </div>
   <div class="page-heading">
     <div>
@@ -124,8 +134,10 @@ async function saveRpe(workout: Workout, value: string) {
           { value: 0, label: t.rangeAll },
         ]"
         :key="item.value"
+        :aria-pressed="range === item.value"
         :class="range === item.value ? 'primary' : 'secondary'"
         class="button"
+        type="button"
         @click="range = item.value"
       >
         {{ item.label }}
@@ -171,12 +183,14 @@ async function saveRpe(workout: Workout, value: string) {
       <div class="chart-toggle">
         <button
           class="button"
+          type="button"
           :class="weeklyMetric === 'minutes' ? 'primary' : 'secondary'"
           @click="weeklyMetric = 'minutes'"
         >
           {{ t.minutesShort }}</button
         ><button
           class="button"
+          type="button"
           :class="weeklyMetric === 'distance' ? 'primary' : 'secondary'"
           @click="weeklyMetric = 'distance'"
         >
@@ -314,7 +328,7 @@ async function saveRpe(workout: Workout, value: string) {
           min="1"
           step="1"
           type="range"
-          @change="saveRpe(workout, ($event.target as HTMLInputElement).value)"
+          @change="saveRpe(workout as Workout, ($event.target as HTMLInputElement).value)"
         /><output>{{ workout.sessionRpe ?? '–' }}</output></span></label>
     </div>
   </section>

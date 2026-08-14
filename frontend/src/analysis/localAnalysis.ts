@@ -1,14 +1,5 @@
 import type { AnalysisSummary, UserConfig, Workout } from '../types/workout'
-import { normalizeSport } from './analysisEngine'
-
-function weekStart(date: string): string {
-  const match = date.match(/^(\d{2})-(\d{2})-(\d{4})$/)
-  const value = match ? new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])) : new Date(date)
-  if (Number.isNaN(value.getTime())) return 'unknown'
-  const day = value.getDay() || 7
-  value.setDate(value.getDate() - day + 1)
-  return value.toISOString().slice(0, 10)
-}
+import { isoWeekStart, normalizeSport } from './analysisEngine'
 
 export function calculateAnalysis(workouts: Workout[], config: UserConfig): AnalysisSummary {
   const weeks = new Map<
@@ -32,7 +23,8 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
   for (const workout of workouts) {
     const durationMinutes = Number.isFinite(workout.durationSeconds) ? Math.max(0, workout.durationSeconds / 60) : 0
     const distanceKm = Number.isFinite(workout.distanceKm) ? Math.max(0, workout.distanceKm || 0) : 0
-    const week = weekStart(workout.date)
+    const week = isoWeekStart(workout.date)
+    if (!week) continue
     const current = weeks.get(week) || { workoutCount: 0, distanceKm: 0, durationMinutes: 0, load: 0, heartRates: [], calories: 0, elevationGainM: 0, sports: {} }
     current.workoutCount += 1
     current.distanceKm += distanceKm

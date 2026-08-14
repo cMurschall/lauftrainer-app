@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from '../i18n'
-import type { TrainingPlan, TrainingPlanDay, UserConfig, Workout } from '../types/workout'
-import type { ConnectorSettings } from '../types/settings'
+import type { TrainingPlanDay } from '../types/workout'
 import {
   formatSport,
   formatWeekLabel,
@@ -12,41 +12,36 @@ import {
 } from '../utils/formatters'
 import { workoutIdentity } from '../services/workoutIdentity'
 import SportIcon from '../components/SportIcon.vue'
+import { useWorkoutStore } from '../stores/workouts'
+import { usePlanStore } from '../stores/plan'
+import { useSettingsStore } from '../stores/settings'
+import { useAnalysisStore } from '../stores/analysis'
+import { useUiStore } from '../stores/ui'
+import { syncConnectors } from '../stores/dataLifecycle'
 
-const props = defineProps<{
-  workouts: Workout[]
-  connectors: ConnectorSettings[]
-  plan: TrainingPlan
-  completedPlanDays: string[]
-  config: UserConfig
-  analysis: {
-    totalDistanceKm: number
-    totalDurationMinutes: number
-    weekly: Array<{ weekStart: string; distanceKm: number; workoutCount: number }>
-  }
-  notification: { message: string; type: 'success' | 'error' | 'info' }
-  dismissNotification: () => void
-  credits: number
-  loading: boolean
-  consent: boolean
-  connectorLoading: boolean
-  syncConnectors: () => void
-  createPlan: () => void
-  togglePlanDay: (day: string) => void
-}>()
-const emit = defineEmits<{ 'update:consent': [value: boolean] }>()
+const workouts = useWorkoutStore()
+const planStore = usePlanStore()
+const settings = useSettingsStore()
+const analysisStore = useAnalysisStore()
+const ui = useUiStore()
+
+const { summaries } = storeToRefs(workouts)
+const { plan, completedPlanDays } = storeToRefs(planStore)
+const { connectors } = storeToRefs(settings)
+const { analysis } = storeToRefs(analysisStore)
+const { notification, credits, loading, consent, connectorLoading } = storeToRefs(ui)
+
 const { t } = useI18n()
 const showWorkoutDebug = import.meta.env.DEV
 const formatWorkoutDate = (value: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatWeekLabel(value) : formatDateValue(value)
 const recentWorkouts = computed(() =>
-  [...props.workouts]
-    .sort((a, b) => b.date.localeCompare(a.date)),
+  [...summaries.value].sort((a, b) => b.date.localeCompare(a.date)),
 )
 const strongestWeekDistance = computed(() =>
-  Math.max(...props.analysis.weekly.map((week) => week.distanceKm).filter(Number.isFinite), 0),
+  Math.max(...analysis.value.weekly.map((week) => week.distanceKm).filter(Number.isFinite), 0),
 )
-const workoutDebug = (workout: Workout) => ({
+const workoutDebug = (workout: (typeof summaries.value)[number]) => ({
   source: workout.source,
   id: workout.id,
   date: workout.date,
@@ -55,8 +50,8 @@ const workoutDebug = (workout: Workout) => ({
   sport: workout.sport,
   identity: workoutIdentity(workout),
 })
-const planMinutes = computed(() => props.plan.days.reduce((sum, day) => sum + day.total_duration_minutes, 0))
-const completedCount = computed(() => props.plan.days.filter((day) => props.completedPlanDays.includes(day.day)).length)
+const planMinutes = computed(() => plan.value.days.reduce((sum, day) => sum + day.total_duration_minutes, 0))
+const completedCount = computed(() => plan.value.days.filter((day) => completedPlanDays.value.includes(day.day)).length)
 const planDescription = (day: TrainingPlanDay) =>
   day.session_type === 'rest'
     ? t.value.restDayDescription
@@ -65,22 +60,27 @@ const planDescription = (day: TrainingPlanDay) =>
       ? 'Erholungstag.'
       : `${day.target_focus} mit kontrollierter Belastung.`
     : day.description
-const activeConnectedConnectors = computed(() => props.connectors.filter((connector) => connector.active && connector.connected))
+const activeConnectedConnectors = computed(() => connectors.value.filter((connector) => connector.active && connector.connected))
 const planDayLabel = (day: TrainingPlanDay) => t.value[day.day]
 const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t.value.restDay : t.value[day.sport]
 </script>
 <template>
   <Transition name="toast">
-    <div v-if="notification.message" class="toast" :class="`toast-${notification.type}`" role="status">
+    <div
+      v-if="notification.message"
+      class="toast"
+      :class="`toast-${notification.type}`"
+      :role="notification.type === 'error' ? 'alert' : 'status'"
+    >
       <span>{{ notification.message }}</span>
-      <button type="button" aria-label="Meldung schließen" @click="dismissNotification">×</button>
+      <button type="button" aria-label="Meldung schließen" @click="ui.dismissNotification()">×</button>
     </div>
   </Transition>
   <div class="dashboard-flow">
   <section class="stats dashboard-stats">
     <article class="card">
       <span>{{ t.workouts }}</span
-      ><strong class="metric">{{ workouts.length }}</strong>
+      ><strong class="metric">{{ summaries.length }}</strong>
     </article>
     <article class="card">
       <span>{{ t.totalDistance }}</span
@@ -98,7 +98,7 @@ const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t
       >
     </article>
   </section>
-  <section v-if="!workouts.length" class="hero dashboard-empty-hero">
+  <section v-if="!summaries.length" class="hero dashboard-empty-hero">
     <span class="hero-orb" aria-hidden="true">◉</span>
     <p>{{ t.heroText }}</p>
     <div class="empty-actions">
@@ -136,17 +136,11 @@ const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t
       ><input
         :checked="consent"
         type="checkbox"
-        @change="emit('update:consent', ($event.target as HTMLInputElement).checked)"
+        @change="ui.consent = ($event.target as HTMLInputElement).checked"
       />{{ t.consent }}</label
-    ><button :disabled="loading || !workouts.length" class="button primary full" @click="createPlan">
+    ><button :disabled="loading || !summaries.length" class="button primary full" @click="planStore.createPlan()">
       {{ loading ? t.creatingPlan : t.createPlan }}
     </button>
-    <div v-if="false && plan.days.length" class="plan">
-      <div v-for="day in plan.days" :key="day.day">
-        <strong>{{ day.day }}</strong
-        ><span>{{ day.description }} · {{ day.total_duration_minutes }} min</span>
-      </div>
-    </div>
   </section>
     <section v-if="plan.days.length" class="card plan dashboard-plan">
       <div class="plan-heading">
@@ -165,10 +159,9 @@ const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t
       </div>
       <article v-for="(day, index) in plan.days" :key="`${day.day}-${index}`" class="plan-day" :class="{ completed: completedPlanDays.includes(day.day) }">
         <label class="plan-check">
-          <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="togglePlanDay(day.day)" />
+          <input :checked="completedPlanDays.includes(day.day)" type="checkbox" @change="planStore.togglePlanDay(day.day)" />
           <span>
             <strong class="plan-day-name">{{ planDayLabel(day) }}</strong>
-            <strong>{{ planDayLabel(day) }} · {{ planSportLabel(day) }} · {{ day.total_duration_minutes }} min</strong>
             <small>{{ day.target_focus }}</small>
           </span>
         </label>
@@ -182,16 +175,14 @@ const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t
             <strong class="plan-step-duration">{{ step.step_duration }}</strong>
             <span class="plan-step-intensity">{{ step.step_intensity }}</span>
             <span class="plan-step-instruction">{{ step.step_instruction }}</span>
-            <strong>{{ step.step_duration }}</strong> Â· {{ step.step_intensity }} Â· {{ step.step_instruction }}
           </li>
         </ul>
       </article>
     </section>
   <section class="grid dashboard-grid">
     <article class="card">
-      <p class="eyebrow">{{ t.history }}</p><!--
-        <span aria-hidden="true">⌕</span
-      --><ul class="workouts">
+      <p class="eyebrow">{{ t.history }}</p>
+      <ul class="workouts">
         <li v-for="workout in recentWorkouts.slice(0, 12)" :key="workout.id" class="workout-row">
           <SportIcon :sport="workout.sport" />
           <div>

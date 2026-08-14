@@ -1262,9 +1262,8 @@
     gap: 0.2rem;
   }
 
-  .plan-check > span > strong:not(.plan-day-name),
-  .plan-steps li > strong:not(.plan-step-duration) {
-    display: none;
+  .plan-check > span > strong.plan-day-name {
+    display: block;
   }
 
   .plan-day-meta {

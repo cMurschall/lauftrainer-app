@@ -1,10 +1,12 @@
-import { ref, toRaw } from 'vue'
+import { ref } from 'vue'
 import { workoutDb, type AnalysisCacheEntry } from '../db/database'
 import { calculateAnalysis } from './analysisEngine'
 import { calculateAnalysis as calculateDashboardAnalysis } from './localAnalysis'
 import type { AnalysisSummary, UserConfig, Workout } from '../types/workout'
 import type { AnalysisResult } from './analysisEngine'
 import { diagnosticLog } from '../services/logger'
+import { cloneWorkoutsForAnalysis } from '../utils/workoutSummary'
+import { plain } from '../utils/clone'
 
 export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v2-multisport'
 
@@ -43,12 +45,6 @@ function calculateInMainThread(workouts: Workout[], config: UserConfig) {
   }
 }
 
-function cloneForWorker<T>(value: T): T {
-  // JSON cloning is deliberately used here: iOS Safari can reject otherwise
-  // valid Vue proxy graphs with a DataCloneError during worker postMessage.
-  return JSON.parse(JSON.stringify(toRaw(value))) as T
-}
-
 function calculateInWorker(
   workouts: Workout[],
   config: UserConfig,
@@ -56,7 +52,8 @@ function calculateInWorker(
   if (typeof Worker === 'undefined') return Promise.resolve(calculateInMainThread(workouts, config))
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./analysisWorker.ts', import.meta.url), { type: 'module' })
-    const payload = { workouts: cloneForWorker(workouts), config: cloneForWorker(config) }
+    // Strip GPS coordinates from records before postMessage to keep payloads smaller.
+    const payload = { workouts: cloneWorkoutsForAnalysis(workouts), config: plain(config) }
     diagnosticLog('analysis.worker.start', { workoutCount: workouts.length })
     worker.onmessage = (event) => {
       worker.terminate()

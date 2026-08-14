@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import { router } from './router'
 import './styles.css'
@@ -21,5 +22,5 @@ async function prepareInitialTheme() {
 }
 
 prepareInitialTheme().finally(() => {
-  createApp(App).use(router).mount('#app')
+  createApp(App).use(createPinia()).use(router).mount('#app')
 })
