@@ -24,8 +24,8 @@ const props = defineProps<{
     totalDurationMinutes: number
     weekly: Array<{ weekStart: string; distanceKm: number; workoutCount: number }>
   }
-  message: string
-  aiError: string
+  notification: { message: string; type: 'success' | 'error' | 'info' }
+  dismissNotification: () => void
   credits: number
   loading: boolean
   consent: boolean
@@ -70,9 +70,11 @@ const planDayLabel = (day: TrainingPlanDay) => t.value[day.day]
 const planSportLabel = (day: TrainingPlanDay) => day.session_type === 'rest' ? t.value.restDay : t.value[day.sport]
 </script>
 <template>
-  <p v-if="message" class="notice">{{ message }}</p>
   <Transition name="toast">
-    <p v-if="aiError" class="toast toast-error" role="alert">{{ aiError }}</p>
+    <div v-if="notification.message" class="toast" :class="`toast-${notification.type}`" role="status">
+      <span>{{ notification.message }}</span>
+      <button type="button" aria-label="Meldung schließen" @click="dismissNotification">×</button>
+    </div>
   </Transition>
   <div class="dashboard-flow">
   <section class="stats dashboard-stats">

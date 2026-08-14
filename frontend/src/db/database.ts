@@ -1,10 +1,10 @@
-import type { AnalysisSummary, TrainingPlan, UserConfig, Workout } from '../types/workout'
+import type { AnalysisSummary, TrainingPlan, TrainingPlanHistoryEntry, UserConfig, Workout } from '../types/workout'
 import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 import { diagnosticLog } from '../services/logger'
 
 const DB_NAME = 'lauftrainer-local'
-const DB_VERSION = 5
+const DB_VERSION = 6
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -15,6 +15,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('workouts')) db.createObjectStore('workouts', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings')
       if (!db.objectStoreNames.contains('plans')) db.createObjectStore('plans', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('planHistory')) db.createObjectStore('planHistory', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('backups')) db.createObjectStore('backups', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('analysisCache')) db.createObjectStore('analysisCache', { keyPath: 'cacheKey' })
       if (!db.objectStoreNames.contains('goals')) db.createObjectStore('goals', { keyPath: 'id' })
@@ -128,15 +129,22 @@ export const workoutDb = {
   saveGoal: (goal: TrainingGoal) => transaction<IDBValidKey>('goals', 'readwrite', (store) => store.put(goal)),
   deleteGoal: (id: string) => transaction<undefined>('goals', 'readwrite', (store) => store.delete(id)),
   savePlan: (plan: TrainingPlan) =>
-    transaction<IDBValidKey>('plans', 'readwrite', (store) =>
-      store.put({
-        id: 'current',
-        createdAt: new Date().toISOString(),
-        plan,
-      }),
-    ),
+    (async () => {
+      const previous = await workoutDb.getPlan()
+      if (previous?.plan) {
+        await workoutDb.savePlanHistory({
+          id: `plan-${Date.now()}-${crypto.randomUUID()}`,
+          createdAt: previous.createdAt || new Date().toISOString(),
+          plan: previous.plan,
+          completedDays: previous.completedDays,
+        })
+      }
+      return transaction<IDBValidKey>('plans', 'readwrite', (store) =>
+        store.put({ id: 'current', createdAt: new Date().toISOString(), plan }),
+      )
+    })(),
   getPlan: async () => {
-    return await transaction<{ plan?: TrainingPlan; completedDays?: string[] } | undefined>('plans', 'readonly', (store) => store.get('current'))
+    return await transaction<{ plan?: TrainingPlan; completedDays?: string[]; createdAt?: string } | undefined>('plans', 'readonly', (store) => store.get('current'))
   },
   savePlanWithStatus: (plan: TrainingPlan, completedDays: string[]) =>
     transaction<IDBValidKey>('plans', 'readwrite', (store) =>
@@ -147,6 +155,11 @@ export const workoutDb = {
         completedDays,
       }),
     ),
+  savePlanHistory: (entry: TrainingPlanHistoryEntry) =>
+    transaction<IDBValidKey>('planHistory', 'readwrite', (store) => store.put(entry)),
+  listPlanHistory: () =>
+    transaction<TrainingPlanHistoryEntry[]>('planHistory', 'readonly', (store) => store.getAll()),
+  clearPlanHistory: () => transaction<undefined>('planHistory', 'readwrite', (store) => store.clear()),
   getAnalysisCache: (cacheKey: string) =>
     transaction<AnalysisCacheEntry | undefined>('analysisCache', 'readonly', (store) => store.get(cacheKey)),
   saveAnalysisCache: (entry: AnalysisCacheEntry) =>

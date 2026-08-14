@@ -114,6 +114,13 @@ export interface TrainingWeekSummary {
   goal_description: string
 }
 
+export interface TrainingPlanHistoryEntry {
+  id: string
+  createdAt: string
+  plan: TrainingPlan
+  completedDays?: string[]
+}
+
 export interface TrainingPlan {
   week_summary: TrainingWeekSummary
   days: TrainingPlanDay[]

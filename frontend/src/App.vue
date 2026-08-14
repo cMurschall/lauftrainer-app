@@ -27,12 +27,12 @@ import frontendPackage from '../package.json'
 
 const route = useRoute()
 const { locale, t, setLocale, formatTime } = useI18n()
+const frontendLocalMode = ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
 const emptyPlan: TrainingPlan = { week_summary: { focus_title: '', goal_description: '' }, days: [] }
 const workouts = ref<Workout[]>([]),
   plan = ref<TrainingPlan>(emptyPlan),
   completedPlanDays = ref<string[]>([]),
-  message = ref(''),
-  aiError = ref(''),
+  notification = ref<{ message: string; type: 'success' | 'error' | 'info' }>({ message: '', type: 'info' }),
   loading = ref(false),
   consent = ref(false)
 const credits = ref(cachedBalance())
@@ -40,6 +40,18 @@ const backendStatus = ref<'checking' | 'online' | 'offline'>('checking'),
   backendVersion = ref('–'),
   backendCheckedAt = ref('')
 const connectorLoading = ref(false)
+let notificationTimer: number | undefined
+function notify(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  window.clearTimeout(notificationTimer)
+  notification.value = { message, type }
+  notificationTimer = window.setTimeout(() => {
+    notification.value = { message: '', type: 'info' }
+  }, 4500)
+}
+function dismissNotification() {
+  window.clearTimeout(notificationTimer)
+  notification.value = { message: '', type: 'info' }
+}
 const backendCommit = ref('')
 const frontendVersion = frontendPackage.version
 const frontendCommit = import.meta.env.VITE_COMMIT_SHA || ''
@@ -94,7 +106,7 @@ function scheduleAnalysisRefresh() {
 }
 useTheme(theme)
 onMounted(async () => {
-  void getBalance().then((value) => { credits.value = value }).catch(() => undefined)
+  if (!frontendLocalMode) void getBalance().then((value) => { credits.value = value }).catch(() => undefined)
   // Capture the OAuth handoff before asynchronous startup work, especially
   // important when a mobile browser resumes the app after the redirect.
   captureConnectorSession()
@@ -217,24 +229,25 @@ async function importFiles(event: Event) {
         message: error instanceof Error ? error.message : String(error),
       })
       importProgress.value.failed++
-      message.value = t.value.importFailed
+      notify(t.value.importFailed, 'error')
     }
     importProgress.value.current++
   }
   workouts.value = await workoutDb.list()
   await refreshAnalysis()
-  if (imported) message.value = t.value.importSuccess(imported)
+  if (imported) notify(t.value.importSuccess(imported), 'success')
   importProgress.value = { ...importProgress.value, active: false, fileName: '' }
   ;(event.target as HTMLInputElement).value = ''
 }
 
 async function createPlan() {
+  if (plan.value.days.length && !window.confirm(t.value.confirmReplacePlan)) return
   if (!consent.value) {
-    message.value = t.value.consent
+    notify(t.value.consent, 'info')
     return
   }
   loading.value = true
-  aiError.value = ''
+  notification.value = { message: '', type: 'info' }
   const planRequestId = crypto.randomUUID()
   diagnosticLog('plan.create.start', { planRequestId, workoutCount: workouts.value.length, locale: locale.value })
   try {
@@ -247,7 +260,6 @@ async function createPlan() {
       debug: Boolean(result.debug),
     })
     plan.value = result.plan
-    credits.value = await getBalance()
     completedPlanDays.value = []
     diagnosticLog('plan.save.start', { planRequestId, dayCount: plan.value.days.length, hasWeekSummary: Boolean(plan.value.week_summary) })
     // Vue makes ref contents reactive. IndexedDB cannot structured-clone Vue proxies.
@@ -259,16 +271,14 @@ async function createPlan() {
       dayCount: persistedPlan?.plan?.days.length || 0,
       days: persistedPlan?.plan?.days.map((day) => day.day) || [],
     })
-    message.value = result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved
+    if (!frontendLocalMode) credits.value = await getBalance()
+    notify(result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved, 'success')
   } catch (error) {
     diagnosticLog('plan.create.error', {
       planRequestId,
       error: error instanceof Error ? error.message : String(error),
     })
-    aiError.value = t.value.aiFailed
-    window.setTimeout(() => {
-      aiError.value = ''
-    }, 5000)
+    notify(t.value.aiFailed, 'error')
   } finally {
     loading.value = false
   }
@@ -296,7 +306,7 @@ async function saveConfig() {
   config.value = nextConfig
   await workoutDb.saveConfig(nextConfig)
   await refreshAnalysis()
-  message.value = t.value.configSaved
+  notify(t.value.configSaved, 'success')
 }
 
 async function saveGoal(goal: TrainingGoal) {
@@ -316,7 +326,7 @@ async function downloadBackup() {
   link.download = `lauftrainer-backup-${new Date().toISOString().slice(0, 10)}.json`
   link.click()
   URL.revokeObjectURL(link.href)
-  message.value = t.value.backupExported
+  notify(t.value.backupExported, 'success')
 }
 
 async function restoreBackup(event: Event) {
@@ -326,9 +336,9 @@ async function restoreBackup(event: Event) {
     await importBackup(JSON.parse(await file.text()))
     workouts.value = await workoutDb.deduplicate()
     await refreshAnalysis()
-    message.value = t.value.backupRestored
+    notify(t.value.backupRestored, 'success')
   } catch {
-    message.value = t.value.backupFailed
+    notify(t.value.backupFailed, 'error')
   }
 }
 
@@ -336,12 +346,13 @@ async function clearData() {
   if (!window.confirm(t.value.confirmDelete)) return
   await workoutDb.deleteAll()
   await workoutDb.deleteAllGoals()
+  await workoutDb.clearPlanHistory()
   workouts.value = []
   goals.value = []
   await refreshAnalysis()
   plan.value = structuredClone(emptyPlan)
   completedPlanDays.value = []
-  message.value = t.value.dataDeleted
+  notify(t.value.dataDeleted, 'success')
 }
 
 function connectConnector(id: ConnectorId) {
@@ -357,9 +368,9 @@ async function removeConnector(id: ConnectorId) {
       connector.active = false
     }
     await saveSettings()
-    message.value = `${id === 'polar' ? 'Polar' : 'Strava'} getrennt.`
+    notify(`${id === 'polar' ? 'Polar' : 'Strava'} getrennt.`, 'success')
   } catch (error) {
-    message.value = error instanceof Error ? error.message : 'Connector konnte nicht getrennt werden.'
+    notify(error instanceof Error ? error.message : 'Connector konnte nicht getrennt werden.', 'error')
   }
 }
 
@@ -390,11 +401,11 @@ async function syncConnectors() {
         count + result.workouts.filter((workout) => !workout.durationSeconds && !workout.distanceKm).length,
       0,
     )
-    message.value = errors.length
+    notify(errors.length
       ? `${imported} Training(s) gespeichert. ${errors.join(' ')}`
-      : `${imported} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`
+      : `${imported} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`, errors.length ? 'error' : 'success')
   } catch (error) {
-    message.value = error instanceof Error ? error.message : t.value.syncFailed
+    notify(error instanceof Error ? error.message : t.value.syncFailed, 'error')
   } finally {
     connectorLoading.value = false
   }
@@ -468,8 +479,8 @@ async function saveWorkout(workout: Workout) {
                     completedPlanDays,
                     config,
                     analysis,
-                  message,
-                  aiError,
+                  notification,
+                  dismissNotification,
                   credits,
                     loading,
                     consent,
