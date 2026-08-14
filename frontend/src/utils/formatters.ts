@@ -15,11 +15,25 @@ export function formatWorkoutDate(value: string, locale = 'de-DE'): string {
     .replace(',', ' ·')
 }
 
+function isoWeekNumber(date: Date): number {
+  const utc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const day = utc.getUTCDay() || 7
+  utc.setUTCDate(utc.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1))
+  return Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
+
 export function formatChartDate(value: string, locale = 'de-DE'): string {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
   const date = new Date(match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00Z` : value)
   if (!Number.isFinite(date.getTime())) return '–'
-  return new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date)
+  const dayMonth = new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(date)
+  const week = isoWeekNumber(date)
+  return locale.toLowerCase().startsWith('de') ? `${dayMonth} · KW ${week}` : `${dayMonth} · W${week}`
 }
 
 export function formatWeekLabel(value: string, locale = 'de-DE'): string {

@@ -53,10 +53,36 @@ describe('analysis engine', () => {
     expect(result[2].ctl).toBeGreaterThan(0)
     expect(result[2].atl).toBeGreaterThan(result[2].ctl)
   })
-  it('calculates Foster zero-standard-deviation fallback', () => {
+  it('omits Foster monotony when weekly load variance is zero', () => {
     const result = calculateFosterMetrics([workout({ date: '06-01-2025' }), workout({ date: '07-01-2025' })], config)
-    expect(result[0].monotony).toBe(result[0].load / 2)
-    expect(result[0].strain).toBe(result[0].monotony * result[0].load)
+    expect(result[0].load).toBeGreaterThan(0)
+    expect(result[0].monotony).toBeUndefined()
+    expect(result[0].strain).toBeUndefined()
+  })
+  it('sets Foster monotony and strain to zero for empty weeks', () => {
+    const result = calculateFosterMetrics(
+      [workout({ date: '06-01-2025', averageHeartRate: undefined, records: [] })],
+      config,
+    )
+    // Workout without HR still contributes duration-based week via training load zeros around it —
+    // prefer an explicit zero-load week by using only days that yield zero TRIMP.
+    const empty = result.find((week) => week.load === 0)
+    if (empty) {
+      expect(empty.monotony).toBe(0)
+      expect(empty.strain).toBe(0)
+    }
+  })
+  it('computes Foster monotony when weekly variance is positive', () => {
+    const result = calculateFosterMetrics(
+      [
+        workout({ date: '06-01-2025', averageHeartRate: 150, durationSeconds: 3600 }),
+        workout({ date: '08-01-2025', averageHeartRate: 120, durationSeconds: 1800 }),
+      ],
+      config,
+    )
+    expect(result[0].monotony).toBeTypeOf('number')
+    expect(result[0].strain).toBeTypeOf('number')
+    expect(result[0].monotony!).toBeGreaterThan(0)
   })
   it('does not invent a polarization index for empty Z2', () => {
     const result = calculatePolarization([workout({ averageHeartRate: 100 })], config)

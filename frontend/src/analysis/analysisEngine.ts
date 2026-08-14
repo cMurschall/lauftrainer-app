@@ -25,8 +25,8 @@ export interface LoadDay {
 export interface FosterWeek {
   weekStart: string
   load: number
-  monotony: number
-  strain: number
+  monotony?: number
+  strain?: number
 }
 
 export interface PolarizationWeek {
@@ -240,12 +240,14 @@ function fosterFromDaily(load: Array<{ date: string; value: number }>): FosterWe
   return [...weekMap(load, (item) => isoWeekStart(item.date)).entries()]
     .map(([weekStart, entries]) => {
       const values = entries.map((x) => x.value)
-      const mean = values.reduce((a, b) => a + b, 0) / values.length
+      const weekLoad = values.reduce((a, b) => a + b, 0)
+      if (weekLoad === 0) return { weekStart, load: 0, monotony: 0, strain: 0 }
+      const mean = weekLoad / values.length
       const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, values.length - 1)
       const std = Math.sqrt(variance)
-      const monotony = std === 0 ? mean : mean / std
-      const load = values.reduce((a, b) => a + b, 0)
-      return { weekStart, load, monotony, strain: monotony * load }
+      if (std === 0) return { weekStart, load: weekLoad }
+      const monotony = mean / std
+      return { weekStart, load: weekLoad, monotony, strain: monotony * weekLoad }
     })
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
 }

@@ -1475,7 +1475,43 @@
   }
   .mini-chart-canvas {
     position: relative;
-    height: 164px;
+    height: 240px;
+  }
+  .chart-help {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.45;
+  }
+  .chart-help summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--subtle);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+  .chart-help summary::-webkit-details-marker {
+    display: none;
+  }
+  .chart-help summary::before {
+    content: '› ';
+    display: inline-block;
+    transform: translateY(-0.5px);
+  }
+  .chart-help[open] summary::before {
+    content: '▾ ';
+  }
+  .chart-help p {
+    margin: 8px 0 0;
+  }
+  .chart-help-risk {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, #ef4444 35%, var(--border));
+    border-radius: 10px;
+    background: color-mix(in srgb, #ef4444 8%, transparent);
+    color: var(--text);
+    font-size: 0.75rem;
   }
   .chart-heading {
     display: flex;
@@ -1531,9 +1567,17 @@
   }
   .zone-week {
     display: grid;
-    grid-template-columns: 90px 1fr;
+    grid-template-columns: 7.5rem 1fr;
     align-items: center;
     gap: 12px;
+  }
+  .zone-week > small {
+    width: 7.5rem;
+    min-width: 7.5rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .stacked {
     display: flex;
