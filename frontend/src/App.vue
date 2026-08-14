@@ -245,7 +245,8 @@ async function createPlan() {
     credits.value = await getBalance()
     completedPlanDays.value = []
     diagnosticLog('plan.save.start', { planRequestId, dayCount: plan.value.length })
-    await workoutDb.savePlan(plan.value)
+    // Vue makes ref contents reactive. IndexedDB cannot structured-clone Vue proxies.
+    await workoutDb.savePlan(plain(plan.value))
     const persistedPlan = await workoutDb.getPlan()
     diagnosticLog('plan.save.verified', {
       planRequestId,
@@ -269,7 +270,7 @@ async function togglePlanDay(day: string) {
   completedPlanDays.value = completedPlanDays.value.includes(day)
     ? completedPlanDays.value.filter((item) => item !== day)
     : [...completedPlanDays.value, day]
-  await workoutDb.savePlanWithStatus(plan.value, completedPlanDays.value)
+  await workoutDb.savePlanWithStatus(plain(plan.value), plain(completedPlanDays.value))
 }
 
 async function saveConfig() {
