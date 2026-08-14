@@ -9,6 +9,7 @@ import ChartHelp from '../components/ChartHelp.vue'
 import { formatChartDate, formatWorkoutDate } from '../utils/formatters'
 import { useWorkoutStore } from '../stores/workouts'
 import { useAnalysisStore } from '../stores/analysis'
+import { WEEKLY_TOTAL_COLOR, showsWeeklyTotal, weeklySportSeries } from '../utils/analysisCharts'
 
 const workoutsStore = useWorkoutStore()
 const analysisStore = useAnalysisStore()
@@ -88,24 +89,25 @@ const hrZonesEmptyMessage = computed(() => {
   if (!hasHrStream.value && (hasAvgHr.value || rangedWorkouts.value.length > 0)) return 'needHrStream' as const
   return 'noHr' as const
 })
-const weeklyChart = computed(() =>
-  weeklyMetric.value === 'minutes'
-    ? {
-        unit: 'min',
-        series: [
-          { name: t.value.totalMinutes, values: weekly.value.map((x) => x.totalMinutes), color: 'var(--accent)' },
-          { name: t.value.runningMinutes, values: weekly.value.map((x) => x.runningMinutes), color: 'var(--chart-blue)' },
-          { name: t.value.cyclingMinutes, values: weekly.value.map((x) => x.cyclingMinutes), color: 'var(--chart-gold)' },
-        ],
-      }
-    : {
-        unit: 'km',
-        series: [
-          { name: t.value.runningDistance, values: weekly.value.map((x) => x.runningDistanceKm), color: 'var(--chart-blue)' },
-          { name: t.value.cyclingDistance, values: weekly.value.map((x) => x.cyclingDistanceKm), color: 'var(--chart-gold)' },
-        ],
-      },
+const totalDistanceKm = computed(() =>
+  weekly.value.reduce(
+    (sum, week) => sum + Object.values(week.sports).reduce((acc, sport) => acc + (sport?.distanceKm || 0), 0),
+    0,
+  ),
 )
+const weeklySports = computed(() => weeklySportSeries(weekly.value, weeklyMetric.value))
+const weeklyChart = computed(() => {
+  const sports = weeklySports.value.map((item) => ({
+    name: localizedSport(item.sport),
+    values: item.values,
+    color: item.color,
+  }))
+  const total =
+    weeklyMetric.value === 'minutes' && showsWeeklyTotal(weeklySports.value)
+      ? [{ name: t.value.totalMinutes, values: weekly.value.map((x) => x.totalMinutes), color: WEEKLY_TOTAL_COLOR }]
+      : []
+  return { unit: weeklyMetric.value === 'minutes' ? 'min' : 'km', series: [...total, ...sports] }
+})
 const fosterSeries = computed(() => [
   {
     name: t.value.load,
@@ -157,6 +159,7 @@ function localizedSport(value: string) {
     Swimming: t.value.swimming,
     Hiking: t.value.hiking,
     Walking: t.value.walking,
+    Climbing: t.value.climbing,
     Triathlon: t.value.triathlon,
     Other: t.value.other,
   }
@@ -231,9 +234,7 @@ async function saveRpe(workout: Workout, value: string) {
       </article>
       <article class="card">
         <span>{{ t.totalDistance }}</span>
-        <strong class="metric"
-          >{{ weekly.reduce((sum, x) => sum + x.runningDistanceKm + x.cyclingDistanceKm, 0).toFixed(1) }} km</strong
-        >
+        <strong class="metric">{{ totalDistanceKm.toFixed(1) }} km</strong>
         <small>{{ t.distanceContext }}</small>
       </article>
     </section>
@@ -260,12 +261,12 @@ async function saveRpe(workout: Workout, value: string) {
         </div>
       </div>
       <MiniChart
-        v-if="weekly.length"
+        v-if="weeklyChart.series.length"
         :y-unit="weeklyChart.unit"
         :labels="chartLabels(weekly)"
         :series="weeklyChart.series"
       />
-      <p v-if="!weekly.length">{{ t.noData }}</p>
+      <p v-else>{{ t.noData }}</p>
       <ChartHelp :summary="t.chartHelpSummary" :paragraphs="t.helpWeekly" />
     </section>
     <section v-if="results.sports.length" class="card sports-card">
