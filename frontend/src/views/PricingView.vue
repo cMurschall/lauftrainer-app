@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from '../i18n'
+import { redeemVoucher } from '../services/billingService'
 import { detectCountry, openTierCheckout, previewTier, tiers, type Tier } from '../services/paddleService'
+import { useUiStore } from '../stores/ui'
 
 const { t } = useI18n()
+const ui = useUiStore()
 const loading = ref(true)
 const error = ref('')
 const checkoutTier = ref<string>()
 const prices = ref<Record<string, string>>({})
+const voucherCode = ref('')
+const voucherBusy = ref(false)
+const voucherError = ref('')
+const voucherSuccess = ref('')
 
 async function loadPrices() {
   loading.value = true
@@ -32,6 +39,22 @@ async function subscribe(tier: Tier) {
     error.value = cause instanceof Error ? cause.message : t.value.checkoutFailed
   } finally {
     checkoutTier.value = undefined
+  }
+}
+
+async function redeem() {
+  voucherBusy.value = true
+  voucherError.value = ''
+  voucherSuccess.value = ''
+  try {
+    const balance = await redeemVoucher(voucherCode.value)
+    ui.credits = balance
+    voucherSuccess.value = t.value.voucherRedeemed.replace('{balance}', String(balance))
+    voucherCode.value = ''
+  } catch (cause) {
+    voucherError.value = cause instanceof Error ? cause.message : t.value.voucherRedeemFailed
+  } finally {
+    voucherBusy.value = false
   }
 }
 
@@ -62,6 +85,25 @@ onMounted(loadPrices)
           {{ checkoutTier === tier.name ? t.checkoutOpening : t.creditsBuy }}
         </button>
       </article>
+    </section>
+
+    <section class="card pricing-voucher" aria-labelledby="voucher-heading">
+      <h2 id="voucher-heading" class="pricing-voucher-title">{{ t.voucherTitle }}</h2>
+      <p class="muted pricing-voucher-help">{{ t.voucherHelp }}</p>
+      <form class="pricing-voucher-form" @submit.prevent="redeem">
+        <input
+          v-model="voucherCode"
+          type="text"
+          autocomplete="off"
+          :placeholder="t.voucherPlaceholder"
+          :disabled="voucherBusy"
+        />
+        <button class="button secondary" type="submit" :disabled="voucherBusy || !voucherCode.trim()">
+          {{ voucherBusy ? t.voucherRedeeming : t.voucherRedeem }}
+        </button>
+      </form>
+      <p v-if="voucherError" class="form-error">{{ voucherError }}</p>
+      <p v-if="voucherSuccess" class="form-success">{{ voucherSuccess }}</p>
     </section>
   </main>
 </template>

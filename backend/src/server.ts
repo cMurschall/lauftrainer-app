@@ -6,6 +6,7 @@ import { disconnect, listStatus, syncAll } from './connectors'
 import { createTrainingPlan } from './training'
 import type { Env } from './types'
 import { balance, createCheckout, createWallet, paddleWebhook, redeemVoucher, cleanupReservations } from './billing'
+import { adminPage, createAdminRestore, createAdminVoucher } from './admin'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -13,6 +14,9 @@ export default {
     const path = new URL(request.url).pathname
     try {
       if (request.method === 'GET' && path === '/health') return json({ status: 'ok', version: packageJson.version, commit: env.COMMIT_SHA || '' }, 200, request, env)
+      if (request.method === 'GET' && path === '/admin') return await adminPage(request, env)
+      if (request.method === 'POST' && path === '/api/admin/vouchers') return await createAdminVoucher(request, env)
+      if (request.method === 'POST' && path === '/api/admin/restore') return await createAdminRestore(request, env)
       if (request.method === 'GET' && path === '/api/polar/connect') return await connect(request, env)
       if (request.method === 'GET' && path === '/api/polar/callback') return await callback(request, env)
       if (request.method === 'GET' && path === '/api/polar/status') return await status(request, env)

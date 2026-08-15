@@ -20,4 +20,5 @@ export interface Env {
   PADDLE_PRICE_BASIC?: string
   PADDLE_PRICE_PLUS?: string
   PADDLE_PRICE_PRO?: string
+  ADMIN_SECRET?: string
 }

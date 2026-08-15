@@ -129,6 +129,14 @@ class MemoryStatement {
     if (sql.startsWith('SELECT * FROM wallets WHERE token_hash = ?')) {
       return this.#db.wallets.filter((row) => row.token_hash === b[0])
     }
+    if (sql.startsWith('SELECT wallet_id FROM wallets WHERE wallet_id = ?')) {
+      return this.#db.wallets.filter((row) => row.wallet_id === b[0]).map((row) => ({ wallet_id: row.wallet_id }))
+    }
+    if (sql.startsWith('SELECT wallet_id FROM paddle_events WHERE transaction_id = ?')) {
+      return this.#db.paddle_events
+        .filter((row) => row.transaction_id === b[0])
+        .map((row) => ({ wallet_id: row.wallet_id }))
+    }
     if (sql.startsWith('SELECT * FROM vouchers WHERE code_hash = ?')) {
       return this.#db.vouchers.filter((row) => row.code_hash === b[0])
     }
@@ -153,6 +161,27 @@ class MemoryStatement {
       const row = { wallet_id: b[0], token_hash: b[1], created_at: b[2], updated_at: b[3] }
       this.#db.assertUnique('wallets', row)
       this.#db.wallets.push(row)
+      return 1
+    }
+
+    if (sql.startsWith('INSERT INTO vouchers(')) {
+      const row = {
+        code_hash: b[0],
+        amount: b[1],
+        expires_at: b[2],
+        max_redemptions: b[3],
+        redeemed_count: 0,
+      }
+      this.#db.assertUnique('vouchers', row)
+      this.#db.vouchers.push(row)
+      return 1
+    }
+
+    if (sql.startsWith('UPDATE wallets SET token_hash = ?, updated_at = ? WHERE wallet_id = ?')) {
+      const row = this.#db.wallets.find((item) => item.wallet_id === b[2])
+      if (!row) return 0
+      row.token_hash = b[0]
+      row.updated_at = b[1]
       return 1
     }
 

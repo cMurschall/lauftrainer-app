@@ -6,11 +6,12 @@ import ImprintView from './views/ImprintView.vue'
 import PrivacyView from './views/PrivacyView.vue'
 import PricingView from './views/PricingView.vue'
 import WelcomeView from './views/WelcomeView.vue'
+import RestoreView from './views/RestoreView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to) {
-    if (to.hash) return { el: to.hash, behavior: 'smooth' }
+    if (to.hash && /^#[A-Za-z][\w-]*$/.test(to.hash)) return { el: to.hash, behavior: 'smooth' }
     return { top: 0 }
   },
   routes: [
@@ -21,5 +22,6 @@ export const router = createRouter({
     { path: '/datenschutz', name: 'privacy', component: PrivacyView },
     { path: '/pricing', name: 'pricing', component: PricingView },
     { path: '/welcome', name: 'welcome', component: WelcomeView },
+    { path: '/restore', name: 'restore', component: RestoreView },
   ],
 })

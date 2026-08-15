@@ -240,6 +240,61 @@
     padding: 13px 16px;
     font-weight: 700;
   }
+  .pricing-voucher {
+    margin: 20px auto 0;
+    max-width: 28rem;
+    width: 100%;
+    padding: 1rem;
+  }
+  .pricing-voucher-title {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  .pricing-voucher-help {
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+  }
+  .pricing-voucher-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .pricing-voucher-form input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    padding: 0.55rem 0.7rem;
+  }
+  .pricing-voucher-form input:focus {
+    outline: 1px solid var(--accent);
+  }
+  .form-success {
+    margin: 12px 0 0;
+    color: var(--accent);
+    font-size: 0.8rem;
+  }
+  .restore-page {
+    max-width: 28rem;
+    margin: 0 auto;
+    padding: 48px 16px;
+    text-align: center;
+  }
+  .restore-page h1 {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+  }
+  .restore-page .button {
+    margin-top: 16px;
+  }
+  @media (max-width: 560px) {
+    .pricing-voucher-form {
+      grid-template-columns: 1fr;
+    }
+  }
   .welcome-card {
     max-width: 520px;
     margin: 15vh auto 0;
@@ -1383,6 +1438,37 @@
     width: 16px;
     height: 16px;
     accent-color: var(--accent);
+  }
+  .plan-notes {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0 0 14px;
+  }
+  .plan-notes-label {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .plan-notes .field-help {
+    margin: 0;
+  }
+  .plan-notes textarea {
+    width: 100%;
+    min-height: 4.5rem;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    font-size: 16px;
+  }
+  .plan-notes textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .plan-notes textarea::placeholder {
+    color: var(--subtle);
   }
   .muted {
     color: var(--muted);

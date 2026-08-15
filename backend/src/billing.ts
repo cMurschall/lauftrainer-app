@@ -4,13 +4,17 @@ import type { Env } from './types'
 const RESERVATION_MINUTES = 5
 const encoder = new TextEncoder()
 
-function id(prefix: string) { return `${prefix}_${crypto.randomUUID()}` }
-async function digest(value: string) {
+export function id(prefix: string) { return `${prefix}_${crypto.randomUUID()}` }
+export async function digest(value: string) {
   const hash = await crypto.subtle.digest('SHA-256', encoder.encode(value))
   return [...new Uint8Array(hash)].map((v) => v.toString(16).padStart(2, '0')).join('')
 }
-function token() { return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '') }
+export function token() { return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '') }
 function db(env: Env): D1Database | null { return env.DB || null }
+export async function walletBalance(database: D1Database, walletId: string) {
+  const row = await database.prepare("SELECT COALESCE((SELECT SUM(amount) FROM credit_ledger WHERE wallet_id = ?) - (SELECT COALESCE(SUM(amount),0) FROM plan_reservations WHERE wallet_id = ? AND status = 'pending_plan_generation'), 0) AS balance").bind(walletId, walletId).first<{ balance: number }>()
+  return Math.max(0, row?.balance || 0)
+}
 function walletToken(request: Request) { return request.headers.get('X-Wallet-Token') || '' }
 async function wallet(request: Request, env: Env) {
   const database = db(env); const raw = walletToken(request)
@@ -49,7 +53,7 @@ export async function redeemVoucher(request: Request, env: Env) {
   await database.batch([
     database.prepare('INSERT INTO voucher_redemptions(code_hash,wallet_id,created_at) VALUES(?,?,?)').bind(codeHash, found.wallet_id, now),
     database.prepare('UPDATE vouchers SET redeemed_count = redeemed_count + 1 WHERE code_hash = ? AND redeemed_count < max_redemptions').bind(codeHash),
-    database.prepare('INSERT INTO credit_ledger(ledger_id,wallet_id,amount,kind,reference_id,created_at) VALUES(?,?,?,?,?,?)').bind(id('ledger'), found.wallet_id, voucher.amount, 'voucher', codeHash, now),
+    database.prepare('INSERT INTO credit_ledger(ledger_id,wallet_id,amount,kind,reference_id,created_at) VALUES(?,?,?,?,?,?)').bind(id('ledger'), found.wallet_id, voucher.amount, 'voucher', `${codeHash}:${found.wallet_id}`, now),
   ])
   return balance(request, env)
 }
