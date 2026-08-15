@@ -53,10 +53,9 @@ beforeEach(async () => {
 describe('settings store', () => {
   it('persists athlete config changes', async () => {
     const settings = useSettingsStore()
-    settings.config.name = 'Ada'
     settings.config.thresholds.lthr = 155
     await settings.saveConfig()
-    expect(await workoutDb.getConfig()).toMatchObject({ name: 'Ada', thresholds: { lthr: 155 } })
+    expect(await workoutDb.getConfig()).toMatchObject({ thresholds: { lthr: 155 } })
   })
 })
 

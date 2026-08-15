@@ -4,6 +4,7 @@ import type { TrainingGoal } from '../types/settings'
 import { API_URL } from './api'
 import { ensureWallet, idempotencyKey, walletToken } from './billingService'
 import { localDateKey } from '../utils/planDates'
+import { toPlanAvailableSports, trainingFrequencyFromPreferredDays } from '../utils/trainingSports'
 
 export interface TrainingPlanResponse {
   plan: TrainingPlan
@@ -29,11 +30,35 @@ export interface TrainingPlanRequestOptions {
   planStartDate?: string
   coachStyle?: CoachStyle
   previousPlan?: PreviousPlanPayload
+  /** Ephemeral week notes collected before plan creation. */
+  planNotes?: string
 }
 
 function planSportKey(value: string): string {
   const normalized = value.toLowerCase()
-  const aliases: Record<string, string> = { run: 'running', running: 'running', ride: 'cycling', cycling: 'cycling', swim: 'swimming', swimming: 'swimming', row: 'rowing', rowing: 'rowing', hike: 'hiking', hiking: 'hiking', strength: 'strength', mobility: 'mobility', yoga: 'mobility' }
+  const aliases: Record<string, string> = {
+    run: 'running',
+    running: 'running',
+    ride: 'cycling',
+    cycling: 'cycling',
+    swim: 'swimming',
+    swimming: 'swimming',
+    hike: 'hiking',
+    hiking: 'hiking',
+    walk: 'hiking',
+    walking: 'hiking',
+    cardio: 'cardio',
+    ergometer: 'cardio',
+    treadmill: 'cardio',
+    elliptical: 'cardio',
+    crosstrainer: 'cardio',
+    spinning: 'cardio',
+    row: 'cardio',
+    rowing: 'cardio',
+    strength: 'strength',
+    mobility: 'mobility',
+    yoga: 'mobility',
+  }
   return aliases[normalized] || 'other'
 }
 
@@ -57,6 +82,7 @@ export async function requestTrainingPlan(
   const latestLoad = analysis?.load.at(-1)
   const planStartDate = options.planStartDate || localDateKey()
   const coachStyle = options.coachStyle === 'mentor' || options.coachStyle === 'performance' ? options.coachStyle : 'pragmatist'
+  const planNotes = options.planNotes?.trim() || undefined
   const response = await fetch(`${API_URL}/training-plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Wallet-Token': walletToken(), 'X-Idempotency-Key': idempotencyKey() },
@@ -66,21 +92,15 @@ export async function requestTrainingPlan(
       coach_style: coachStyle,
       previous_plan: options.previousPlan,
       profile: {
-        name: config.name,
         training_goal: config.trainingGoal || config.trainingFocus,
         preferred_training_days: config.preferredTrainingDays,
-        training_frequency_per_week: config.trainingFrequencyPerWeek,
+        training_frequency_per_week: trainingFrequencyFromPreferredDays(config.preferredTrainingDays),
         primary_sports: (config.primarySports || []).map(planSportKey),
-        available_sports: [...new Set([...(config.availableSports || []).map(planSportKey), ...(config.strengthTraining ? ['strength'] : [])])],
-        max_weekly_training_minutes:
-          typeof config.maxWeeklyTrainingMinutes === 'number' && config.maxWeeklyTrainingMinutes > 0
-            ? config.maxWeeklyTrainingMinutes
-            : undefined,
-        max_training_minutes_per_day: config.maxTrainingMinutesPerDay,
+        available_sports: toPlanAvailableSports(config.availableSports, config.strengthTraining),
         strength_training: config.strengthTraining,
         performance_notes: config.performanceNotes,
         limitations: config.limitations,
-        personal_notes: config.personalNotes,
+        plan_notes: planNotes,
         thresholds: config.thresholds,
         hr_zones: config.hrZones,
       },

@@ -2,8 +2,9 @@ export type PlanSport =
   | 'running'
   | 'cycling'
   | 'swimming'
-  | 'rowing'
   | 'hiking'
+  | 'cardio'
+  | 'rowing'
   | 'strength'
   | 'mobility'
   | 'other'
@@ -20,6 +21,8 @@ export interface PlanDay {
   date: string
   day: string
   sport: PlanSport
+  /** Display name for custom sports when sport is `other`. */
+  sport_label?: string
   session_type: PlanSessionType
   title: string
   description: string
@@ -82,7 +85,8 @@ export interface LoadBudget {
   recovery_week: boolean
 }
 
-const ENDURANCE_SPORTS = new Set(['running', 'cycling', 'swimming', 'rowing', 'hiking'])
+const ENDURANCE_SPORTS = new Set(['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing'])
+const KNOWN_PLAN_SPORTS = new Set(['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other'])
 /** Hard-session markers. Avoid matching everyday German "Tempo" / Konversationstempo. */
 const QUALITY_TOKEN = String.raw`intervalle?|intervall(?:e|s)?|tempolauf|tempo(?:\s+run|\s+session|\s+intervals?)|threshold|quality|vo2(?:max)?|fartlek|wettkampfpace|speed\s*work|schnelligkeit|\bschnell\b`
 const QUALITY_PATTERN = new RegExp(QUALITY_TOKEN, 'i')
@@ -118,8 +122,10 @@ function normalizeSportKey(value: unknown): string {
     run: 'running', running: 'running',
     ride: 'cycling', bike: 'cycling', cycling: 'cycling',
     swim: 'swimming', swimming: 'swimming',
-    row: 'rowing', rowing: 'rowing',
     hike: 'hiking', hiking: 'hiking', walk: 'hiking', walking: 'hiking',
+    cardio: 'cardio', ergometer: 'cardio', treadmill: 'cardio', elliptical: 'cardio',
+    crosstrainer: 'cardio', spinning: 'cardio', indoor: 'cardio',
+    row: 'cardio', rowing: 'cardio',
     strength: 'strength', mobility: 'mobility', yoga: 'mobility',
     rest: 'other', recovery: 'other', other: 'other',
   }
@@ -233,7 +239,6 @@ export function computeLoadBudget(
   profile: Record<string, unknown> = {},
 ): LoadBudget {
   const best = sanitized.best_recent_week_minutes
-  const userMax = asNumber(profile.max_weekly_training_minutes)
   let maxEndurance: number
   if (best <= 0) {
     maxEndurance = 30
@@ -242,15 +247,8 @@ export function computeLoadBudget(
   } else {
     maxEndurance = Math.round(Math.max(best * 1.25, 45))
   }
-  if (userMax && userMax > 0) maxEndurance = Math.min(maxEndurance, Math.round(userMax))
 
-  const dailyLimitsRaw = asRecord(profile.max_training_minutes_per_day)
   const max_training_minutes_per_day: Record<string, number> = {}
-  for (const [day, value] of Object.entries(dailyLimitsRaw)) {
-    const minutes = asNumber(value)
-    if (minutes && minutes > 0) max_training_minutes_per_day[day] = Math.round(minutes)
-  }
-  const sundayLimit = max_training_minutes_per_day.sunday
   const longest = sanitized.longest_reliable_run_minutes
   const resume_long = longest >= 45 && longest >= Math.max(best * 2, best + 30)
 
@@ -267,13 +265,11 @@ export function computeLoadBudget(
   } else {
     maxLong = Math.min(20, Math.round(maxEndurance * 0.55))
   }
-  if (sundayLimit) maxLong = Math.min(maxLong, sundayLimit)
   maxLong = Math.max(0, maxLong)
 
   if (resume_long) {
     // Keep room for one short supporting run alongside the long.
     maxEndurance = Math.max(maxEndurance, maxLong + 15)
-    if (userMax && userMax > 0) maxEndurance = Math.min(maxEndurance, Math.round(userMax))
   }
 
   const ctl = sanitized.latest_load?.ctl ?? 0
@@ -287,8 +283,15 @@ export function computeLoadBudget(
   const allow_quality = ctl >= 20 && !recovery_week && !activeLimitation && !lowConsistency
   const max_quality_sessions = allow_quality ? 1 : 0
 
+  const preferredDays = Array.isArray(profile.preferred_training_days)
+    ? profile.preferred_training_days.map((day) => String(day).toLowerCase()).filter(Boolean)
+    : []
   const frequency = asNumber(profile.training_frequency_per_week)
-  const requestedFrequency = Math.max(1, Math.min(7, Math.round(frequency && frequency > 0 ? frequency : 3)))
+  const derivedFrequency = preferredDays.length || 3
+  const requestedFrequency = Math.max(
+    1,
+    Math.min(7, Math.round(frequency && frequency > 0 ? frequency : derivedFrequency)),
+  )
   const max_training_sessions = recovery_week ? Math.min(3, requestedFrequency) : requestedFrequency
   const max_endurance_sessions = resume_long ? Math.min(2, max_training_sessions) : max_training_sessions
   const strengthEnabled = Boolean(profile.strength_training) ||
@@ -336,13 +339,37 @@ export function formatHardCapsBlock(budget: LoadBudget): string {
   ].join('\n')
 }
 
-function availableSports(profile: Record<string, unknown>): Set<string> {
-  const list = Array.isArray(profile.available_sports) ? profile.available_sports.map(normalizeSportKey) : []
-  if (profile.strength_training) list.push('strength')
-  const set = new Set(list.filter(Boolean))
-  if (!set.size) set.add('running')
-  set.add('other')
-  return set
+function partitionAvailableSports(profile: Record<string, unknown>): { known: Set<string>; custom: Set<string> } {
+  const list = Array.isArray(profile.available_sports) ? profile.available_sports : []
+  const known = new Set<string>()
+  const custom = new Set<string>()
+  for (const item of list) {
+    const raw = String(item ?? '').trim()
+    if (!raw) continue
+    const exact = raw.toLowerCase()
+    // Exact enum match only — do not fold custom labels through aliases (e.g. "Yoga" must stay custom).
+    if (KNOWN_PLAN_SPORTS.has(exact) && exact !== 'other') known.add(exact)
+    else custom.add(raw)
+  }
+  if (profile.strength_training) known.add('strength')
+  if (!known.size && !custom.size) known.add('running')
+  return { known, custom }
+}
+
+function findCustomSportLabel(label: string | undefined, custom: Set<string>): string | undefined {
+  const raw = label?.trim()
+  if (!raw) return undefined
+  for (const item of custom) {
+    if (item.toLowerCase() === raw.toLowerCase()) return item
+  }
+  return undefined
+}
+
+function isAllowedTrainingSport(day: PlanDay, known: Set<string>, custom: Set<string>): boolean {
+  if (day.session_type === 'rest') return true
+  if (day.sport !== 'other' && known.has(day.sport)) return true
+  if (day.sport === 'other') return Boolean(findCustomSportLabel(day.sport_label, custom))
+  return false
 }
 
 export function isQualitySession(day: PlanDay): boolean {
@@ -361,6 +388,7 @@ function toRestDay(day: PlanDay, reason: string, locale: 'de' | 'en' = 'en'): Pl
   return {
     ...day,
     sport: 'other',
+    sport_label: undefined,
     session_type: 'rest',
     title: day.title || 'Rest',
     description: reason,
@@ -451,26 +479,32 @@ export function reviewAndClampPlan(
   locale: 'de' | 'en' = 'en',
 ): { plan: TrainingPlanLike; repairs: string[] } {
   const repairs: string[] = []
-  const whitelist = availableSports(profile)
+  const { known, custom } = partitionAvailableSports(profile)
   const preferred = Array.isArray(profile.preferred_training_days)
     ? profile.preferred_training_days.map((day) => String(day).toLowerCase())
     : []
 
   let days = plan.days.map((day) => {
     const sport = normalizeSportKey(day.sport) as PlanSport
-    if (day.session_type === 'rest' && (day.total_duration_minutes !== 0 || sport !== 'other')) {
-      repairs.push(`rest_normalized:${day.date}`)
-      return toRestDay({ ...day, sport }, day.description, locale)
+    const sportLabel = findCustomSportLabel(day.sport_label, custom)
+    const normalizedDay: PlanDay = {
+      ...day,
+      sport: KNOWN_PLAN_SPORTS.has(sport) ? sport : 'other',
+      sport_label: sport === 'other' || !KNOWN_PLAN_SPORTS.has(sport) ? sportLabel || day.sport_label?.trim() || undefined : undefined,
     }
-    if (day.session_type !== 'rest' && !whitelist.has(sport)) {
-      repairs.push(`sport_whitelist:${day.date}:${sport}`)
+    if (normalizedDay.session_type === 'rest' && (normalizedDay.total_duration_minutes !== 0 || normalizedDay.sport !== 'other' || normalizedDay.sport_label)) {
+      repairs.push(`rest_normalized:${normalizedDay.date}`)
+      return toRestDay({ ...normalizedDay, sport: 'other', sport_label: undefined }, day.description, locale)
+    }
+    if (normalizedDay.session_type !== 'rest' && !isAllowedTrainingSport(normalizedDay, known, custom)) {
+      repairs.push(`sport_whitelist:${normalizedDay.date}:${normalizedDay.sport_label || normalizedDay.sport}`)
       const reason = locale === 'de'
         ? 'In einen Ruhetag umgewandelt: Sportart ist nicht in den verfügbaren Sportarten.'
         : 'Converted to rest: sport not in available_sports whitelist.'
-      return toRestDay({ ...day, sport }, reason, locale)
+      return toRestDay(normalizedDay, reason, locale)
     }
     const dayLimit = budget.max_training_minutes_per_day[day.day]
-    return clampDayToLimit({ ...day, sport }, dayLimit)
+    return clampDayToLimit(normalizedDay, dayLimit)
   })
 
   const qualityIndexes = days

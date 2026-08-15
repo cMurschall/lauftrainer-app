@@ -81,7 +81,6 @@ describe('computeLoadBudget', () => {
     const budget = computeLoadBudget(sanitized, {
       training_frequency_per_week: 3,
       strength_training: true,
-      max_training_minutes_per_day: { sunday: 120 },
     })
     assert.equal(budget.max_total_training_minutes, 36)
     assert.equal(budget.resume_long, false)
@@ -113,7 +112,6 @@ describe('computeLoadBudget', () => {
     const budget = computeLoadBudget(sanitized, {
       training_frequency_per_week: 3,
       strength_training: true,
-      max_training_minutes_per_day: { sunday: 120 },
     })
     assert.equal(budget.resume_long, true)
     assert.equal(budget.max_long_run_minutes, 45)
@@ -139,14 +137,24 @@ describe('computeLoadBudget', () => {
       ],
     })
     const budget = computeLoadBudget(sanitized, {
-      training_frequency_per_week: 5,
-      max_weekly_training_minutes: 300,
+      preferred_training_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     })
     assert.equal(budget.recovery_week, true)
     assert.equal(budget.max_quality_sessions, 0)
     assert.equal(budget.max_training_sessions, 3)
     assert.ok(budget.max_total_training_minutes <= 144)
     assert.ok(budget.max_long_run_minutes <= Math.round(budget.max_total_training_minutes * 0.45))
+  })
+
+  it('derives session count from preferred days when frequency is omitted', () => {
+    const sanitized = sanitizePlanInputs({
+      metrics: { weekly: [{ week_start: '2026-08-03', total_minutes: 120 }] },
+      recent_workouts: [{ sport: 'running', duration_minutes: 40, distance_km: 6 }],
+    })
+    const budget = computeLoadBudget(sanitized, {
+      preferred_training_days: ['monday', 'wednesday', 'friday', 'sunday'],
+    })
+    assert.equal(budget.max_training_sessions, 4)
   })
 })
 
@@ -197,7 +205,7 @@ describe('reviewAndClampPlan', () => {
       preferred_training_days: ['monday', 'friday'],
     })
     const enduranceTotal = plan.days.reduce((sum, item) => (
-      item.session_type === 'training' && ['running', 'cycling', 'swimming', 'rowing', 'hiking'].includes(item.sport)
+      item.session_type === 'training' && ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing'].includes(item.sport)
         ? sum + item.total_duration_minutes
         : sum
     ), 0)
@@ -297,5 +305,46 @@ describe('reviewAndClampPlan', () => {
     assert.ok(repairs.some((item) => item.startsWith('rest_normalized')))
     assert.ok(repairs.some((item) => item.startsWith('training_frequency')))
     assert.doesNotMatch(plan.days.map((item) => item.description).join(' '), /Converted to rest/)
+  })
+
+  it('keeps custom sports via sport_label and rejects unknown labels', () => {
+    const { plan, repairs } = reviewAndClampPlan(planFromDays([
+      day({
+        date: '2026-08-14',
+        day: 'friday',
+        sport: 'other',
+        sport_label: 'Yoga',
+        total_duration_minutes: 30,
+        title: 'Mobility flow',
+      }),
+      day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      day({
+        date: '2026-08-16',
+        day: 'sunday',
+        sport: 'other',
+        sport_label: 'Ski',
+        total_duration_minutes: 40,
+        title: 'Ski',
+      }),
+      day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+    ]), {
+      ...baseBudget,
+      max_total_training_minutes: 90,
+      max_long_run_minutes: 45,
+      max_training_sessions: 2,
+    }, {
+      available_sports: ['running', 'Yoga'],
+    })
+
+    const friday = plan.days.find((item) => item.date === '2026-08-14')
+    const sunday = plan.days.find((item) => item.date === '2026-08-16')
+    assert.equal(friday?.session_type, 'training')
+    assert.equal(friday?.sport, 'other')
+    assert.equal(friday?.sport_label, 'Yoga')
+    assert.equal(sunday?.session_type, 'rest')
+    assert.ok(repairs.some((item) => item.startsWith('sport_whitelist:2026-08-16')))
   })
 })

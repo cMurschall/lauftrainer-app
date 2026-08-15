@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
-import { TRAINING_SPORT_CATEGORIES, type TrainingSportCategory } from '../types/workout'
+import { TRAINING_SPORT_CATEGORIES } from '../types/workout'
 import type { CoachStyle, ConnectorId, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useWorkoutStore } from '../stores/workouts'
@@ -14,6 +14,12 @@ import { useAnalysisStore } from '../stores/analysis'
 import { clearLocalData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
 import { defaultClearDataSelection, hasClearDataSelection, type ClearDataSelection } from '../db/database'
 import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
+import {
+  canonicalizeTrainingSport,
+  isKnownTrainingSport,
+  normalizeAvailableSportsList,
+  sportsFromWorkouts,
+} from '../utils/trainingSports'
 
 const route = useRoute()
 const settings = useSettingsStore()
@@ -71,10 +77,38 @@ const coachStyleOptions = computed(() => [
   { value: 'pragmatist' as const, label: t.value.coachPragmatist, description: t.value.coachPragmatistHelp },
   { value: 'performance' as const, label: t.value.coachPerformance, description: t.value.coachPerformanceHelp },
 ])
-const enduranceSports = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking'] as const
+const enduranceSports = ['Cycling', 'Running', 'Hiking', 'Swimming', 'Cardio'] as const
 const supportSports = ['Strength', 'Mobility'] as const
-const sportLabel = (sport: TrainingSportCategory) => t.value[sport.toLowerCase() as 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility']
-const availableSportOptions = computed(() => TRAINING_SPORT_CATEGORIES.map((sport) => ({ value: sport, label: sportLabel(sport) })))
+const customSportInput = ref('')
+const sportLabel = (sport: string) => {
+  if (isKnownTrainingSport(sport)) {
+    const key = canonicalizeTrainingSport(sport).toLowerCase() as
+      | 'running'
+      | 'cycling'
+      | 'swimming'
+      | 'hiking'
+      | 'cardio'
+      | 'strength'
+      | 'mobility'
+    return t.value[key]
+  }
+  return sport
+}
+const workoutSports = computed(() => sportsFromWorkouts(summaries.value))
+const knownSportOptions = computed(() =>
+  TRAINING_SPORT_CATEGORIES.map((sport) => ({ value: sport, label: sportLabel(sport), source: 'known' as const })),
+)
+const extraSportOptions = computed(() => {
+  const known = new Set(TRAINING_SPORT_CATEGORIES.map((sport) => sport.toLowerCase()))
+  const selected = config.value.availableSports || []
+  return normalizeAvailableSportsList([...workoutSports.value, ...selected])
+    .filter((sport) => !known.has(sport.toLowerCase()))
+    .map((sport) => ({
+      value: sport,
+      label: sportLabel(sport),
+      source: workoutSports.value.some((item) => item.toLowerCase() === sport.toLowerCase()) ? ('workout' as const) : ('custom' as const),
+    }))
+})
 const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
 const showDeletePanel = ref(false)
 const deleteSelection = ref<ClearDataSelection>(defaultClearDataSelection())
@@ -143,12 +177,14 @@ async function saveConfigAndRefresh() {
 
 function togglePreferredDay(day: string) {
   const enabled = config.value.preferredTrainingDays.includes(day)
-  config.value.preferredTrainingDays = enabled
+  const next = enabled
     ? config.value.preferredTrainingDays.filter((item) => item !== day)
     : [...config.value.preferredTrainingDays, day]
-  if (enabled && config.value.maxTrainingMinutesPerDay) {
-    delete config.value.maxTrainingMinutesPerDay[day]
+  if (!next.length) {
+    ui.notify(t.value.preferredDaysRequired, 'info')
+    return
   }
+  config.value.preferredTrainingDays = next
   void saveConfigAndRefresh()
 }
 
@@ -157,11 +193,30 @@ function changeTrainingGoal(value: string) {
   void saveConfigAndRefresh()
 }
 
-function toggleAvailableSport(sport: TrainingSportCategory) {
+function isSportSelected(sport: string) {
+  return (config.value.availableSports || []).some((item) => item.toLowerCase() === sport.toLowerCase())
+}
+
+function toggleAvailableSport(sport: string) {
   const available = config.value.availableSports || []
-  config.value.availableSports = available.includes(sport)
-    ? available.filter((item) => item !== sport)
-    : [...available, sport]
+  const selected = isSportSelected(sport)
+  const next = selected
+    ? available.filter((item) => item.toLowerCase() !== sport.toLowerCase())
+    : normalizeAvailableSportsList([...available, sport])
+  if (!next.length) {
+    ui.notify(t.value.availableSportsRequired, 'info')
+    return
+  }
+  config.value.availableSports = next
+  void saveConfigAndRefresh()
+}
+
+function addCustomSport() {
+  const sport = canonicalizeTrainingSport(customSportInput.value)
+  if (!sport) return
+  const next = normalizeAvailableSportsList([...(config.value.availableSports || []), sport])
+  config.value.availableSports = next
+  customSportInput.value = ''
   void saveConfigAndRefresh()
 }
 
@@ -241,48 +296,126 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
   <section class="card settings-section">
     <p class="eyebrow">{{ t.athleteProfile }}</p>
     <div class="form-grid">
-      <label>{{ t.name }}<input v-model="config.name" @change="saveConfigAndRefresh" /></label
-      ><label>{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfigAndRefresh" /><span class="field-help">{{ t.lthrHelp }}</span></label>
-      <label>{{ t.trainingGoal }}<UiSelect :model-value="config.trainingGoal || config.trainingFocus || 'base_endurance'" :ariaLabel="t.trainingGoal" :options="trainingGoalOptions" @update:model-value="changeTrainingGoal" /></label>
-      <label>{{ t.performanceNotes }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
-      <label>{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea></label>
-      <label>{{ t.personalNotes }}<textarea v-model="config.personalNotes" rows="3" @change="saveConfigAndRefresh"></textarea></label>
+      <label
+        >{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfigAndRefresh" /><span
+          class="field-help"
+          >{{ t.lthrHelp }}</span
+        ></label
+      >
+      <label
+        >{{ t.trainingGoal
+        }}<UiSelect
+          :model-value="config.trainingGoal || config.trainingFocus || 'base_endurance'"
+          :ariaLabel="t.trainingGoal"
+          :options="trainingGoalOptions"
+          @update:model-value="changeTrainingGoal"
+        />
+      </label>
+      <label
+        >{{ t.performanceNotes
+        }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea
+      ></label>
+      <label
+        >{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea
+      ></label>
     </div>
   </section>
   <section class="card settings-section">
     <p class="eyebrow">{{ t.trainingFramework }}</p>
-    <div class="form-grid">
-      <label>{{ t.trainingFrequency }}<input v-model.number="config.trainingFrequencyPerWeek" min="0" max="14" step="1" type="number" @change="saveConfigAndRefresh" /></label>
-      <label class="checkbox-field"><input v-model="config.strengthTraining" type="checkbox" @change="saveConfigAndRefresh" />{{ t.strengthTraining }}</label>
-      <label>{{ t.maxWeeklyMinutes }}<input v-model.number="config.maxWeeklyTrainingMinutes" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
+    <label class="checkbox-field framework-strength">
+      <input v-model="config.strengthTraining" type="checkbox" @change="saveConfigAndRefresh" />
+      {{ t.strengthTraining }}
+    </label>
+
+    <div class="sport-framework">
+      <div class="sport-framework-head">
+        <p class="field-heading">{{ t.availableSports }}</p>
+        <p class="field-help settings-help">{{ t.availableSportsHelp }}</p>
+      </div>
+
+      <div class="sport-group">
+        <p class="sport-group-label">{{ t.enduranceSports }}</p>
+        <div class="weekday-picks">
+          <label
+            v-for="option in knownSportOptions.filter((item) =>
+              enduranceSports.includes(item.value as (typeof enduranceSports)[number]),
+            )"
+            :key="option.value"
+            class="checkbox-field"
+          >
+            <input
+              :checked="isSportSelected(option.value)"
+              type="checkbox"
+              @change="toggleAvailableSport(option.value)"
+            />{{ option.label }}
+          </label>
+        </div>
+      </div>
+
+      <div class="sport-group">
+        <p class="sport-group-label">{{ t.supportSports }}</p>
+        <div class="weekday-picks">
+          <label
+            v-for="option in knownSportOptions.filter((item) =>
+              supportSports.includes(item.value as (typeof supportSports)[number]),
+            )"
+            :key="option.value"
+            class="checkbox-field"
+          >
+            <input
+              :checked="isSportSelected(option.value)"
+              type="checkbox"
+              @change="toggleAvailableSport(option.value)"
+            />{{ option.label }}
+          </label>
+        </div>
+      </div>
+
+      <div v-if="extraSportOptions.length" class="sport-group">
+        <p class="sport-group-label">{{ t.extraSports }}</p>
+        <div class="weekday-picks">
+          <label v-for="option in extraSportOptions" :key="option.value" class="checkbox-field">
+            <input
+              :checked="isSportSelected(option.value)"
+              type="checkbox"
+              @change="toggleAvailableSport(option.value)"
+            />{{ option.label
+            }}<span v-if="option.source === 'workout'" class="muted"> · {{ t.fromWorkouts }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="sport-add">
+        <p class="sport-group-label">{{ t.addCustomSport }}</p>
+        <div class="sport-add-control">
+          <input
+            v-model="customSportInput"
+            maxlength="40"
+            type="text"
+            autocomplete="off"
+            :placeholder="t.addCustomSportPlaceholder"
+            :aria-label="t.addCustomSport"
+            @keydown.enter.prevent="addCustomSport"
+          />
+          <button class="button secondary" type="button" @click="addCustomSport">{{ t.addSport }}</button>
+        </div>
+      </div>
     </div>
-    <p class="field-heading">{{ t.availableSports }}</p>
-    <p class="field-help settings-help">{{ t.availableSportsHelp }}</p>
-    <p class="field-heading">{{ t.enduranceSports }}</p>
-    <div class="weekday-picks">
-      <label v-for="option in availableSportOptions.filter((item) => enduranceSports.includes(item.value as (typeof enduranceSports)[number]))" :key="option.value" class="checkbox-field">
-        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.supportSports }}</p>
-    <div class="weekday-picks">
-      <label v-for="option in availableSportOptions.filter((item) => supportSports.includes(item.value as (typeof supportSports)[number]))" :key="option.value" class="checkbox-field">
-        <input :checked="config.availableSports?.includes(option.value)" type="checkbox" @change="toggleAvailableSport(option.value)" />{{ option.label }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.preferredDays }}</p>
-    <div class="weekday-picks">
-      <label v-for="day in weekdays" :key="day" class="checkbox-field">
-        <input :checked="config.preferredTrainingDays.includes(day)" type="checkbox" @change="togglePreferredDay(day)" />{{ weekdayLabels[day] }}
-      </label>
-    </div>
-    <p class="field-heading">{{ t.maxDailyMinutes }}</p>
-    <p class="field-help settings-help">{{ t.trainingLimitsHelp }}</p>
-    <div class="daily-limits">
-      <template v-for="day in weekdays" :key="day">
-        <label v-if="config.preferredTrainingDays.includes(day)">{{ weekdayLabels[day] }}<input v-model.number="config.maxTrainingMinutesPerDay![day]" min="1" step="15" type="number" placeholder="optional" @change="saveConfigAndRefresh" /></label>
-      </template>
-      <span v-if="!config.preferredTrainingDays.length" class="muted">{{ t.trainingLimitsHelp }}</span>
+
+    <div class="sport-framework days-framework">
+      <div class="sport-framework-head">
+        <p class="field-heading">{{ t.preferredDays }}</p>
+        <p class="field-help settings-help">{{ t.preferredDaysHelp }}</p>
+      </div>
+      <div class="weekday-picks">
+        <label v-for="day in weekdays" :key="day" class="checkbox-field">
+          <input
+            :checked="config.preferredTrainingDays.includes(day)"
+            type="checkbox"
+            @change="togglePreferredDay(day)"
+          />{{ weekdayLabels[day] }}
+        </label>
+      </div>
     </div>
   </section>
   <section class="card settings-section">

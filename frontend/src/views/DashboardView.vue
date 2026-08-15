@@ -224,9 +224,34 @@ const planDayLabel = (day: TrainingPlanDay) => {
   )
   return `${weekday}, ${formatted}`
 }
-const planSportLabel = (day: TrainingPlanDay) => (day.session_type === 'rest' ? t.value.restDay : t.value[day.sport])
+const planSportLabel = (day: TrainingPlanDay) => {
+  if (day.session_type === 'rest') return t.value.restDay
+  if (day.sport_label?.trim()) return day.sport_label.trim()
+  return t.value[day.sport]
+}
 const planDayKey = (day: TrainingPlanDay, index: number) => day.date || `${day.day}-${index}`
 const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && completedPlanDates.value.includes(day.date))
+
+const showPlanNotesDialog = ref(false)
+const planNotesDraft = ref('')
+
+function openPlanNotesDialog() {
+  if (!createEnabled.value) return
+  planNotesDraft.value = ''
+  showPlanNotesDialog.value = true
+}
+
+function closePlanNotesDialog() {
+  showPlanNotesDialog.value = false
+  planNotesDraft.value = ''
+}
+
+async function confirmPlanNotesDialog() {
+  const notes = planNotesDraft.value
+  showPlanNotesDialog.value = false
+  planNotesDraft.value = ''
+  await planStore.createPlan(notes)
+}
 </script>
 <template>
   <Transition name="toast">
@@ -382,7 +407,7 @@ const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && complet
         class="button full primary"
         type="button"
         data-testid="create-plan-button"
-        @click="planStore.createPlan()"
+        @click="openPlanNotesDialog"
       >
         {{ loading ? t.creatingPlan : buttonMode === 'replace' ? t.replacePlan : t.createPlan }}
       </button>
@@ -436,5 +461,34 @@ const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && complet
         </div>
       </article>
     </section>
+  </div>
+
+  <div
+    v-if="showPlanNotesDialog"
+    class="modal-backdrop"
+    role="presentation"
+    @click.self="closePlanNotesDialog"
+  >
+    <div
+      class="modal-card"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t.planContext"
+    >
+      <p class="eyebrow">{{ t.planContext }}</p>
+      <p v-if="hasPlan" class="notice notice-warning" role="status">{{ t.confirmReplacePlan }}</p>
+      <p class="field-help">{{ t.planContextHelp }}</p>
+      <label>
+        <textarea
+          v-model="planNotesDraft"
+          rows="4"
+          :placeholder="t.planContextPlaceholder"
+        ></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="button secondary" type="button" @click="closePlanNotesDialog">{{ t.cancel }}</button>
+        <button class="button primary" type="button" @click="confirmPlanNotesDialog">{{ t.createPlanConfirm }}</button>
+      </div>
+    </div>
   </div>
 </template>

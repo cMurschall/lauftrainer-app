@@ -33,14 +33,13 @@ export const usePlanStore = defineStore('plan', () => {
     }
   }
 
-  async function createPlan() {
+  async function createPlan(planNotes = '') {
     const ui = useUiStore()
     const workouts = useWorkoutStore()
     const settings = useSettingsStore()
     const analysis = useAnalysisStore()
     const { locale, t } = useI18n()
 
-    if (plan.value.days.length && !window.confirm(t.value.confirmReplacePlan)) return
     if (!ui.consent) {
       ui.notify(t.value.consent, 'info')
       return
@@ -70,6 +69,7 @@ export const usePlanStore = defineStore('plan', () => {
       locale: locale.value,
       planStartDate,
       coachStyle: settings.coachStyle,
+      hasPlanNotes: Boolean(planNotes.trim()),
     })
     try {
       if (!analysis.analysisResult) await analysis.refreshAnalysis()
@@ -83,6 +83,7 @@ export const usePlanStore = defineStore('plan', () => {
           planStartDate,
           coachStyle: settings.coachStyle,
           previousPlan,
+          planNotes,
         },
       )
       diagnosticLog('plan.create.response', {

@@ -17,7 +17,6 @@ const sample: Workout = {
 }
 
 const config: UserConfig = {
-  name: 'Athlet',
   trainingFocus: 'base_endurance',
   preferredTrainingDays: ['monday'],
   hrZones: { z1: [90, 106], z2: [107, 124], z3: [125, 142], z4: [143, 160], z5: [161, 179] },
@@ -93,7 +92,7 @@ describe('local database and backups', () => {
 
     await importBackup(backup)
     expect((await workoutDb.list()).map((item) => item.id)).toEqual(['db-1'])
-    expect(await workoutDb.getConfig()).toMatchObject({ name: 'Athlet' })
+    expect(await workoutDb.getConfig()).toMatchObject({ trainingFocus: 'base_endurance' })
     expect(await workoutDb.getPlan()).toMatchObject({
       plan: samplePlan,
       completedDates: ['2026-08-10'],
@@ -129,12 +128,12 @@ describe('local database and backups', () => {
     expect(await workoutDb.list()).toEqual([])
     expect((await workoutDb.getPlan())?.plan?.days).toHaveLength(1)
     expect(await workoutDb.listGoals()).toHaveLength(1)
-    expect((await workoutDb.getConfig())?.name).toBe(config.name)
+    expect((await workoutDb.getConfig())?.trainingFocus).toBe(config.trainingFocus)
 
     await workoutDb.clearUserData({ workouts: false, plan: true, goals: true, profile: false })
     expect(await workoutDb.getPlan()).toBeUndefined()
     expect(await workoutDb.listGoals()).toEqual([])
-    expect((await workoutDb.getConfig())?.name).toBe(config.name)
+    expect((await workoutDb.getConfig())?.trainingFocus).toBe(config.trainingFocus)
   })
 
   it('batches putMany with a single revision bump', async () => {

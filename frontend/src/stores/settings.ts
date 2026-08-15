@@ -93,17 +93,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function saveConfig() {
     const ui = useUiStore()
     const { t } = useI18n()
-    const nextConfig = plain(config.value)
-    nextConfig.maxWeeklyTrainingMinutes =
-      typeof nextConfig.maxWeeklyTrainingMinutes === 'number' && nextConfig.maxWeeklyTrainingMinutes > 0
-        ? nextConfig.maxWeeklyTrainingMinutes
-        : undefined
-    nextConfig.maxTrainingMinutesPerDay = Object.fromEntries(
-      Object.entries(nextConfig.maxTrainingMinutesPerDay || {}).map(([day, value]) => [
-        day,
-        typeof value === 'number' && value > 0 ? value : undefined,
-      ]),
-    )
+    const nextConfig = normalizeUserConfig(plain(config.value))
     config.value = nextConfig
     await workoutDb.saveConfig(nextConfig)
     ui.notify(t.value.configSaved, 'success')

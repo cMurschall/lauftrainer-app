@@ -4,7 +4,6 @@ import { workoutDb } from '../db/database'
 import type { UserConfig, Workout } from '../types/workout'
 
 const config: UserConfig = {
-  name: '',
   trainingFocus: '',
   preferredTrainingDays: [],
   hrZones: { z1: [90, 120] },

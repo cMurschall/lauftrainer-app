@@ -10,7 +10,7 @@ export interface ActivityRecord {
 }
 export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]
-export const TRAINING_SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Rowing', 'Hiking', 'Strength', 'Mobility'] as const
+export const TRAINING_SPORT_CATEGORIES = ['Cycling', 'Running', 'Hiking', 'Swimming', 'Cardio', 'Strength', 'Mobility'] as const
 export type TrainingSportCategory = (typeof TRAINING_SPORT_CATEGORIES)[number]
 export type MultisportDiscipline = 'Swimming' | 'Cycling' | 'Running'
 
@@ -70,22 +70,18 @@ export interface AnalysisSummary {
 }
 
 export interface UserConfig {
-  name: string
   trainingFocus: string
   preferredTrainingDays: string[]
   hrZones: Record<string, [number, number]>
   thresholds: Record<string, number>
   primarySports?: SportCategory[]
-  availableSports?: TrainingSportCategory[]
+  /** Known training sports and optional free-text sports for AI planning. */
+  availableSports?: string[]
   trainingGoal?: string
   sportSpecificThresholds?: Partial<Record<SportCategory, Record<string, number>>>
   performanceNotes?: string
-  trainingFrequencyPerWeek?: number
   strengthTraining?: boolean
   limitations?: string
-  personalNotes?: string
-  maxWeeklyTrainingMinutes?: number
-  maxTrainingMinutesPerDay?: Record<string, number | undefined>
 }
 
 export interface TrainingPlanStep {
@@ -95,7 +91,7 @@ export interface TrainingPlanStep {
 }
 
 export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
-export type TrainingPlanSport = 'running' | 'cycling' | 'swimming' | 'rowing' | 'hiking' | 'strength' | 'mobility' | 'other'
+export type TrainingPlanSport = 'running' | 'cycling' | 'swimming' | 'hiking' | 'cardio' | 'rowing' | 'strength' | 'mobility' | 'other'
 export type TrainingSessionType = 'training' | 'rest'
 export type CoachStyle = 'mentor' | 'pragmatist' | 'performance'
 
@@ -104,6 +100,8 @@ export interface TrainingPlanDay {
   date: string
   day: WeekDay
   sport: TrainingPlanSport
+  /** Display name for custom sports when `sport` is `other`. */
+  sport_label?: string
   session_type: TrainingSessionType
   title: string
   description: string

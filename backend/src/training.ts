@@ -48,7 +48,8 @@ const stepSchema = z.object({ step_duration: z.string().min(1), step_intensity: 
 const daySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   day: weekDayEnum,
-  sport: z.enum(['running', 'cycling', 'swimming', 'rowing', 'hiking', 'strength', 'mobility', 'other']),
+  sport: z.enum(['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other']),
+  sport_label: z.string().trim().min(1).max(40).optional(),
   session_type: z.enum(['training', 'rest']),
   title: z.string().min(1),
   description: z.string().min(1),
@@ -78,7 +79,8 @@ const responseSchema = {
         properties: {
           date: { type: 'STRING' },
           day: { type: 'STRING', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
-          sport: { type: 'STRING', enum: ['running', 'cycling', 'swimming', 'rowing', 'hiking', 'strength', 'mobility', 'other'] },
+          sport: { type: 'STRING', enum: ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other'] },
+          sport_label: { type: 'STRING' },
           session_type: { type: 'STRING', enum: ['training', 'rest'] },
           title: { type: 'STRING' },
           description: { type: 'STRING' },
@@ -278,9 +280,12 @@ function normalizeSport(value: unknown): string {
     run: 'running', running: 'running',
     ride: 'cycling', bike: 'cycling', cycling: 'cycling',
     swim: 'swimming', swimming: 'swimming',
-    row: 'rowing', rowing: 'rowing',
     hike: 'hiking', hiking: 'hiking', walk: 'hiking', walking: 'hiking',
-    strength: 'strength', mobility: 'mobility', rest: 'other', recovery: 'other', other: 'other',
+    cardio: 'cardio', ergometer: 'cardio', treadmill: 'cardio', elliptical: 'cardio',
+    crosstrainer: 'cardio', spinning: 'cardio', indoor: 'cardio',
+    row: 'cardio', rowing: 'cardio',
+    strength: 'strength', mobility: 'mobility', yoga: 'mobility',
+    rest: 'other', recovery: 'other', other: 'other',
   }
   return aliases[sport] || sport
 }
@@ -427,11 +432,12 @@ function createPromptEnglish(
     'Each day needs date (YYYY-MM-DD) and day (weekday enum matching that date).',
     'Use measured local metrics as the primary basis for load decisions.',
     'Treat profile.available_sports as a strict whitelist. Never schedule a sport that is not listed there.',
-    'Use only sports from the available_sports whitelist, including rowing, strength, or mobility only when explicitly enabled.',
-    'Respect profile, goals, preferred days, and all weekly/daily limits relative to this rolling window.',
-    'FREQUENCY: training_frequency_per_week is the maximum number of all structured training days combined, including endurance, strength, and mobility. Never add strength or active recovery on top of that count.',
+    'Use only sports from the available_sports whitelist, including cardio, strength, or mobility only when explicitly enabled.',
+    'CUSTOM SPORTS: If available_sports contains a label that is not one of the sport enums, schedule it with sport "other" and sport_label set to that exact whitelist label. Never invent sport_label values.',
+    'Respect profile, goals, preferred days, and HARD_CAPS relative to this rolling window.',
+    'FREQUENCY: training_frequency_per_week is the maximum number of all structured training days combined, including endurance, strength, and mobility. Never add strength or active recovery on top of that count. Prefer scheduling on preferred_training_days.',
     'PREFERRED DAYS: Schedule structured sessions only on preferred_training_days when that list contains enough days for the requested frequency. Days outside that list should be rest days unless necessary to avoid unsafe back-to-back hard sessions.',
-    'REST INVARIANT: A rest day must use session_type "rest", sport "other", total_duration_minutes 0, and one no-exercise recovery TODO. Any active recovery, walk, mobility, or other timed activity is a training day and counts toward the frequency cap.',
+    'REST INVARIANT: A rest day must use session_type "rest", sport "other", no sport_label, total_duration_minutes 0, and one no-exercise recovery TODO. Any active recovery, walk, mobility, or other timed activity is a training day and counts toward the frequency cap.',
     'Manage load conservatively using CTL, ATL, TSB, and ACWR. Schedule recovery when fatigue or risk signals are present.',
     'VOLUME GUARDRAIL: Obey HARD_CAPS exactly. max_endurance_minutes is for running/cycling/etc only; strength has its own caps and does not consume the endurance budget.',
     'BUDGET CHECK: Before returning JSON, add all endurance-day durations and verify the sum is <= max_endurance_minutes, every run is <= max_long_run_minutes, and the count of all non-rest days is <= max_training_sessions. For very small budgets, use short run/walk sessions; do not draft a normal week and rely on later correction.',
@@ -443,6 +449,7 @@ function createPromptEnglish(
       ? 'RECOVERY_WEEK: true. Acute load is unsafe (risk spike, very negative TSB, or high ACWR). Reduce endurance volume substantially, keep every session easy, and prioritize full rest.'
       : 'RECOVERY_WEEK: false.',
     'LIMITATIONS: Treat stated pain, injury, rehabilitation, and explicit "do not" constraints as hard safety restrictions. Acknowledge relevant limitations in the week summary and include clear stop/adjust guidance without diagnosing.',
+    'PLAN_NOTES: Treat profile.plan_notes as soft preferences for this rolling window only (travel, schedule wishes, equipment). Do not override safety caps, limitations, or HARD_CAPS.',
     'SESSION DETAIL: Every training day needs concrete warm-up, main set, and cool-down steps. For strength, prescribe specific exercises, sets, and reps (e.g. squats, lunges, hinge, plank, glute bridge) instead of vague "choose exercises".',
     'Create exactly one actionable TODO for each of seven days, including rest days.',
     sanitized.signals.hr_zones_may_be_miscalibrated
@@ -454,7 +461,7 @@ function createPromptEnglish(
     'Return only valid JSON without Markdown.',
     coachStyleBlock(data.coach_style),
   ]
-  const schema = 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Each step needs step_duration, step_intensity, and step_instruction.'
+  const schema = 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Optional sport_label is only for custom sports with sport "other". Each step needs step_duration, step_intensity, and step_instruction.'
   return [
     ...instructions,
     schema,

@@ -13,7 +13,6 @@ import {
 import type { UserConfig, Workout } from '../types/workout'
 
 const config: UserConfig = {
-  name: 'Test',
   trainingFocus: '',
   preferredTrainingDays: [],
   hrZones: { z1: [90, 106], z2: [107, 124], z3: [125, 142], z4: [143, 160], z5: [161, 179] },
