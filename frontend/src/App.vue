@@ -91,6 +91,8 @@ onMounted(async () => {
         <nav class="legal-links" :aria-label="t.imprint">
           <RouterLink to="/impressum">{{ t.imprint }}</RouterLink>
           <RouterLink to="/datenschutz">{{ t.privacy }}</RouterLink>
+          <RouterLink to="/agb">{{ t.terms }}</RouterLink>
+          <RouterLink to="/widerruf">{{ t.refund }}</RouterLink>
         </nav>
       </footer>
     </main>
