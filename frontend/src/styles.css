@@ -32,6 +32,13 @@
   --chart-gold: #e6b66c;
   --chart-rose: #e87987;
   --chart-purple: #b98cf2;
+  /* Route preview layers. Alpha is baked in so the SVG needs no opacity attrs. */
+  --map-water: #38bdf8;
+  --map-coast: #7dd3fc;
+  --map-road: rgba(240, 246, 252, 0.3);
+  --map-forest: rgba(16, 185, 129, 0.2);
+  --map-urban: rgba(240, 246, 252, 0.09);
+  --map-route-glow: rgba(16, 185, 129, 0.45);
 }
 
 :root[data-theme='light'] {
@@ -50,6 +57,12 @@
   --accent: #059669;
   --accent-soft: rgba(5, 150, 105, 0.1);
   --accent-ink: #fff;
+  --map-water: #0284c7;
+  --map-coast: #0369a1;
+  --map-road: rgba(31, 41, 51, 0.32);
+  --map-forest: rgba(5, 150, 105, 0.16);
+  --map-urban: rgba(31, 41, 51, 0.07);
+  --map-route-glow: rgba(5, 150, 105, 0.35);
 }
 
 @layer base {

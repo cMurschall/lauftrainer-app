@@ -7,6 +7,7 @@ import {
   hasMapDetails,
   OVERPASS_ENDPOINTS,
   parseOverpassResponse,
+  pickLargestPlaceName,
   quantizeBbox,
 } from './mapContextService'
 
@@ -88,6 +89,20 @@ describe('parseOverpassResponse', () => {
     expect(context.coastlines).toEqual([[[8, 7]]])
     expect(context.residential).toEqual([[[10, 9]]])
     expect(context.forests).toEqual([[[12, 11]]])
+    expect(context.placeName).toBeUndefined()
+  })
+
+  it('picks the largest named place from place nodes', () => {
+    const context = parseOverpassResponse({
+      elements: [
+        { type: 'node', lat: 54.3, lon: 10.1, tags: { place: 'suburb', name: 'Gaarden', population: '20000' } },
+        { type: 'node', lat: 54.32, lon: 10.13, tags: { place: 'city', name: 'Kiel', population: '247000' } },
+        { type: 'node', lat: 54.31, lon: 10.12, tags: { place: 'village', name: 'Möltenort' } },
+        { type: 'way', tags: { highway: 'primary' }, geometry: [{ lat: 1, lon: 2 }] },
+      ],
+    })
+    expect(context.placeName).toBe('Kiel')
+    expect(context.highways).toHaveLength(1)
   })
 
   it('tolerates empty and malformed payloads', () => {
@@ -99,6 +114,31 @@ describe('parseOverpassResponse', () => {
       forests: [],
     })
     expect(parseOverpassResponse({ elements: [{ type: 'node' }] }).highways).toEqual([])
+  })
+})
+
+describe('pickLargestPlaceName', () => {
+  it('ranks cities above villages even with lower population', () => {
+    expect(
+      pickLargestPlaceName([
+        { name: 'Dorf', place: 'village', population: 5000 },
+        { name: 'Stadt', place: 'city', population: 1000 },
+      ]),
+    ).toBe('Stadt')
+  })
+
+  it('breaks ties with population then name length', () => {
+    expect(
+      pickLargestPlaceName([
+        { name: 'Nord', place: 'suburb', population: 100 },
+        { name: 'Südviertel', place: 'suburb', population: 100 },
+        { name: 'Ost', place: 'suburb', population: 500 },
+      ]),
+    ).toBe('Ost')
+  })
+
+  it('returns undefined for an empty list', () => {
+    expect(pickLargestPlaceName([])).toBeUndefined()
   })
 })
 
@@ -231,12 +271,12 @@ describe('buildOverpassQuery', () => {
     const statements = query.match(/\(1,2,3,4\)/g)?.length || 0
     expect(statements).toBeGreaterThanOrEqual(5)
     // Public instances time out on long statement lists, so keep the query lean.
-    expect(statements).toBeLessThanOrEqual(6)
+    expect(statements).toBeLessThanOrEqual(7)
   })
 
   it('still covers every layer the parser knows', () => {
     const query = buildOverpassQuery('1,2,3,4')
-    for (const tag of ['highway', 'waterway', 'coastline', 'water', 'residential', 'forest', 'park']) {
+    for (const tag of ['highway', 'waterway', 'coastline', 'water', 'residential', 'forest', 'park', 'place']) {
       expect(query).toContain(tag)
     }
   })

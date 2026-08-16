@@ -262,6 +262,10 @@ async function resolveMapDetailsConsent(allowed: boolean) {
   resolver?.(allowed)
 }
 
+function mapPlaceLabel(workoutId: string): string {
+  return mapContexts.value[workoutId]?.placeName || t.value.mapRouteFallback
+}
+
 function mapDetailsHint(workoutId: string): string {
   if (mapContextFailed.value[workoutId]) return t.value.mapDetailsUnavailable
   if (settings.mapDetailsConsent === 'denied' && !mapContexts.value[workoutId]) return t.value.mapDetailsDisabled
@@ -294,7 +298,10 @@ async function loadMapContextForWorkout(workoutId: string, force = false) {
   const localContext = force ? null : await workoutDb.getMapContext(workoutId)
   if (hasMapDetails(localContext)) {
     mapContexts.value[workoutId] = localContext as MapContext
-    traceMap(workoutId, `aus IndexedDB (${layerCount(localContext)})`)
+    traceMap(
+      workoutId,
+      `aus IndexedDB (${layerCount(localContext)}${(localContext as MapContext).placeName ? ` · Ort ${(localContext as MapContext).placeName}` : ''})`,
+    )
     return
   }
   if (force) traceMap(workoutId, 'manueller Neuversuch, lokaler Cache übersprungen')
@@ -329,7 +336,7 @@ async function loadMapContextForWorkout(workoutId: string, force = false) {
       },
     })
     mapContexts.value[workoutId] = context
-    traceMap(workoutId, `fertig nach ${Date.now() - startedAt} ms (${layerCount(context)})`)
+    traceMap(workoutId, `fertig nach ${Date.now() - startedAt} ms (${layerCount(context)}${context.placeName ? ` · Ort ${context.placeName}` : ''})`)
     await workoutDb.saveMapContext(workoutId, context)
   } catch (error) {
     // Overpass throttles heavily; keep the route visible and flag the missing layers.
@@ -697,7 +704,11 @@ function getRouteSvgPath(workoutId: string) {
 
                 <!-- Right Column: Route Map (SVG) -->
                 <div v-if="getRouteSvgPath(workout.id)" style="display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; position: relative; justify-content: center; align-items: center;">
-                  <span style="position: absolute; top: 6px; left: 8px; color: var(--muted); font-size: 0.65rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px; pointer-events: none;">Strecke</span>
+                  <span
+                    style="position: absolute; top: 6px; left: 8px; color: var(--muted); font-size: 0.65rem; font-weight: 550; letter-spacing: 0.3px; pointer-events: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    :style="{ textTransform: mapContexts[workout.id]?.placeName ? 'none' : 'uppercase' }"
+                    >{{ mapPlaceLabel(workout.id) }}</span
+                  >
                   <span
                     v-if="mapDetailsHint(workout.id)"
                     style="position: absolute; top: 6px; right: 8px; color: var(--subtle); font-size: 0.62rem; font-weight: 550; pointer-events: none;"
@@ -711,16 +722,14 @@ function getRouteSvgPath(workoutId: string) {
                         v-for="(path, pIdx) in getMapContextPaths(workout.id)!.forests"
                         :key="`f-${workout.id}-${pIdx}`"
                         :d="path"
-                        fill="var(--accent)"
-                        opacity="0.05"
+                        fill="var(--map-forest)"
                       />
                       <!-- Background Residential areas -->
                       <path
                         v-for="(path, pIdx) in getMapContextPaths(workout.id)!.residential"
                         :key="`r-${workout.id}-${pIdx}`"
                         :d="path"
-                        fill="var(--text)"
-                        opacity="0.04"
+                        fill="var(--map-urban)"
                       />
                       <!-- Background Coastlines / Sea Boundary -->
                       <path
@@ -728,11 +737,10 @@ function getRouteSvgPath(workoutId: string) {
                         :key="`c-${workout.id}-${pIdx}`"
                         :d="path"
                         fill="none"
-                        stroke="#0284c7"
-                        stroke-width="2.0"
+                        stroke="var(--map-coast)"
+                        stroke-width="2.2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        opacity="0.55"
                       />
                       <!-- Background Highways / Streets -->
                       <path
@@ -740,11 +748,10 @@ function getRouteSvgPath(workoutId: string) {
                         :key="`h-${workout.id}-${pIdx}`"
                         :d="path"
                         fill="none"
-                        stroke="var(--subtle)"
-                        stroke-width="1.0"
+                        stroke="var(--map-road)"
+                        stroke-width="1.1"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        opacity="0.25"
                       />
                       <!-- Background Waterways / Rivers -->
                       <path
@@ -752,11 +759,10 @@ function getRouteSvgPath(workoutId: string) {
                         :key="`w-${workout.id}-${pIdx}`"
                         :d="path"
                         fill="none"
-                        stroke="#38bdf8"
+                        stroke="var(--map-water)"
                         stroke-width="1.8"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        opacity="0.65"
                       />
                     </template>
                     <!-- Main Glowing Route Path -->
@@ -767,7 +773,7 @@ function getRouteSvgPath(workoutId: string) {
                       stroke-width="2.5"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      style="filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.4));"
+                      style="filter: drop-shadow(0 0 3px var(--map-route-glow));"
                     />
                   </svg>
                   <!-- TEMP map diagnostics — remove this block together with SHOW_MAP_DIAGNOSTICS. -->

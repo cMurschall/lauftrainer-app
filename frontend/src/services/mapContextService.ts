@@ -84,8 +84,7 @@ export function quantizeBbox(box: BoundingBox, step = BBOX_GRID_DEG): string {
 /**
  * Each bracketed statement is a separate index lookup, so related tags are
  * merged into single regex statements to keep the query affordable on the
- * public instances. `wr` covers ways and relations; standalone nodes carry no
- * geometry we could draw.
+ * public instances. `wr` covers ways and relations; place labels are nodes.
  */
 export function buildOverpassQuery(bbox: string): string {
   return `[out:json][timeout:20];
@@ -95,8 +94,42 @@ export function buildOverpassQuery(bbox: string): string {
   wr["natural"~"^(coastline|water|wood)$"](${bbox});
   wr["landuse"~"^(residential|forest|wood|orchard)$"](${bbox});
   wr["leisure"="park"](${bbox});
+  node["place"~"^(city|town|municipality|village|suburb|quarter|neighbourhood|neighborhood|hamlet|locality)$"](${bbox});
 );
 out geom;`
+}
+
+/** Higher = larger settlement. Used when several place nodes sit in one bbox. */
+export const PLACE_RANK: Record<string, number> = {
+  city: 70,
+  town: 60,
+  municipality: 55,
+  village: 40,
+  suburb: 30,
+  quarter: 25,
+  neighbourhood: 20,
+  neighborhood: 20,
+  hamlet: 10,
+  locality: 5,
+}
+
+export interface PlaceCandidate {
+  name: string
+  place: string
+  population?: number
+}
+
+/** Prefer city > town > village, then higher population, then the longer name. */
+export function pickLargestPlaceName(candidates: PlaceCandidate[]): string | undefined {
+  if (candidates.length === 0) return undefined
+  const best = [...candidates].sort((a, b) => {
+    const rankDiff = (PLACE_RANK[b.place] || 0) - (PLACE_RANK[a.place] || 0)
+    if (rankDiff !== 0) return rankDiff
+    const popDiff = (b.population || 0) - (a.population || 0)
+    if (popDiff !== 0) return popDiff
+    return b.name.length - a.name.length
+  })[0]
+  return best?.name
 }
 
 type OverpassGeometry = { lat: number; lon: number }
@@ -104,12 +137,15 @@ type OverpassTags = Record<string, string | undefined>
 type OverpassElement = {
   type?: string
   tags?: OverpassTags
+  lat?: number
+  lon?: number
   geometry?: OverpassGeometry[]
   members?: { type?: string; tags?: OverpassTags; geometry?: OverpassGeometry[] }[]
 }
 
 export function parseOverpassResponse(data: { elements?: OverpassElement[] } | null | undefined): MapContext {
   const context: MapContext = { waterways: [], highways: [], coastlines: [], residential: [], forests: [] }
+  const places: PlaceCandidate[] = []
 
   const assign = (coords: [number, number][], tags: OverpassTags | undefined) => {
     if (!tags || coords.length === 0) return
@@ -133,6 +169,15 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
     geometry.map((point) => [point.lon, point.lat] as [number, number])
 
   for (const element of data?.elements || []) {
+    if (element.type === 'node' && element.tags?.place && element.tags.name) {
+      const population = Number.parseInt(element.tags.population || '', 10)
+      places.push({
+        name: element.tags.name.trim(),
+        place: element.tags.place,
+        population: Number.isFinite(population) ? population : undefined,
+      })
+      continue
+    }
     if (element.type === 'way' && element.geometry) {
       assign(toCoords(element.geometry), element.tags)
     } else if (element.type === 'relation' && element.members) {
@@ -145,6 +190,8 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
     }
   }
 
+  const placeName = pickLargestPlaceName(places.filter((place) => place.name.length > 0))
+  if (placeName) context.placeName = placeName
   return context
 }
 

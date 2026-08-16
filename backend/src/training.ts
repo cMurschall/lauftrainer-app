@@ -134,6 +134,64 @@ export function assertRollingPlan(plan: z.infer<typeof planSchema>, startDate: s
   return { ...plan, start_date: startDate, days: sortedDays }
 }
 
+/** Shape of a Google API error payload; `details` carries the RetryInfo hint. */
+type GeminiErrorBody = {
+  error?: {
+    message?: string
+    status?: string
+    details?: Array<{ '@type'?: string; retryDelay?: string; quotaId?: string }>
+  }
+}
+
+export interface GeminiFailure {
+  /** Status we hand back to the client: 429 stays 429 so the UI can say "try later". */
+  clientStatus: number
+  detail: string
+  /** Seconds Google asks us to wait, when it says so. */
+  retryAfterSeconds?: number
+  logLine: string
+}
+
+export function describeGeminiFailure(status: number, body: unknown): GeminiFailure {
+  const error = (body as GeminiErrorBody | null)?.error
+  const googleStatus = error?.status
+  const message = error?.message?.trim()
+  const retryInfo = error?.details?.find((detail) => detail['@type']?.includes('RetryInfo'))
+  const retrySeconds = Number.parseFloat(retryInfo?.retryDelay?.replace(/s$/, '') || '')
+  const quotaId = error?.details?.find((detail) => detail.quotaId)?.quotaId
+
+  const logLine = [
+    `Gemini ${status}`,
+    googleStatus,
+    quotaId && `quota=${quotaId}`,
+    Number.isFinite(retrySeconds) && `retryAfter=${retrySeconds}s`,
+    message,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  if (status === 429) {
+    // The technical cause (rate limit, quota, depleted prepaid billing) is for our
+    // logs only; users just get a neutral "busy, try later" without our billing state.
+    const perMinute = Number.isFinite(retrySeconds) && retrySeconds <= 120
+    return {
+      clientStatus: 429,
+      detail: perMinute
+        ? `Die KI-Planerstellung ist gerade ausgelastet. Bitte in ${Math.max(1, Math.ceil(retrySeconds))} Sekunden erneut versuchen — dein Guthaben wurde nicht belastet.`
+        : 'Die KI-Planerstellung ist gerade nicht verfügbar. Bitte in ein paar Minuten erneut versuchen — dein Guthaben wurde nicht belastet.',
+      retryAfterSeconds: Number.isFinite(retrySeconds) ? retrySeconds : undefined,
+      logLine,
+    }
+  }
+
+  if (status === 503 || status === 500) {
+    return { clientStatus: 503, detail: 'Die KI-Planerstellung ist gerade überlastet. Bitte in einer Minute erneut versuchen.', logLine }
+  }
+
+  // Never surface the upstream provider or its status code to the client.
+  return { clientStatus: 502, detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.', logLine }
+}
+
 export async function createTrainingPlan(request: Request, env: Env): Promise<Response> {
   const requestId = request.headers.get('X-Idempotency-Key')?.trim()
   if (!requestId || requestId.length > 128) return json({ detail: 'X-Idempotency-Key fehlt oder ist ungültig.' }, 400, request, env)
@@ -183,18 +241,25 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
   }) } catch (error) {
     await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { error: error instanceof Error ? error.message : String(error) })
     await releaseReservation()
-    return json({ detail: 'Gemini ist momentan nicht erreichbar.' }, 502, request, env)
+    return json({ detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.' }, 502, request, env)
   }
   const responseText = await response.text()
   let responseBody: unknown = responseText
   try { responseBody = JSON.parse(responseText) } catch { /* Keep non-JSON error responses readable in the log. */ }
   await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { status: response.status, statusText: response.statusText, body: responseBody })
-  if (!response.ok) { await releaseReservation(); return json({ detail: `Gemini antwortete mit ${response.status}.` }, 502, request, env) }
+  if (!response.ok) {
+    const failure = describeGeminiFailure(response.status, responseBody)
+    // Observability only keeps what we print, and the request URL carries the API key.
+    console.error(failure.logLine)
+    await releaseReservation()
+    const headers = failure.retryAfterSeconds ? { 'Retry-After': String(Math.ceil(failure.retryAfterSeconds)) } : undefined
+    return json({ detail: failure.detail }, failure.clientStatus, request, env, headers)
+  }
   const payload = JSON.parse(responseText) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('')
   if (!text) {
     await releaseReservation()
-    return json({ detail: 'Gemini lieferte keine verwertbare Antwort.' }, 502, request, env)
+    return json({ detail: 'Die KI-Planerstellung lieferte keine verwertbare Antwort. Bitte erneut versuchen.' }, 502, request, env)
   }
   let plan: z.infer<typeof planSchema>
   let repairs: string[] = []

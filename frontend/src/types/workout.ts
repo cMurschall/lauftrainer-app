@@ -15,6 +15,8 @@ export interface MapContext {
   coastlines: [number, number][][]
   residential: [number, number][][]
   forests: [number, number][][]
+  /** Largest named settlement in the map bbox, when Overpass returned one. */
+  placeName?: string
 }
 export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]

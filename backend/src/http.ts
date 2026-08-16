@@ -12,6 +12,9 @@ export function corsHeaders(request: Request, env: Env): HeadersInit {
   }
 }
 
-export function json(data: unknown, status: number, request: Request, env: Env): Response {
-  return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } })
+export function json(data: unknown, status: number, request: Request, env: Env, extraHeaders?: HeadersInit): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json', ...extraHeaders },
+  })
 }
