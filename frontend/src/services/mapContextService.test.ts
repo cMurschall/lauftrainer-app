@@ -124,6 +124,30 @@ describe('fetchMapContext', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('rate limited', { status: 429 })))
     await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/429/)
   })
+
+  it('sends no referrer so blocked-referrer rejections do not apply', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ elements: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await fetchMapContext('54.3700,10.4700,54.4000,10.5300')
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.referrerPolicy).toBe('no-referrer')
+  })
+
+  it('reports an opaque transport failure as unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Load failed')
+    }))
+    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/unreachable/)
+  })
+
+  it('reports an aborted request as a timeout', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new DOMException('The operation timed out.', 'TimeoutError')
+    }))
+    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/timeout/i)
+  })
 })
 
 describe('hasMapDetails', () => {

@@ -153,11 +153,23 @@ export function hasMapDetails(context: Partial<MapContext> | null | undefined): 
 }
 
 export async function fetchMapContext(bbox: string): Promise<MapContext> {
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    body: new URLSearchParams({ data: buildOverpassQuery(bbox) }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  })
+  let response: Response
+  try {
+    response = await fetch(OVERPASS_URL, {
+      method: 'POST',
+      body: new URLSearchParams({ data: buildOverpassQuery(bbox) }),
+      // Overpass rejects requests carrying our page as Referer, and the user's
+      // browsing context is none of its business either.
+      referrerPolicy: 'no-referrer',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Error(`Overpass timeout after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`)
+    }
+    // Browsers report blocked or unreachable hosts as an opaque TypeError.
+    throw new Error('Overpass unreachable (keine HTTP-Antwort — blockiert, offline oder Verbindung abgebrochen)')
+  }
 
   if (!response.ok) {
     const reason = response.status === 429 || response.status === 504 ? 'busy' : 'error'
