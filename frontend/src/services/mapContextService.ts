@@ -151,7 +151,10 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
     if (!tags || coords.length === 0) return
     if (tags.waterway) context.waterways.push(coords)
     else if (tags.natural === 'coastline') context.coastlines.push(coords)
-    else if (tags.natural === 'water' || tags.water) context.waterAreas.push(coords)
+    else if (tags.natural === 'water' || tags.water) {
+      context.waterAreas.push(coords)
+      console.log('Added to waterAreas:', coords.length, 'points')
+    }
     else if (tags.highway) context.highways.push(coords)
     else if (tags.landuse === 'residential') context.residential.push(coords)
     else if (
