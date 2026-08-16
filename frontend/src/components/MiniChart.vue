@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   BarController,
   BarElement,
@@ -31,6 +31,34 @@ ChartJS.register(
   Legend,
   Filler,
 )
+
+// Touch devices never fire a `mouseout` on the canvas, so a tooltip opened by a tap
+// stays visible forever. One shared listener closes every chart that was not tapped.
+type TooltipOwner = { canvas: () => HTMLCanvasElement | null; dismiss: () => void }
+const tooltipOwners = new Set<TooltipOwner>()
+
+function dismissOtherTooltips(event: Event) {
+  const target = event.target as Node | null
+  for (const owner of tooltipOwners) {
+    const canvas = owner.canvas()
+    if (canvas && target && (canvas === target || canvas.contains(target))) continue
+    owner.dismiss()
+  }
+}
+
+function registerTooltipOwner(owner: TooltipOwner) {
+  if (!tooltipOwners.size) {
+    document.addEventListener('pointerdown', dismissOtherTooltips, true)
+  }
+  tooltipOwners.add(owner)
+}
+
+function unregisterTooltipOwner(owner: TooltipOwner) {
+  tooltipOwners.delete(owner)
+  if (!tooltipOwners.size) {
+    document.removeEventListener('pointerdown', dismissOtherTooltips, true)
+  }
+}
 
 export type MiniChartSeries = {
   name: string
@@ -87,6 +115,29 @@ const props = withDefaults(
     bands: () => [],
   },
 )
+
+const rootEl = ref<HTMLElement | null>(null)
+
+function currentCanvas(): HTMLCanvasElement | null {
+  return rootEl.value?.querySelector('canvas') ?? null
+}
+
+const tooltipOwner: TooltipOwner = {
+  canvas: currentCanvas,
+  dismiss: () => {
+    const canvas = currentCanvas()
+    const chart = canvas ? ChartJS.getChart(canvas) : undefined
+    if (!chart) return
+    const tooltip = chart.tooltip
+    if (!chart.getActiveElements().length && !tooltip?.getActiveElements().length) return
+    chart.setActiveElements([])
+    tooltip?.setActiveElements([], { x: 0, y: 0 })
+    chart.update('none')
+  },
+}
+
+onMounted(() => registerTooltipOwner(tooltipOwner))
+onBeforeUnmount(() => unregisterTooltipOwner(tooltipOwner))
 
 function resolveColor(value: string): string {
   const match = value.match(/^var\((--[^)]+)\)$/)
@@ -263,7 +314,7 @@ const options = computed<ChartOptions>(() => ({
 }))
 </script>
 <template>
-  <div class="mini-chart">
+  <div ref="rootEl" class="mini-chart">
     <div class="mini-chart-canvas">
       <Chart
         :type="type"
