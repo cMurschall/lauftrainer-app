@@ -721,9 +721,11 @@ function getRouteSvgPath(workoutId: string) {
                     >{{ mapDetailsHint(workout.id) }}</span
                   >
                   <svg viewBox="0 0 240 150" style="width: 100%; height: 100%; min-height: 100px; display: block; max-height: 140px;">
-                    <!-- Background Highways -->
+                    <!-- Background Water (fill entire bbox) -->
+                    <rect width="240" height="150" fill="var(--map-water)" />
+                    
+                    <!-- Background Forests & Parks -->
                     <template v-if="getMapContextPaths(workout.id)">
-                      <!-- Background Forests & Parks -->
                       <path
                         v-for="(path, pIdx) in getMapContextPaths(workout.id)!.forests"
                         :key="`f-${workout.id}-${pIdx}`"
@@ -758,14 +760,6 @@ function getRouteSvgPath(workoutId: string) {
                         stroke-width="1.1"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                      />
-                      <!-- Background Water areas -->
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.waterAreas"
-                        :key="`wa-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="var(--map-water)"
-                        fill-opacity="0.3"
                       />
                       <!-- Background Waterways / Rivers -->
                       <path
