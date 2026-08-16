@@ -765,6 +765,7 @@ function getRouteSvgPath(workoutId: string) {
                         :key="`wa-${workout.id}-${pIdx}`"
                         :d="path"
                         fill="var(--map-water)"
+                        fill-opacity="0.3"
                       />
                       <!-- Background Waterways / Rivers -->
                       <path
