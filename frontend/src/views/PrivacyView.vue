@@ -88,12 +88,20 @@
         dauerhaft erlaubst.
       </p>
       <p>
-        Dafür sendet dein Browser eine Anfrage direkt an die öffentliche Overpass-API
+        Dafür sendet dein Browser eine Anfrage direkt an eine öffentliche Overpass-API
         (OpenStreetMap-Daten). Übermittelt werden technisch notwendige Verbindungsdaten
         (insbesondere deine IP-Adresse) sowie eine grob gerasterte Bounding-Box um die
         Strecke — nicht die vollständige Track-Punktliste und keine Trainingsmetriken.
         LaufTrainer speichert diese Anfrage nicht serverseitig; geladene Details können
         lokal in IndexedDB zwischengespeichert werden, damit sie offline erneut verfügbar sind.
+      </p>
+      <p>
+        Die öffentlichen Overpass-Server sind häufig überlastet. Deshalb fragt der Browser
+        der Reihe nach mehrere Instanzen ab, bis eine antwortet:
+        <code>overpass.kumi.systems</code> und <code>overpass.private.coffee</code>
+        (beide Österreich) sowie <code>overpass-api.de</code> (Deutschland). Alle liegen
+        innerhalb der EU. Die Anfrage wird ohne Referrer gesendet, die aufgerufene Seite
+        ist für die Betreiber also nicht sichtbar.
       </p>
       <p>
         Du kannst Kartendetails jederzeit in den Einstellungen ablehnen oder erneut erlauben.

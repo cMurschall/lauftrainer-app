@@ -5,6 +5,7 @@ import {
   buildOverpassQuery,
   fetchMapContext,
   hasMapDetails,
+  OVERPASS_ENDPOINTS,
   parseOverpassResponse,
   quantizeBbox,
 } from './mapContextService'
@@ -114,7 +115,7 @@ describe('fetchMapContext', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://overpass-api.de/api/interpreter')
+    expect(url).toBe(OVERPASS_ENDPOINTS[0])
     expect(init.method).toBe('POST')
     expect(String(init.body)).toContain('54.3700%2C10.4700%2C54.4000%2C10.5300')
     expect(context.highways).toEqual([[[2, 1]]])
@@ -135,18 +136,73 @@ describe('fetchMapContext', () => {
     expect(init.referrerPolicy).toBe('no-referrer')
   })
 
-  it('reports an opaque transport failure as unreachable', async () => {
+  it('reports an opaque transport failure as a missing HTTP response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new TypeError('Load failed')
     }))
-    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/unreachable/)
+    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/keine HTTP-Antwort/)
   })
 
   it('reports an aborted request as a timeout', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new DOMException('The operation timed out.', 'TimeoutError')
     }))
-    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/timeout/i)
+    await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/Timeout/i)
+  })
+
+  it('falls back to the next mirror and reports progress', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValueOnce(new Response('busy', { status: 504 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ elements: [{ type: 'way', tags: { highway: 'primary' }, geometry: [{ lat: 1, lon: 2 }] }] }), {
+          status: 200,
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const progress: string[] = []
+
+    const context = await fetchMapContext('54.3700,10.4700,54.4000,10.5300', {
+      onProgress: (event) => progress.push(`${event.endpoint} ${event.status ?? event.error ?? 'start'}`),
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(OVERPASS_ENDPOINTS)
+    expect(context.highways).toEqual([[[2, 1]]])
+    expect(progress.some((line) => line.includes('504'))).toBe(true)
+    expect(progress.at(-1)).toContain('200')
+  })
+
+  it('names every failing mirror once none answers', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('busy', { status: 504 })))
+    const error = await fetchMapContext('54.3700,10.4700,54.4000,10.5300').catch((e: Error) => e)
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      expect((error as Error).message).toContain(new URL(endpoint).host)
+    }
+  })
+
+  it('stops waiting for a mirror after the timeout and moves on', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const pending = fetchMapContext('54.3700,10.4700,54.4000,10.5300', { timeoutMs: 1000 }).catch(
+        (e: Error) => e.message,
+      )
+      await vi.advanceTimersByTimeAsync(1000 * OVERPASS_ENDPOINTS.length)
+
+      expect(await pending).toContain('Timeout')
+      expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_ENDPOINTS.length)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -171,6 +227,17 @@ describe('buildOverpassQuery', () => {
   it('embeds the bbox in every filter', () => {
     const query = buildOverpassQuery('1,2,3,4')
     expect(query).toContain('[out:json]')
-    expect(query.match(/\(1,2,3,4\)/g)?.length).toBeGreaterThan(10)
+    expect(query).toContain('out geom;')
+    const statements = query.match(/\(1,2,3,4\)/g)?.length || 0
+    expect(statements).toBeGreaterThanOrEqual(5)
+    // Public instances time out on long statement lists, so keep the query lean.
+    expect(statements).toBeLessThanOrEqual(6)
+  })
+
+  it('still covers every layer the parser knows', () => {
+    const query = buildOverpassQuery('1,2,3,4')
+    for (const tag of ['highway', 'waterway', 'coastline', 'water', 'residential', 'forest', 'park']) {
+      expect(query).toContain(tag)
+    }
   })
 })

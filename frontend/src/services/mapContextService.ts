@@ -1,12 +1,23 @@
 import type { ActivityRecord, MapContext } from '../types/workout'
 
 /**
- * Overpass rejects requests coming from shared cloud egress IPs, so the browser
- * queries it directly: every device uses its own quota and the bounding box
- * never reaches our backend.
+ * The browser queries Overpass directly so the bounding box never reaches our
+ * backend and every device spends its own quota.
+ *
+ * The public instances are frequently saturated, so we walk a list of mirrors
+ * instead of failing on the first gateway timeout. Only EU-hosted endpoints are
+ * used: the request carries the user's IP, so the operator matters.
  */
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
-const REQUEST_TIMEOUT_MS = 30_000
+export const OVERPASS_ENDPOINTS = [
+  // kumi.systems runs a high-capacity instance without a rate limit and asks not
+  // to be credited as the main one; the official instance is the polite fallback.
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+]
+
+/** Long enough for a cold cache on a loaded instance, short enough to still try the next one. */
+const REQUEST_TIMEOUT_MS = 20_000
 
 /** ~1.1 km at the equator; nearby routes reuse the same cached answer. */
 export const BBOX_GRID_DEG = 0.01
@@ -70,24 +81,20 @@ export function quantizeBbox(box: BoundingBox, step = BBOX_GRID_DEG): string {
     .join(',')
 }
 
+/**
+ * Each bracketed statement is a separate index lookup, so related tags are
+ * merged into single regex statements to keep the query affordable on the
+ * public instances. `wr` covers ways and relations; standalone nodes carry no
+ * geometry we could draw.
+ */
 export function buildOverpassQuery(bbox: string): string {
-  return `[out:json][timeout:25];
+  return `[out:json][timeout:20];
 (
   way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential)$"](${bbox});
   way["waterway"~"^(river|canal)$"](${bbox});
-  way["natural"="coastline"](${bbox});
-  way["natural"="water"](${bbox});
-  relation["natural"="water"](${bbox});
-  way["water"](${bbox});
-  relation["water"](${bbox});
-  way["landuse"="residential"](${bbox});
-  relation["landuse"="residential"](${bbox});
-  way["landuse"~"^(forest|wood|orchard)$"](${bbox});
-  relation["landuse"~"^(forest|wood|orchard)$"](${bbox});
-  way["natural"="wood"](${bbox});
-  relation["natural"="wood"](${bbox});
-  way["leisure"="park"](${bbox});
-  relation["leisure"="park"](${bbox});
+  wr["natural"~"^(coastline|water|wood)$"](${bbox});
+  wr["landuse"~"^(residential|forest|wood|orchard)$"](${bbox});
+  wr["leisure"="park"](${bbox});
 );
 out geom;`
 }
@@ -152,29 +159,85 @@ export function hasMapDetails(context: Partial<MapContext> | null | undefined): 
   )
 }
 
-export async function fetchMapContext(bbox: string): Promise<MapContext> {
-  let response: Response
+export function endpointLabel(url: string): string {
   try {
-    response = await fetch(OVERPASS_URL, {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+/** Reported per attempt so the UI can show which mirror is being tried. */
+export interface MapContextProgress {
+  endpoint: string
+  attempt: number
+  total: number
+  durationMs?: number
+  status?: number
+  error?: string
+}
+
+export interface FetchMapContextOptions {
+  endpoints?: string[]
+  timeoutMs?: number
+  onProgress?: (progress: MapContextProgress) => void
+}
+
+async function requestOverpass(url: string, query: string, timeoutMs: number): Promise<Response> {
+  // `AbortSignal.timeout` is missing on iOS below 16, so drive the abort manually.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
       method: 'POST',
-      body: new URLSearchParams({ data: buildOverpassQuery(bbox) }),
-      // Overpass rejects requests carrying our page as Referer, and the user's
-      // browsing context is none of its business either.
+      body: new URLSearchParams({ data: query }),
+      // The user's route page is none of the mirror operator's business.
       referrerPolicy: 'no-referrer',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: controller.signal,
     })
-  } catch (error) {
-    if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      throw new Error(`Overpass timeout after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export async function fetchMapContext(bbox: string, options: FetchMapContextOptions = {}): Promise<MapContext> {
+  const endpoints = options.endpoints?.length ? options.endpoints : OVERPASS_ENDPOINTS
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
+  const query = buildOverpassQuery(bbox)
+  const failures: string[] = []
+
+  for (const [index, url] of endpoints.entries()) {
+    const label = endpointLabel(url)
+    const progress: MapContextProgress = { endpoint: label, attempt: index + 1, total: endpoints.length }
+    options.onProgress?.(progress)
+
+    const startedAt = Date.now()
+    let response: Response
+    try {
+      response = await requestOverpass(url, query, timeoutMs)
+    } catch (error) {
+      const name = error instanceof Error ? error.name : ''
+      const aborted = name === 'AbortError' || name === 'TimeoutError'
+      const reason = aborted
+        ? `Timeout nach ${Math.round(timeoutMs / 1000)}s`
+        : // Browsers collapse DNS failures, resets and blocks into an opaque TypeError.
+          'keine HTTP-Antwort (offline, blockiert oder Verbindung abgebrochen)'
+      failures.push(`${label}: ${reason}`)
+      options.onProgress?.({ ...progress, durationMs: Date.now() - startedAt, error: reason })
+      continue
     }
-    // Browsers report blocked or unreachable hosts as an opaque TypeError.
-    throw new Error('Overpass unreachable (keine HTTP-Antwort — blockiert, offline oder Verbindung abgebrochen)')
+
+    const durationMs = Date.now() - startedAt
+    if (!response.ok) {
+      const reason = response.status === 429 || response.status === 504 ? 'überlastet' : 'Fehler'
+      failures.push(`${label}: ${reason} (${response.status})`)
+      options.onProgress?.({ ...progress, durationMs, status: response.status, error: `${reason} (${response.status})` })
+      continue
+    }
+
+    options.onProgress?.({ ...progress, durationMs, status: response.status })
+    return parseOverpassResponse(await response.json())
   }
 
-  if (!response.ok) {
-    const reason = response.status === 429 || response.status === 504 ? 'busy' : 'error'
-    throw new Error(`Overpass ${reason} (${response.status})`)
-  }
-
-  return parseOverpassResponse(await response.json())
+  throw new Error(`Alle Overpass-Server fehlgeschlagen — ${failures.join(' · ')}`)
 }
