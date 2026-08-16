@@ -8,6 +8,14 @@ export interface ActivityRecord {
   latitude?: number
   longitude?: number
 }
+/** OSM background layers for a route preview, each path as [lon, lat] pairs. */
+export interface MapContext {
+  waterways: [number, number][][]
+  highways: [number, number][][]
+  coastlines: [number, number][][]
+  residential: [number, number][][]
+  forests: [number, number][][]
+}
 export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]
 export const TRAINING_SPORT_CATEGORIES = ['Cycling', 'Running', 'Hiking', 'Swimming', 'Cardio', 'Strength', 'Mobility'] as const

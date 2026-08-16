@@ -1,5 +1,5 @@
 import type { AnalysisResult } from '../analysis/analysisEngine'
-import type { AnalysisSummary, TrainingPlan, TrainingPlanHistoryEntry, UserConfig, Workout } from '../types/workout'
+import type { AnalysisSummary, MapContext, TrainingPlan, TrainingPlanHistoryEntry, UserConfig, Workout } from '../types/workout'
 import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 import { diagnosticLog } from '../services/logger'
@@ -298,13 +298,13 @@ export const workoutDb = {
     const db = await openDatabase()
     if (!db.objectStoreNames.contains('mapContext')) return undefined
     try {
-      return await transaction<{ waterways: number[][][]; highways: number[][][] } | undefined>('mapContext', 'readonly', (store) => store.get(workoutId))
+      return await transaction<MapContext | undefined>('mapContext', 'readonly', (store) => store.get(workoutId))
     } catch {
       return undefined
     }
   },
 
-  saveMapContext: async (workoutId: string, context: { waterways: number[][][]; highways: number[][][] }) => {
+  saveMapContext: async (workoutId: string, context: MapContext) => {
     const db = await openDatabase()
     if (!db.objectStoreNames.contains('mapContext')) return undefined
     try {

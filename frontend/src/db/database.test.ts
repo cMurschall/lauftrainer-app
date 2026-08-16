@@ -78,7 +78,7 @@ describe('local database and backups', () => {
       date: '2026-09-01',
       createdAt: new Date().toISOString(),
     })
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'pragmatist' })
+    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'pragmatist', mapDetailsConsent: 'unset' })
 
     const backup = await exportBackup()
     expect(backup.currentPlan?.plan?.days).toHaveLength(1)
@@ -106,7 +106,7 @@ describe('local database and backups', () => {
     await workoutDb.put(sample)
     await workoutDb.saveConfig(config)
     await workoutDb.savePlan(samplePlan)
-    await workoutDb.saveAppSettings({ theme: 'light', locale: 'en', connectors: [], coachStyle: 'mentor' })
+    await workoutDb.saveAppSettings({ theme: 'light', locale: 'en', connectors: [], coachStyle: 'mentor', mapDetailsConsent: 'allowed' })
     await workoutDb.clearAllUserData()
     expect(await workoutDb.list()).toEqual([])
     expect(await workoutDb.getConfig()).toBeUndefined()
@@ -175,7 +175,7 @@ describe('local database and backups', () => {
 
   it('does not bump analysis revision for app-only settings', async () => {
     const before = await workoutDb.getWorkoutRevision()
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'performance' })
+    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'performance', mapDetailsConsent: 'denied' })
     expect(await workoutDb.getWorkoutRevision()).toBe(before)
   })
 })

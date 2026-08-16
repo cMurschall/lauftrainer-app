@@ -1,6 +1,7 @@
 import type { CoachStyle } from './workout'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
+export type MapDetailsConsent = 'unset' | 'allowed' | 'denied'
 
 export type ConnectorId = 'polar' | 'strava'
 export type { CoachStyle }
@@ -36,13 +37,22 @@ export interface AppSettings {
   locale: 'de' | 'en'
   connectors: ConnectorSettings[]
   coachStyle: CoachStyle
+  /** Whether OSM/Overpass map details may leave the device. */
+  mapDetailsConsent: MapDetailsConsent
 }
+
+export const MAP_DETAILS_CONSENT_KEY = 'lauftrainer-map-details-consent'
 
 export const defaultAppSettings: AppSettings = {
   theme: 'system',
   locale: 'de',
   connectors: [{ id: 'polar', name: 'Polar', active: true, connected: false }, { id: 'strava', name: 'Strava', active: true, connected: false }],
   coachStyle: 'pragmatist',
+  mapDetailsConsent: 'unset',
+}
+
+export function normalizeMapDetailsConsent(value: unknown): MapDetailsConsent {
+  return value === 'allowed' || value === 'denied' || value === 'unset' ? value : 'unset'
 }
 
 export function normalizeAppSettings(stored: Partial<AppSettings> | undefined): AppSettings {
@@ -52,5 +62,6 @@ export function normalizeAppSettings(stored: Partial<AppSettings> | undefined): 
     ...stored,
     connectors: stored?.connectors?.length ? stored.connectors : defaultAppSettings.connectors,
     coachStyle: style === 'mentor' || style === 'pragmatist' || style === 'performance' ? style : 'pragmatist',
+    mapDetailsConsent: normalizeMapDetailsConsent(stored?.mapDetailsConsent),
   }
 }

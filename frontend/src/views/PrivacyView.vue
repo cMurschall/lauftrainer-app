@@ -80,7 +80,37 @@
     </section>
 
     <section>
-      <h2>7. Deine Rechte</h2>
+      <h2>7. Kartendetails (OpenStreetMap / Overpass)</h2>
+      <p>
+        Die GPS-Spur deines Trainings bleibt lokal auf dem Gerät. Zusätzliche Kartendetails
+        (Straßen, Gewässer, Wälder, Wohngebiete) werden nur geladen, wenn du eine Aktivität
+        aufklappst und dem Laden der Details zustimmst — oder wenn du das in den Einstellungen
+        dauerhaft erlaubst.
+      </p>
+      <p>
+        Dafür sendet dein Browser eine Anfrage direkt an die öffentliche Overpass-API
+        (OpenStreetMap-Daten). Übermittelt werden technisch notwendige Verbindungsdaten
+        (insbesondere deine IP-Adresse) sowie eine grob gerasterte Bounding-Box um die
+        Strecke — nicht die vollständige Track-Punktliste und keine Trainingsmetriken.
+        LaufTrainer speichert diese Anfrage nicht serverseitig; geladene Details können
+        lokal in IndexedDB zwischengespeichert werden, damit sie offline erneut verfügbar sind.
+      </p>
+      <p>
+        Du kannst Kartendetails jederzeit in den Einstellungen ablehnen oder erneut erlauben.
+        Ohne Zustimmung bleibt die lokale Streckenlinie sichtbar, die Hintergrundkarte entfällt.
+        Ergänzend gelten die Hinweise der OpenStreetMap-Foundation:
+        <a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noreferrer"
+          >Privacy Policy der OSMF</a
+        >
+        sowie die Nutzungsbedingungen von OpenStreetMap /
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
+          >Copyright und Daten</a
+        >.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Deine Rechte</h2>
       <p>
         Du hast im Rahmen der gesetzlichen Voraussetzungen das Recht auf Auskunft, Berichtigung,
         Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Für

@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
 import { TRAINING_SPORT_CATEGORIES } from '../types/workout'
-import type { CoachStyle, ConnectorId, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
+import type { CoachStyle, ConnectorId, MapDetailsConsent, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
@@ -28,7 +28,7 @@ const planStore = usePlanStore()
 const ui = useUiStore()
 const analysis = useAnalysisStore()
 
-const { theme, connectors, goals, config, coachStyle } = storeToRefs(settings)
+const { theme, connectors, goals, config, coachStyle, mapDetailsConsent } = storeToRefs(settings)
 const { summaries } = storeToRefs(workouts)
 const { plan } = storeToRefs(planStore)
 const { importProgress } = storeToRefs(ui)
@@ -65,6 +65,11 @@ const themeOptions = computed(() => [
 const languageOptions = computed(() => [
   { label: t.value.german, value: 'de' },
   { label: t.value.english, value: 'en' },
+])
+const mapDetailsConsentOptions = computed(() => [
+  { label: t.value.mapDetailsConsentAsk, value: 'unset' },
+  { label: t.value.mapDetailsConsentAllowed, value: 'allowed' },
+  { label: t.value.mapDetailsConsentDenied, value: 'denied' },
 ])
 const trainingGoalOptions = computed(() => [
   { label: t.value.goalBaseEndurance, value: 'base_endurance' },
@@ -168,6 +173,10 @@ async function changeLocale(value: Locale) {
 
 async function changeCoachStyle(value: CoachStyle) {
   await settings.updateCoachStyle(value)
+}
+
+async function changeMapDetailsConsent(value: MapDetailsConsent) {
+  await settings.updateMapDetailsConsent(value)
 }
 
 async function saveConfigAndRefresh() {
@@ -292,6 +301,24 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
         />
       </label>
     </div>
+  </section>
+  <section class="card settings-section">
+    <p class="eyebrow">{{ t.mapDetailsSettingsTitle }}</p>
+    <p class="field-help settings-help">{{ t.mapDetailsSettingsHelp }}</p>
+    <div class="form-grid">
+      <label
+        >{{ t.mapDetailsSettingsTitle }}
+        <UiSelect
+          :ariaLabel="t.mapDetailsSettingsTitle"
+          :model-value="mapDetailsConsent"
+          :options="mapDetailsConsentOptions"
+          @update:model-value="(value) => changeMapDetailsConsent(value as MapDetailsConsent)"
+        />
+      </label>
+    </div>
+    <p class="muted">
+      <RouterLink to="/datenschutz">{{ t.mapDetailsConsentPrivacyLink }}</RouterLink>
+    </p>
   </section>
   <section class="card settings-section">
     <p class="eyebrow">{{ t.athleteProfile }}</p>

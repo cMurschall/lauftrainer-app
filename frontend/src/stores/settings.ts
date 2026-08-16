@@ -7,8 +7,11 @@ import {
   type CoachStyle,
   type ConnectorId,
   type ConnectorSettings,
+  type MapDetailsConsent,
+  MAP_DETAILS_CONSENT_KEY,
   defaultAppSettings,
   normalizeAppSettings,
+  normalizeMapDetailsConsent,
   type ThemePreference,
   type TrainingGoal,
 } from '../types/settings'
@@ -34,6 +37,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemePreference>(initialTheme)
   const connectors = ref<ConnectorSettings[]>(structuredClone(defaultAppSettings.connectors))
   const coachStyle = ref<CoachStyle>(defaultAppSettings.coachStyle)
+  const mapDetailsConsent = ref<MapDetailsConsent>(
+    normalizeMapDetailsConsent(localStorage.getItem(MAP_DETAILS_CONSENT_KEY)),
+  )
   const goals = ref<TrainingGoal[]>([])
   const config = ref<UserConfig>(defaultUserConfig())
 
@@ -55,6 +61,11 @@ export const useSettingsStore = defineStore('settings', () => {
       setLocale(normalized.locale)
       connectors.value = normalized.connectors
       coachStyle.value = normalized.coachStyle
+      // Prefer IndexedDB when set; otherwise keep a prior LocalStorage choice.
+      if (normalized.mapDetailsConsent !== 'unset' || mapDetailsConsent.value === 'unset') {
+        mapDetailsConsent.value = normalized.mapDetailsConsent
+      }
+      localStorage.setItem(MAP_DETAILS_CONSENT_KEY, mapDetailsConsent.value)
     } else {
       const old = localStorage.getItem('lauftrainer-locale')
       if (old === 'de' || old === 'en') setLocale(old)
@@ -69,9 +80,11 @@ export const useSettingsStore = defineStore('settings', () => {
       locale: locale.value,
       connectors: connectors.value,
       coachStyle: coachStyle.value,
+      mapDetailsConsent: mapDetailsConsent.value,
     })
     await workoutDb.saveAppSettings(settings)
     localStorage.setItem('lauftrainer-theme', theme.value)
+    localStorage.setItem(MAP_DETAILS_CONSENT_KEY, mapDetailsConsent.value)
   }
 
   function updateTheme(value: ThemePreference) {
@@ -87,6 +100,12 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function updateCoachStyle(value: CoachStyle) {
     coachStyle.value = value
+    await saveSettings()
+  }
+
+  async function updateMapDetailsConsent(value: MapDetailsConsent) {
+    mapDetailsConsent.value = normalizeMapDetailsConsent(value)
+    localStorage.setItem(MAP_DETAILS_CONSENT_KEY, mapDetailsConsent.value)
     await saveSettings()
   }
 
@@ -164,6 +183,7 @@ export const useSettingsStore = defineStore('settings', () => {
     theme,
     connectors,
     coachStyle,
+    mapDetailsConsent,
     goals,
     config,
     load,
@@ -171,6 +191,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updateTheme,
     updateLocale,
     updateCoachStyle,
+    updateMapDetailsConsent,
     saveConfig,
     saveGoal,
     deleteGoal,

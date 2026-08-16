@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../i18n'
-import type { TrainingPlanDay } from '../types/workout'
+import type { MapContext, TrainingPlanDay } from '../types/workout'
 import {
   formatActivityDate,
   formatSport,
@@ -21,7 +21,7 @@ import { useAnalysisStore } from '../stores/analysis'
 import { useUiStore } from '../stores/ui'
 import { syncConnectors } from '../stores/dataLifecycle'
 import { workoutDb } from '../db/database'
-import { API_ROOT } from '../services/api'
+import { boundingBoxFromRecords, fetchMapContext, quantizeBbox } from '../services/mapContextService'
 import {
   averageWeeklyMinutes,
   connectorBannerKind,
@@ -198,61 +198,64 @@ const bannerKind = computed(() =>
 
 const expandedActivityId = ref<string | null>(null)
 
-const mapContexts = ref<Record<string, { waterways: number[][][]; highways: number[][][]; coastlines?: number[][][]; residential?: number[][][]; forests?: number[][][] }>>({})
+const mapContexts = ref<Record<string, MapContext>>({})
+const mapContextFailed = ref<Record<string, boolean>>({})
+const mapConsentOpen = ref(false)
+let mapConsentResolver: ((allowed: boolean) => void) | null = null
+
+function askMapDetailsConsent(): Promise<boolean> {
+  if (mapConsentOpen.value) {
+    return new Promise((resolve) => {
+      const previous = mapConsentResolver
+      mapConsentResolver = (allowed) => {
+        previous?.(false)
+        resolve(allowed)
+      }
+    })
+  }
+  mapConsentOpen.value = true
+  return new Promise((resolve) => {
+    mapConsentResolver = resolve
+  })
+}
+
+async function resolveMapDetailsConsent(allowed: boolean) {
+  mapConsentOpen.value = false
+  const resolver = mapConsentResolver
+  mapConsentResolver = null
+  await settings.updateMapDetailsConsent(allowed ? 'allowed' : 'denied')
+  resolver?.(allowed)
+}
 
 async function loadMapContextForWorkout(workoutId: string) {
+  if (mapContexts.value[workoutId] || mapContextFailed.value[workoutId]) return
+
   const workoutObj = workouts.workouts.find((w) => w.id === workoutId)
-  if (!workoutObj || !workoutObj.records) return
+  if (!workoutObj?.records) return
 
-  const gpsRecords = workoutObj.records.filter(
-    (r) => r.latitude !== undefined && r.longitude !== undefined,
-  )
-  if (gpsRecords.length < 2) return
+  const box = boundingBoxFromRecords(workoutObj.records)
+  if (!box) return
 
-  // If already loaded in memory, skip
-  if (mapContexts.value[workoutId]) return
-
-  // Check local database first
-  const localContext = await workoutDb.getMapContext(workoutId) as any
+  const localContext = await workoutDb.getMapContext(workoutId)
   if (localContext) {
     mapContexts.value[workoutId] = localContext
     return
   }
 
-  // Calculate bounding box of coordinates
-  let minLat = Infinity, maxLat = -Infinity
-  let minLng = Infinity, maxLng = -Infinity
-
-  for (const r of gpsRecords) {
-    if (r.latitude! < minLat) minLat = r.latitude!
-    if (r.latitude! > maxLat) maxLat = r.latitude!
-    if (r.longitude! < minLng) minLng = r.longitude!
-    if (r.longitude! > maxLng) maxLng = r.longitude!
+  let consent = settings.mapDetailsConsent
+  if (consent === 'unset') {
+    const allowed = await askMapDetailsConsent()
+    consent = allowed ? 'allowed' : 'denied'
   }
-
-  // Pad the bounding box slightly (by e.g. 15% of the range, at least 0.005 degrees)
-  const latRange = maxLat - minLat
-  const lngRange = maxLng - minLng
-  const latPad = Math.max(0.005, latRange * 0.15)
-  const lngPad = Math.max(0.005, lngRange * 0.15)
-
-  const minLatPadded = minLat - latPad
-  const maxLatPadded = maxLat + latPad
-  const minLngPadded = minLng - lngPad
-  const maxLngPadded = maxLng + lngPad
-
-  // Build bbox query parameter (format: minLat,minLng,maxLat,maxLng)
-  const bboxParam = `${minLatPadded.toFixed(6)},${minLngPadded.toFixed(6)},${maxLatPadded.toFixed(6)},${maxLngPadded.toFixed(6)}`
+  if (consent === 'denied') return
 
   try {
-    const response = await fetch(`${API_ROOT}/api/maps/context?bbox=${bboxParam}`)
-    if (response.ok) {
-      const data = await response.json() as any
-      mapContexts.value[workoutId] = data
-      // Save in local database for offline usage
-      await workoutDb.saveMapContext(workoutId, data)
-    }
+    const context = await fetchMapContext(quantizeBbox(box))
+    mapContexts.value[workoutId] = context
+    await workoutDb.saveMapContext(workoutId, context)
   } catch (error) {
+    // Overpass throttles heavily; keep the route visible and flag the missing layers.
+    mapContextFailed.value[workoutId] = true
     console.error('Failed to load map context:', error)
   }
 }
@@ -426,6 +429,29 @@ function getRouteSvgPath(workoutId: string) {
       <button type="button" aria-label="Meldung schließen" @click="ui.dismissNotification()">×</button>
     </div>
   </Transition>
+  <div
+    v-if="mapConsentOpen"
+    class="modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    :aria-label="t.mapDetailsConsentTitle"
+  >
+    <div class="modal-card">
+      <strong>{{ t.mapDetailsConsentTitle }}</strong>
+      <p class="muted">
+        {{ t.mapDetailsConsentBody }}
+        <RouterLink to="/datenschutz">{{ t.mapDetailsConsentPrivacyLink }}</RouterLink>
+      </p>
+      <div class="modal-actions">
+        <button class="button secondary" type="button" @click="resolveMapDetailsConsent(false)">
+          {{ t.mapDetailsConsentDeny }}
+        </button>
+        <button class="button primary" type="button" @click="resolveMapDetailsConsent(true)">
+          {{ t.mapDetailsConsentAllow }}
+        </button>
+      </div>
+    </div>
+  </div>
   <div class="dashboard-flow" :class="{ 'has-plan': hasPlan }">
     <section v-if="summaries.length" class="stats dashboard-stats">
       <article class="card">
@@ -590,6 +616,11 @@ function getRouteSvgPath(workoutId: string) {
                 <!-- Right Column: Route Map (SVG) -->
                 <div v-if="getRouteSvgPath(workout.id)" style="display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; position: relative; justify-content: center; align-items: center;">
                   <span style="position: absolute; top: 6px; left: 8px; color: var(--muted); font-size: 0.65rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px; pointer-events: none;">Strecke</span>
+                  <span
+                    v-if="mapContextFailed[workout.id]"
+                    style="position: absolute; top: 6px; right: 8px; color: var(--subtle); font-size: 0.62rem; font-weight: 550; pointer-events: none;"
+                    >{{ t.mapDetailsUnavailable }}</span
+                  >
                   <svg viewBox="0 0 240 150" style="width: 100%; height: 100%; min-height: 100px; display: block; max-height: 140px;">
                     <!-- Background Highways -->
                     <template v-if="getMapContextPaths(workout.id)">
