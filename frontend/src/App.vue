@@ -26,6 +26,7 @@ const { theme } = storeToRefs(settings)
 const { t, formatTime } = useI18n()
 const frontendLocalMode = ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
 const frontendVersion = frontendPackage.version
+const buildTime = __BUILD_TIME__
 const frontendCommit = import.meta.env.VITE_COMMIT_SHA || ''
 const { visible: pwaInstallVisible, ios: pwaInstallIos, install: installPwa, dismiss: dismissPwaInstall } = usePwaInstall()
 
@@ -85,7 +86,7 @@ onMounted(async () => {
           <div class="diagnostics-content">
             <BackendStatus :check="checkBackend" :checked-at="ui.backendCheckedAt" :status="ui.backendStatus" :version="ui.backendVersion" />
             <span>{{ t.frontendVersion }} {{ frontendVersion }}<template v-if="frontendCommit"> · {{ frontendCommit }}</template></span>
-            <span>Build: {{ new Date(__BUILD_TIME__).toLocaleString() }}</span>
+            <span>Build: {{ new Date(buildTime).toLocaleString() }}</span>
             <span>{{ t.backendVersion }} {{ ui.backendVersion }}<template v-if="ui.backendCommit"> · {{ ui.backendCommit }}</template></span>
           </div>
         </details>
