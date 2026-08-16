@@ -1645,7 +1645,7 @@
     padding: 0.95rem;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: color-mix(in srgb, var(--bg) 55%, var(--card));
+    background: color-mix(in srgb, var(--bg) 55%, var(--surface));
   }
 
   .sport-framework-head .field-heading {
@@ -1748,7 +1748,9 @@
     padding: 1rem;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: var(--card);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   }
 
   .modal-card textarea {
@@ -1779,7 +1781,7 @@
     padding: 0.85rem 1rem;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: var(--card);
+    background: var(--surface-raised);
     cursor: pointer;
   }
 
