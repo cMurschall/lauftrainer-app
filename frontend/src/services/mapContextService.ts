@@ -141,6 +141,17 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
   return context
 }
 
+/**
+ * Cached contexts from earlier versions can be empty (for example when a proxy
+ * answered without data), so treat those as a miss instead of a valid answer.
+ */
+export function hasMapDetails(context: Partial<MapContext> | null | undefined): boolean {
+  if (!context) return false
+  return [context.waterways, context.highways, context.coastlines, context.residential, context.forests].some(
+    (layer) => (layer?.length || 0) > 0,
+  )
+}
+
 export async function fetchMapContext(bbox: string): Promise<MapContext> {
   const response = await fetch(OVERPASS_URL, {
     method: 'POST',

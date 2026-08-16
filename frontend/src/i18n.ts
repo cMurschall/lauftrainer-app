@@ -307,6 +307,7 @@ const translations = {
     buyCredits: 'Credits kaufen',
     debugDetails: 'Debug-Details',
     mapDetailsUnavailable: 'Kartendetails nicht verfügbar',
+    mapDetailsDisabled: 'Kartendetails deaktiviert',
     mapDetailsConsentTitle: 'Kartendetails laden?',
     mapDetailsConsentBody:
       'Für Straßen, Gewässer und Wälder fragt dein Browser OpenStreetMap (Overpass) an. Dabei werden deine IP-Adresse und ein grober Kartenausschnitt um die Strecke übertragen — nicht die komplette GPS-Spur. Die Anfrage speichern wir nicht. Details:',
@@ -651,6 +652,7 @@ const translations = {
     buyCredits: 'Buy credits',
     debugDetails: 'Debug details',
     mapDetailsUnavailable: 'Map details unavailable',
+    mapDetailsDisabled: 'Map details turned off',
     mapDetailsConsentTitle: 'Load map details?',
     mapDetailsConsentBody:
       'To show roads, water and forests, your browser contacts OpenStreetMap (Overpass). That sends your IP address and a coarse map bounding box around the route — not the full GPS track. We do not store that request. Details:',

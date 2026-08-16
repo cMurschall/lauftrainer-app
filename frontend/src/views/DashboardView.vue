@@ -21,7 +21,7 @@ import { useAnalysisStore } from '../stores/analysis'
 import { useUiStore } from '../stores/ui'
 import { syncConnectors } from '../stores/dataLifecycle'
 import { workoutDb } from '../db/database'
-import { boundingBoxFromRecords, fetchMapContext, quantizeBbox } from '../services/mapContextService'
+import { boundingBoxFromRecords, fetchMapContext, hasMapDetails, quantizeBbox } from '../services/mapContextService'
 import {
   averageWeeklyMinutes,
   connectorBannerKind,
@@ -227,6 +227,12 @@ async function resolveMapDetailsConsent(allowed: boolean) {
   resolver?.(allowed)
 }
 
+function mapDetailsHint(workoutId: string): string {
+  if (mapContextFailed.value[workoutId]) return t.value.mapDetailsUnavailable
+  if (settings.mapDetailsConsent === 'denied' && !mapContexts.value[workoutId]) return t.value.mapDetailsDisabled
+  return ''
+}
+
 async function loadMapContextForWorkout(workoutId: string) {
   if (mapContexts.value[workoutId] || mapContextFailed.value[workoutId]) return
 
@@ -237,8 +243,8 @@ async function loadMapContextForWorkout(workoutId: string) {
   if (!box) return
 
   const localContext = await workoutDb.getMapContext(workoutId)
-  if (localContext) {
-    mapContexts.value[workoutId] = localContext
+  if (hasMapDetails(localContext)) {
+    mapContexts.value[workoutId] = localContext as MapContext
     return
   }
 
@@ -617,9 +623,9 @@ function getRouteSvgPath(workoutId: string) {
                 <div v-if="getRouteSvgPath(workout.id)" style="display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; position: relative; justify-content: center; align-items: center;">
                   <span style="position: absolute; top: 6px; left: 8px; color: var(--muted); font-size: 0.65rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px; pointer-events: none;">Strecke</span>
                   <span
-                    v-if="mapContextFailed[workout.id]"
+                    v-if="mapDetailsHint(workout.id)"
                     style="position: absolute; top: 6px; right: 8px; color: var(--subtle); font-size: 0.62rem; font-weight: 550; pointer-events: none;"
-                    >{{ t.mapDetailsUnavailable }}</span
+                    >{{ mapDetailsHint(workout.id) }}</span
                   >
                   <svg viewBox="0 0 240 150" style="width: 100%; height: 100%; min-height: 100px; display: block; max-height: 140px;">
                     <!-- Background Highways -->

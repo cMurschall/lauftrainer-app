@@ -4,6 +4,7 @@ import {
   boundingBoxFromRecords,
   buildOverpassQuery,
   fetchMapContext,
+  hasMapDetails,
   parseOverpassResponse,
   quantizeBbox,
 } from './mapContextService'
@@ -122,6 +123,23 @@ describe('fetchMapContext', () => {
   it('throws with the status when Overpass rejects the request', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('rate limited', { status: 429 })))
     await expect(fetchMapContext('54.3700,10.4700,54.4000,10.5300')).rejects.toThrow(/429/)
+  })
+})
+
+describe('hasMapDetails', () => {
+  it('treats missing and empty cached contexts as unusable', () => {
+    expect(hasMapDetails(undefined)).toBe(false)
+    expect(hasMapDetails(null)).toBe(false)
+    expect(hasMapDetails({ waterways: [], highways: [], coastlines: [], residential: [], forests: [] })).toBe(false)
+    // Shape stored by earlier versions, which only knew two layers.
+    expect(hasMapDetails({ waterways: [], highways: [] })).toBe(false)
+  })
+
+  it('accepts a context that carries at least one layer', () => {
+    expect(hasMapDetails({ waterways: [], highways: [[[1, 2]]], coastlines: [], residential: [], forests: [] })).toBe(
+      true,
+    )
+    expect(hasMapDetails({ forests: [[[1, 2]]] })).toBe(true)
   })
 })
 
