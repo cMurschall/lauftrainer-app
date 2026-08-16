@@ -16,6 +16,10 @@ const { t } = useI18n()
         <span aria-hidden="true" class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></svg></span><span>{{ t.dashboard }}</span
         ><span aria-hidden="true" class="nav-arrow">›</span>
       </RouterLink>
+      <RouterLink class="nav-link" exact-active-class="is-active" to="/training">
+        <span aria-hidden="true" class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span>{{ t.trainingNav }}</span
+        ><span aria-hidden="true" class="nav-arrow">›</span>
+      </RouterLink>
       <RouterLink class="nav-link" exact-active-class="is-active" to="/analysis">
         <span aria-hidden="true" class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/></svg></span><span>{{ t.analysisNav }}</span
         ><span aria-hidden="true" class="nav-arrow">›</span>

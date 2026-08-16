@@ -6,19 +6,9 @@ import DashboardView from './DashboardView.vue'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useSettingsStore } from '../stores/settings'
-import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
+import { localDateKey } from '../utils/planDates'
 import type { Workout } from '../types/workout'
-
-vi.mock('../utils/dashboardUi', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../utils/dashboardUi')>()
-  return {
-    ...actual,
-    isTrainingPlanLocalMode: () => mockedLocalMode,
-  }
-})
-
-let mockedLocalMode = true
 
 const sampleWorkout: Workout = {
   id: 'w1',
@@ -32,24 +22,6 @@ const sampleWorkout: Workout = {
   importedAt: '',
 }
 
-const samplePlan = {
-  start_date: '2026-08-10',
-  week_summary: { focus_title: 'Base', goal_description: 'Build aerobic fitness.' },
-  days: [
-    {
-      date: '2026-08-10',
-      day: 'monday' as const,
-      sport: 'running' as const,
-      session_type: 'training' as const,
-      title: 'Easy',
-      description: 'Easy run',
-      target_focus: 'Base',
-      total_duration_minutes: 40,
-      workout_steps: [],
-    },
-  ],
-}
-
 async function mountDashboard() {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -58,7 +30,7 @@ async function mountDashboard() {
     routes: [
       { path: '/', name: 'dashboard', component: DashboardView },
       { path: '/settings', name: 'settings', component: { template: '<div />' } },
-      { path: '/pricing', name: 'pricing', component: { template: '<div />' } },
+      { path: '/training', name: 'training', component: { template: '<div />' } },
     ],
   })
   await router.push('/')
@@ -72,45 +44,10 @@ async function mountDashboard() {
 }
 
 beforeEach(() => {
-  mockedLocalMode = true
   localStorage.clear()
 })
 
 describe('DashboardView UX', () => {
-  it('disables create without consent and shows primary create without a plan', async () => {
-    const wrapper = await mountDashboard()
-    const workouts = useWorkoutStore()
-    const ui = useUiStore()
-    workouts.workouts = [sampleWorkout]
-    ui.consent = false
-    await wrapper.vm.$nextTick()
-
-    const button = wrapper.get('[data-testid="create-plan-button"]')
-    expect(button.text()).toMatch(/Create plan|Plan erstellen/)
-    expect(button.classes()).toContain('primary')
-    expect(button.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toMatch(/consent|Einverständnis|Please consent|Bitte zuerst/i)
-  })
-
-  it('shows replace primary when a plan exists and enables create in local mode with consent', async () => {
-    const wrapper = await mountDashboard()
-    const workouts = useWorkoutStore()
-    const plan = usePlanStore()
-    const ui = useUiStore()
-    workouts.workouts = [sampleWorkout]
-    plan.plan = samplePlan
-    ui.consent = true
-    ui.credits = 0
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toMatch(/Next 7 days|Nächste 7 Tage/)
-    expect(wrapper.find('.dashboard-flow.has-plan').exists()).toBe(true)
-    const button = wrapper.get('[data-testid="create-plan-button"]')
-    expect(button.text()).toMatch(/Replace plan|Plan ersetzen/)
-    expect(button.classes()).toContain('primary')
-    expect(button.attributes('disabled')).toBeUndefined()
-  })
-
   it('shows soft connector copy when local workouts exist without sync', async () => {
     const wrapper = await mountDashboard()
     useWorkoutStore().workouts = [sampleWorkout]
@@ -129,23 +66,39 @@ describe('DashboardView UX', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-banner="empty"]').exists()).toBe(false)
     expect(wrapper.find('.dashboard-stats').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="create-plan-button"]').exists()).toBe(false)
     expect(wrapper.find('.dashboard-empty-hero').exists()).toBe(true)
     expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
   })
 
-  it('disables create for zero credits outside local mode', async () => {
-    mockedLocalMode = false
+  it('shows today\'s workout widget when today has a planned workout', async () => {
     const wrapper = await mountDashboard()
     const workouts = useWorkoutStore()
-    const ui = useUiStore()
+    const planStore = usePlanStore()
     workouts.workouts = [sampleWorkout]
-    ui.consent = true
-    ui.credits = 0
+
+    const todayStr = localDateKey()
+    planStore.plan = {
+      start_date: todayStr,
+      week_summary: { focus_title: 'Base', goal_description: 'Build aerobic fitness.' },
+      days: [
+        {
+          date: todayStr,
+          day: 'monday' as const,
+          sport: 'running' as const,
+          session_type: 'training' as const,
+          title: 'Easy Run',
+          description: 'A very easy active recovery run',
+          target_focus: 'Base Endurance',
+          total_duration_minutes: 45,
+          workout_steps: [],
+        },
+      ],
+    }
+
     await wrapper.vm.$nextTick()
-    const button = wrapper.get('[data-testid="create-plan-button"]')
-    expect(button.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toMatch(/1 credit|1 Credit/)
+    expect(wrapper.text()).toMatch(/Today|Heute/)
+    expect(wrapper.text()).toMatch(/Easy Run|A very easy active recovery run/)
+    expect(wrapper.find('.dashboard-plan').exists()).toBe(true)
   })
 })
 

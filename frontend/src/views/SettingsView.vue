@@ -602,6 +602,13 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
             <small>{{ t.deleteProfileHelp }}</small>
           </span>
         </label>
+        <label class="delete-option">
+          <input v-model="deleteSelection.mapContext" type="checkbox" />
+          <span>
+            <strong>{{ t.deleteMapContext }}</strong>
+            <small>{{ t.deleteMapContextHelp }}</small>
+          </span>
+        </label>
       </div>
       <div class="settings-actions delete-panel-actions">
         <button

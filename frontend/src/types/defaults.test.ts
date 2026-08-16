@@ -20,7 +20,7 @@ describe('user config defaults', () => {
     expect(normalized).not.toHaveProperty('maxWeeklyTrainingMinutes')
     expect(normalized).not.toHaveProperty('maxTrainingMinutesPerDay')
     expect(normalized.preferredTrainingDays).toEqual(['tuesday', 'thursday'])
-    expect(normalized.availableSports).toEqual(['Running', 'Yoga'])
+    expect(normalized.availableSports).toEqual(['Running', 'Mobility'])
   })
 
   it('falls back to defaults when preferred days or sports are empty', () => {

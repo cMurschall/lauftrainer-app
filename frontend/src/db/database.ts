@@ -7,8 +7,8 @@ import { toWorkoutSummary, type WorkoutSummary } from '../utils/workoutSummary'
 import { planHasDatedDays } from '../utils/planDates'
 
 const DB_NAME = 'lauftrainer-local'
-const DB_VERSION = 6
-const USER_DATA_STORES = ['workouts', 'settings', 'plans', 'planHistory', 'goals', 'analysisCache'] as const
+const DB_VERSION = 7
+const USER_DATA_STORES = ['workouts', 'settings', 'plans', 'planHistory', 'goals', 'analysisCache', 'mapContext'] as const
 
 type StoredPlan = {
   id: 'current'
@@ -35,6 +35,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('backups')) db.createObjectStore('backups', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('analysisCache')) db.createObjectStore('analysisCache', { keyPath: 'cacheKey' })
       if (!db.objectStoreNames.contains('goals')) db.createObjectStore('goals', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('mapContext')) db.createObjectStore('mapContext')
     }
     request.onsuccess = () => {
       const db = request.result
@@ -70,6 +71,9 @@ async function transaction<T>(
   action: (store: IDBObjectStore) => IDBRequest | void,
 ): Promise<T> {
   const db = await openDatabase()
+  if (!db.objectStoreNames.contains(storeName)) {
+    return Promise.reject(new DOMException(`Object store '${storeName}' is not a known object store name.`))
+  }
   return new Promise((resolve, reject) => {
     const dbTransaction = db.transaction(storeName, mode)
     const transactionId = crypto.randomUUID()
@@ -119,15 +123,18 @@ async function multiStoreTransaction(
   action: (stores: Record<string, IDBObjectStore>) => void | Promise<void>,
 ): Promise<void> {
   const db = await openDatabase()
+  const existingStoreNames = storeNames.filter((name) => db.objectStoreNames.contains(name))
+  if (existingStoreNames.length === 0) return Promise.resolve()
+
   return new Promise((resolve, reject) => {
-    const dbTransaction = db.transaction([...storeNames], mode)
+    const dbTransaction = db.transaction(existingStoreNames, mode)
     let settled = false
     const fail = (error: unknown) => {
       if (settled) return
       settled = true
       reject(error)
     }
-    const stores = Object.fromEntries(storeNames.map((name) => [name, dbTransaction.objectStore(name)]))
+    const stores = Object.fromEntries(existingStoreNames.map((name) => [name, dbTransaction.objectStore(name)]))
     Promise.resolve(action(stores)).catch(fail)
     dbTransaction.onerror = () => fail(dbTransaction.error)
     dbTransaction.onabort = () => fail(dbTransaction.error || new Error('IndexedDB transaction aborted'))
@@ -287,6 +294,26 @@ export const workoutDb = {
 
   clearAnalysisCache: () => transaction<undefined>('analysisCache', 'readwrite', (store) => store.clear()),
 
+  getMapContext: async (workoutId: string) => {
+    const db = await openDatabase()
+    if (!db.objectStoreNames.contains('mapContext')) return undefined
+    try {
+      return await transaction<{ waterways: number[][][]; highways: number[][][] } | undefined>('mapContext', 'readonly', (store) => store.get(workoutId))
+    } catch {
+      return undefined
+    }
+  },
+
+  saveMapContext: async (workoutId: string, context: { waterways: number[][][]; highways: number[][][] }) => {
+    const db = await openDatabase()
+    if (!db.objectStoreNames.contains('mapContext')) return undefined
+    try {
+      return await transaction<IDBValidKey>('mapContext', 'readwrite', (store) => store.put(context, workoutId))
+    } catch {
+      return undefined
+    }
+  },
+
   getWorkoutRevision: async () =>
     (await transaction<number | undefined>('settings', 'readonly', (store) => store.get('workoutRevision'))) || 0,
 
@@ -306,7 +333,19 @@ export const workoutDb = {
   clearUserData: async (selection: ClearDataSelection) => {
     if (!hasClearDataSelection(selection)) return
     await multiStoreTransaction(USER_DATA_STORES, 'readwrite', async (stores) => {
-      if (selection.workouts) stores.workouts.clear()
+      if (selection.workouts) {
+        stores.workouts.clear()
+        if (stores.mapContext) {
+          stores.mapContext.clear()
+          console.info('[LaufTrainer] Karten-Cache gelöscht (Workouts zurückgesetzt).')
+          diagnosticLog('db.clear.mapContext', { trigger: 'workouts' })
+        }
+      }
+      if (selection.mapContext && stores.mapContext) {
+        stores.mapContext.clear()
+        console.info('[LaufTrainer] Karten-Cache wurde erfolgreich geleert.')
+        diagnosticLog('db.clear.mapContext', { trigger: 'manual' })
+      }
       if (selection.goals) stores.goals.clear()
       if (selection.plan) {
         stores.plans.clear()
@@ -326,12 +365,12 @@ export const workoutDb = {
   },
 }
 
-export type ClearDataKey = 'workouts' | 'plan' | 'goals' | 'profile'
+export type ClearDataKey = 'workouts' | 'plan' | 'goals' | 'profile' | 'mapContext'
 
-export type ClearDataSelection = Record<ClearDataKey, boolean>
+export type ClearDataSelection = Partial<Record<ClearDataKey, boolean>>
 
 export function defaultClearDataSelection(): ClearDataSelection {
-  return { workouts: true, plan: true, goals: true, profile: true }
+  return { workouts: true, plan: true, goals: true, profile: true, mapContext: true }
 }
 
 export function hasClearDataSelection(selection: ClearDataSelection): boolean {
@@ -407,6 +446,11 @@ export async function importBackup(backup: LocalBackup): Promise<void> {
     stores.plans.clear()
     stores.planHistory.clear()
     stores.analysisCache.clear()
+    if (stores.mapContext) {
+      stores.mapContext.clear()
+      console.info('[LaufTrainer] Karten-Cache vor Backup-Import geleert.')
+      diagnosticLog('db.clear.mapContext', { trigger: 'backup_import' })
+    }
     stores.settings.delete('config')
 
     for (const workout of backup.workouts) stores.workouts.put(normalizeWorkout(workout))

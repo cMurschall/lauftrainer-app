@@ -7,9 +7,10 @@ import { createTrainingPlan } from './training'
 import type { Env } from './types'
 import { balance, createCheckout, createWallet, paddleWebhook, redeemVoucher, cleanupReservations } from './billing'
 import { adminPage, createAdminRestore, createAdminVoucher } from './admin'
+import { mapContext } from './maps'
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: { waitUntil(promise: Promise<any>): void }): Promise<Response> {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, env) })
     const path = new URL(request.url).pathname
     try {
@@ -35,6 +36,7 @@ export default {
       if (request.method === 'POST' && path === '/api/billing/checkout') return await createCheckout(request, env)
       if (request.method === 'POST' && path === '/api/billing/voucher/redeem') return await redeemVoucher(request, env)
       if (request.method === 'POST' && path === '/api/billing/webhook') return await paddleWebhook(request, env)
+      if (request.method === 'GET' && path === '/api/maps/context') return await mapContext(request, env, ctx)
       if (request.method === 'GET' && path === '/api/billing/region') {
         const country = request.headers.get('CF-IPCountry') || request.headers.get('x-vercel-ip-country')
         return json({ country: country && /^[A-Z]{2}$/.test(country.toUpperCase()) ? country.toUpperCase() : null }, 200, request, env)
