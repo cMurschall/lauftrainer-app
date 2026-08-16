@@ -231,7 +231,8 @@ function layerCount(context: Partial<MapContext> | null | undefined): string {
   const size = (layer?: unknown[]) => layer?.length || 0
   return [
     `hw ${size(context?.highways)}`,
-    `wa ${size(context?.waterways)}`,
+    `ww ${size(context?.waterways)}`,
+    `wa ${size(context?.waterAreas)}`,
     `co ${size(context?.coastlines)}`,
     `re ${size(context?.residential)}`,
     `fo ${size(context?.forests)}`,

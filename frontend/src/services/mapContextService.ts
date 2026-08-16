@@ -90,10 +90,11 @@ export function buildOverpassQuery(bbox: string): string {
   return `[out:json][timeout:20];
 (
   way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential)$"](${bbox});
-  way["waterway"~"^(river|canal)$"](${bbox});
-  wr["natural"~"^(coastline|water|wood)$"](${bbox});
+  way["waterway"~"^(river|canal|stream|creek)$"](${bbox});
+  wr["natural"~"^(coastline|water|wood|bay|strait)$"](${bbox});
   wr["landuse"~"^(residential|forest|wood|orchard)$"](${bbox});
   wr["leisure"="park"](${bbox});
+  wr["water"](${bbox});
   node["place"~"^(city|town|municipality|village|suburb|quarter|neighbourhood|neighborhood|hamlet|locality)$"](${bbox});
 );
 out geom;`
@@ -153,7 +154,6 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
     else if (tags.natural === 'coastline') context.coastlines.push(coords)
     else if (tags.natural === 'water' || tags.water) {
       context.waterAreas.push(coords)
-      console.log('Added to waterAreas:', coords.length, 'points')
     }
     else if (tags.highway) context.highways.push(coords)
     else if (tags.landuse === 'residential') context.residential.push(coords)
