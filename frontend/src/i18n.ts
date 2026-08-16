@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 export type Locale = 'de' | 'en'
 const translations = {
   de: {
-    coach: 'Wissenschaftlich fundiertes Lauftraining. 100 % lokal, ohne Abo.',
+    coach: 'Wissenschaftlich fundiertes Lauftraining. Daten 100 % lokal, ohne Abo.',
     offlineReady: 'Offline bereit',
     technicalInformation: 'Technische Informationen',
     frontendVersion: 'Frontend',
@@ -330,7 +330,7 @@ const translations = {
     restoreToDashboard: 'Zum Dashboard',
   },
   en: {
-    coach: 'Evidence-based running training. 100% local, no subscription.',
+    coach: 'Evidence-based running training. Data 100% local, no subscription.',
     offlineReady: 'Offline ready',
     technicalInformation: 'Technical information',
     frontendVersion: 'Frontend',
