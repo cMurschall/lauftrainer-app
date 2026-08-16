@@ -54,6 +54,28 @@ describe('billing', () => {
     assert.equal(unauthorized.status, 401)
   })
 
+  it('grants welcome credits once when WELCOME_CREDITS is set', async () => {
+    const db = new MemoryD1()
+    const env = { ...envWithDb(db), WELCOME_CREDITS: '3' }
+    const response = await createWallet(new Request('http://worker.test/api/billing/wallet', { method: 'POST' }), env)
+    assert.equal(response.status, 201)
+    const payload = await response.json() as { wallet_id: string; wallet_token: string; balance: number }
+    assert.equal(payload.balance, 3)
+    assert.equal(db.credit_ledger.length, 1)
+    assert.equal(db.credit_ledger[0]?.kind, 'welcome')
+    assert.equal(db.credit_ledger[0]?.amount, 3)
+    assert.equal(db.credit_ledger[0]?.reference_id, payload.wallet_id)
+
+    const headers = { 'X-Wallet-Token': payload.wallet_token }
+    const reserved = await reserveCredit(
+      new Request('http://worker.test/api/billing/reserve', { headers }),
+      env,
+      'req_welcome_1',
+    )
+    assert.equal(reserved.error, undefined)
+    assert.ok(reserved.reservationId)
+  })
+
   it('redeems vouchers and rejects expired or duplicate codes', async () => {
     const db = new MemoryD1()
     const { env, wallet_token } = await createTestWallet(db)

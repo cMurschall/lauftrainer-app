@@ -26,11 +26,28 @@ async function cleanup(env: Env) {
   await database.prepare("UPDATE plan_reservations SET status = 'released', completed_at = ? WHERE status = 'pending_plan_generation' AND expires_at <= ?")
     .bind(new Date().toISOString(), new Date().toISOString()).run()
 }
+function welcomeCredits(env: Env) {
+  const parsed = Number.parseInt(String(env.WELCOME_CREDITS ?? '0'), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0
+  return Math.min(parsed, 100)
+}
+
 export async function createWallet(request: Request, env: Env) {
   const database = db(env); if (!database) return json({ detail: 'Billing ist nicht konfiguriert.' }, 503, request, env)
   const raw = token(), now = new Date().toISOString(), walletId = id('wallet')
-  await database.prepare('INSERT INTO wallets(wallet_id, token_hash, created_at, updated_at) VALUES(?,?,?,?)').bind(walletId, await digest(raw), now, now).run()
-  return json({ wallet_token: raw, wallet_id: walletId, balance: 0 }, 201, request, env)
+  const grant = welcomeCredits(env)
+  const statements = [
+    database.prepare('INSERT INTO wallets(wallet_id, token_hash, created_at, updated_at) VALUES(?,?,?,?)').bind(walletId, await digest(raw), now, now),
+  ]
+  if (grant > 0) {
+    statements.push(
+      database.prepare(
+        'INSERT INTO credit_ledger(ledger_id,wallet_id,amount,kind,reference_id,created_at) VALUES(?,?,?,?,?,?)',
+      ).bind(id('ledger'), walletId, grant, 'welcome', walletId, now),
+    )
+  }
+  await database.batch(statements)
+  return json({ wallet_token: raw, wallet_id: walletId, balance: grant }, 201, request, env)
 }
 export async function balance(request: Request, env: Env) {
   const database = db(env); const found = await wallet(request, env); await cleanup(env)

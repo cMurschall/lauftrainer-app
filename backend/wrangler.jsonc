@@ -9,6 +9,7 @@
     "POLAR_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/polar/callback",
     "STRAVA_REDIRECT_URI": "https://lauftrainer-app-backend.christian-murschall.workers.dev/api/connectors/strava/callback",
     "STRAVA_CLIENT_ID": "271866",
+    "WELCOME_CREDITS": "3",
   },
   "kv_namespaces": [
     {

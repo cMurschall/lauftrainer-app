@@ -20,5 +20,7 @@ export interface Env {
   PADDLE_PRICE_BASIC?: string
   PADDLE_PRICE_PLUS?: string
   PADDLE_PRICE_PRO?: string
+  /** Free credits granted once when a wallet is created (e.g. "3"). */
+  WELCOME_CREDITS?: string
   ADMIN_SECRET?: string
 }
