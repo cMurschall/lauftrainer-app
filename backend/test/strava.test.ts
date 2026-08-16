@@ -78,6 +78,7 @@ describe('strava oauth and sync', () => {
               average_heartrate: 132,
               total_elevation_gain: 400,
               average_speed: 8.8,
+              map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
             },
           ]),
           { status: 200 },
@@ -101,10 +102,23 @@ describe('strava oauth and sync', () => {
       env(kv),
     )
     assert.equal(sync.status, 200)
-    const payload = await sync.json() as { workouts: Array<Record<string, unknown>>; count: number }
+    const payload = await sync.json() as {
+      workouts: Array<{
+        sport: string
+        distanceKm: number
+        durationSeconds: number
+        records: Array<{ latitude: number; longitude: number; elapsedSeconds: number }>
+      }>
+      count: number
+    }
     assert.equal(payload.count, 1)
     assert.equal(payload.workouts[0].sport, 'Cycling')
     assert.equal(payload.workouts[0].distanceKm, 32)
     assert.equal(payload.workouts[0].durationSeconds, 3600)
+    assert.equal(payload.workouts[0].records.length, 3)
+    assert.equal(payload.workouts[0].records[0].elapsedSeconds, 0)
+    assert.equal(payload.workouts[0].records[2].elapsedSeconds, 3600)
+    assert.ok(Number.isFinite(payload.workouts[0].records[0].latitude))
+    assert.ok(Number.isFinite(payload.workouts[0].records[0].longitude))
   })
 })
