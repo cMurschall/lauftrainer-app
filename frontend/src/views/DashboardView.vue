@@ -203,6 +203,40 @@ const mapContextFailed = ref<Record<string, boolean>>({})
 const mapConsentOpen = ref(false)
 let mapConsentResolver: ((allowed: boolean) => void) | null = null
 
+// TEMP map diagnostics — remove this flag, mapDiagnostics, traceMap, layerCount
+// and the diagnostics line in the template once mobile map loading is verified.
+const SHOW_MAP_DIAGNOSTICS = true
+const mapDiagnostics = ref<Record<string, string[]>>({})
+const isOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
+const updateOnlineState = () => {
+  isOnline.value = navigator.onLine
+}
+onMounted(() => {
+  window.addEventListener('online', updateOnlineState)
+  window.addEventListener('offline', updateOnlineState)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('online', updateOnlineState)
+  window.removeEventListener('offline', updateOnlineState)
+})
+
+function traceMap(workoutId: string, message: string) {
+  if (!SHOW_MAP_DIAGNOSTICS) return
+  const time = new Date().toLocaleTimeString(undefined, { hour12: false })
+  mapDiagnostics.value[workoutId] = [...(mapDiagnostics.value[workoutId] || []), `${time} ${message}`].slice(-8)
+}
+
+function layerCount(context: Partial<MapContext> | null | undefined): string {
+  const size = (layer?: unknown[]) => layer?.length || 0
+  return [
+    `hw ${size(context?.highways)}`,
+    `wa ${size(context?.waterways)}`,
+    `co ${size(context?.coastlines)}`,
+    `re ${size(context?.residential)}`,
+    `fo ${size(context?.forests)}`,
+  ].join(' · ')
+}
+
 function askMapDetailsConsent(): Promise<boolean> {
   if (mapConsentOpen.value) {
     return new Promise((resolve) => {
@@ -234,34 +268,59 @@ function mapDetailsHint(workoutId: string): string {
 }
 
 async function loadMapContextForWorkout(workoutId: string) {
-  if (mapContexts.value[workoutId] || mapContextFailed.value[workoutId]) return
+  if (mapContexts.value[workoutId]) {
+    traceMap(workoutId, `bereits geladen (${layerCount(mapContexts.value[workoutId])})`)
+    return
+  }
+  if (mapContextFailed.value[workoutId]) {
+    traceMap(workoutId, 'zuvor fehlgeschlagen, kein neuer Versuch in dieser Sitzung')
+    return
+  }
 
   const workoutObj = workouts.workouts.find((w) => w.id === workoutId)
-  if (!workoutObj?.records) return
+  if (!workoutObj?.records) {
+    traceMap(workoutId, 'keine Records im Store (Workout nicht vollständig geladen)')
+    return
+  }
 
   const box = boundingBoxFromRecords(workoutObj.records)
-  if (!box) return
+  if (!box) {
+    traceMap(workoutId, `keine Bounding-Box: ${workoutObj.records.length} Records ohne GPS`)
+    return
+  }
 
   const localContext = await workoutDb.getMapContext(workoutId)
   if (hasMapDetails(localContext)) {
     mapContexts.value[workoutId] = localContext as MapContext
+    traceMap(workoutId, `aus IndexedDB (${layerCount(localContext)})`)
     return
   }
+  traceMap(workoutId, localContext ? `IndexedDB leer (${layerCount(localContext)})` : 'nicht in IndexedDB')
 
   let consent = settings.mapDetailsConsent
   if (consent === 'unset') {
+    traceMap(workoutId, 'warte auf Zustimmung')
     const allowed = await askMapDetailsConsent()
     consent = allowed ? 'allowed' : 'denied'
   }
-  if (consent === 'denied') return
+  if (consent === 'denied') {
+    traceMap(workoutId, 'Zustimmung: nie laden (Einstellungen → Kartendetails)')
+    return
+  }
 
+  const bbox = quantizeBbox(box)
+  const startedAt = Date.now()
+  traceMap(workoutId, `Overpass-Abfrage bbox=${bbox}`)
   try {
-    const context = await fetchMapContext(quantizeBbox(box))
+    const context = await fetchMapContext(bbox)
     mapContexts.value[workoutId] = context
+    traceMap(workoutId, `Antwort nach ${Date.now() - startedAt} ms (${layerCount(context)})`)
     await workoutDb.saveMapContext(workoutId, context)
   } catch (error) {
     // Overpass throttles heavily; keep the route visible and flag the missing layers.
     mapContextFailed.value[workoutId] = true
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    traceMap(workoutId, `Fehler nach ${Date.now() - startedAt} ms — ${detail}`)
     console.error('Failed to load map context:', error)
   }
 }
@@ -694,6 +753,21 @@ function getRouteSvgPath(workoutId: string) {
                       style="filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.4));"
                     />
                   </svg>
+                  <!-- TEMP map diagnostics — remove this block together with SHOW_MAP_DIAGNOSTICS. -->
+                  <div
+                    v-if="SHOW_MAP_DIAGNOSTICS"
+                    style="width: 100%; border-top: 1px solid var(--border); padding-top: 6px; display: flex; flex-direction: column; gap: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6rem; line-height: 1.35; color: var(--muted); word-break: break-word; user-select: text;"
+                  >
+                    <span
+                      >consent={{ settings.mapDetailsConsent }} · online={{ isOnline }} · layers={{
+                        layerCount(mapContexts[workout.id])
+                      }}</span
+                    >
+                    <span v-for="(line, lIdx) in mapDiagnostics[workout.id] || []" :key="`d-${workout.id}-${lIdx}`">{{
+                      line
+                    }}</span>
+                    <span v-if="!(mapDiagnostics[workout.id] || []).length">keine Kartenschritte protokolliert</span>
+                  </div>
                 </div>
               </div>
 
