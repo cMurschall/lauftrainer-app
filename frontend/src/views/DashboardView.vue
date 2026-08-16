@@ -480,6 +480,10 @@ function getRouteSvgPath(workoutId: string) {
     .map(coords => projectCoords(coords))
     .filter(Boolean)
 
+  const waterAreasPaths = (context.waterAreas || [])
+    .map(coords => projectCoords(coords, true))
+    .filter(Boolean)
+
   const highwaysPaths = (context.highways || [])
     .map(coords => projectCoords(coords))
     .filter(Boolean)
@@ -498,6 +502,7 @@ function getRouteSvgPath(workoutId: string) {
 
   return {
     waterways: waterwaysPaths,
+    waterAreas: waterAreasPaths,
     highways: highwaysPaths,
     coastlines: coastlinesPaths,
     residential: residentialPaths,
@@ -752,6 +757,13 @@ function getRouteSvgPath(workoutId: string) {
                         stroke-width="1.1"
                         stroke-linecap="round"
                         stroke-linejoin="round"
+                      />
+                      <!-- Background Water areas -->
+                      <path
+                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.waterAreas"
+                        :key="`wa-${workout.id}-${pIdx}`"
+                        :d="path"
+                        fill="var(--map-water)"
                       />
                       <!-- Background Waterways / Rivers -->
                       <path

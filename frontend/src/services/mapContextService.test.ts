@@ -108,6 +108,7 @@ describe('parseOverpassResponse', () => {
   it('tolerates empty and malformed payloads', () => {
     expect(parseOverpassResponse(undefined)).toEqual({
       waterways: [],
+      waterAreas: [],
       highways: [],
       coastlines: [],
       residential: [],
@@ -250,13 +251,13 @@ describe('hasMapDetails', () => {
   it('treats missing and empty cached contexts as unusable', () => {
     expect(hasMapDetails(undefined)).toBe(false)
     expect(hasMapDetails(null)).toBe(false)
-    expect(hasMapDetails({ waterways: [], highways: [], coastlines: [], residential: [], forests: [] })).toBe(false)
+    expect(hasMapDetails({ waterways: [], waterAreas: [], highways: [], coastlines: [], residential: [], forests: [] })).toBe(false)
     // Shape stored by earlier versions, which only knew two layers.
     expect(hasMapDetails({ waterways: [], highways: [] })).toBe(false)
   })
 
   it('accepts a context that carries at least one layer', () => {
-    expect(hasMapDetails({ waterways: [], highways: [[[1, 2]]], coastlines: [], residential: [], forests: [] })).toBe(
+    expect(hasMapDetails({ waterways: [], waterAreas: [[[1, 2]]], highways: [[[1, 2]]], coastlines: [], residential: [], forests: [] })).toBe(
       true,
     )
     expect(hasMapDetails({ forests: [[[1, 2]]] })).toBe(true)

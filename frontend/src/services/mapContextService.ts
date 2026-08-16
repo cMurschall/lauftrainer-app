@@ -144,14 +144,14 @@ type OverpassElement = {
 }
 
 export function parseOverpassResponse(data: { elements?: OverpassElement[] } | null | undefined): MapContext {
-  const context: MapContext = { waterways: [], highways: [], coastlines: [], residential: [], forests: [] }
+  const context: MapContext = { waterways: [], waterAreas: [], highways: [], coastlines: [], residential: [], forests: [] }
   const places: PlaceCandidate[] = []
 
   const assign = (coords: [number, number][], tags: OverpassTags | undefined) => {
     if (!tags || coords.length === 0) return
     if (tags.waterway) context.waterways.push(coords)
     else if (tags.natural === 'coastline') context.coastlines.push(coords)
-    else if (tags.natural === 'water' || tags.water) context.waterways.push(coords)
+    else if (tags.natural === 'water' || tags.water) context.waterAreas.push(coords)
     else if (tags.highway) context.highways.push(coords)
     else if (tags.landuse === 'residential') context.residential.push(coords)
     else if (
@@ -201,7 +201,7 @@ export function parseOverpassResponse(data: { elements?: OverpassElement[] } | n
  */
 export function hasMapDetails(context: Partial<MapContext> | null | undefined): boolean {
   if (!context) return false
-  return [context.waterways, context.highways, context.coastlines, context.residential, context.forests].some(
+  return [context.waterways, context.waterAreas, context.highways, context.coastlines, context.residential, context.forests].some(
     (layer) => (layer?.length || 0) > 0,
   )
 }

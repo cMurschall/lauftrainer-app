@@ -11,6 +11,7 @@ export interface ActivityRecord {
 /** OSM background layers for a route preview, each path as [lon, lat] pairs. */
 export interface MapContext {
   waterways: [number, number][][]
+  waterAreas: [number, number][][]
   highways: [number, number][][]
   coastlines: [number, number][][]
   residential: [number, number][][]
