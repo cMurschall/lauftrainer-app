@@ -85,6 +85,7 @@ onMounted(async () => {
           <div class="diagnostics-content">
             <BackendStatus :check="checkBackend" :checked-at="ui.backendCheckedAt" :status="ui.backendStatus" :version="ui.backendVersion" />
             <span>{{ t.frontendVersion }} {{ frontendVersion }}<template v-if="frontendCommit"> · {{ frontendCommit }}</template></span>
+            <span>Build: {{ new Date(__BUILD_TIME__).toLocaleString() }}</span>
             <span>{{ t.backendVersion }} {{ ui.backendVersion }}<template v-if="ui.backendCommit"> · {{ ui.backendCommit }}</template></span>
           </div>
         </details>
