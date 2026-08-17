@@ -14,7 +14,13 @@ import { MemoryD1, seedVoucher } from './helpers/memoryD1.ts'
 const baseEnv = {
   ALLOWED_ORIGIN: 'http://localhost:5173',
   FRONTEND_URL: 'http://localhost:5173',
-  POLAR_SESSIONS: { async get() { return null }, async put() {}, async delete() {} },
+  POLAR_SESSIONS: {
+    async get() {
+      return null
+    },
+    async put() {},
+    async delete() {},
+  },
   PADDLE_WEBHOOK_SECRET: 'whsec_test_secret',
 }
 
@@ -39,7 +45,7 @@ async function createTestWallet(db: MemoryD1) {
   const env = envWithDb(db)
   const response = await createWallet(new Request('http://worker.test/api/billing/wallet', { method: 'POST' }), env)
   assert.equal(response.status, 201)
-  const payload = await response.json() as { wallet_token: string; wallet_id: string; balance: number }
+  const payload = (await response.json()) as { wallet_token: string; wallet_id: string; balance: number }
   return { env, ...payload }
 }
 
@@ -59,7 +65,7 @@ describe('billing', () => {
     const env = { ...envWithDb(db), WELCOME_CREDITS: '3' }
     const response = await createWallet(new Request('http://worker.test/api/billing/wallet', { method: 'POST' }), env)
     assert.equal(response.status, 201)
-    const payload = await response.json() as { wallet_id: string; wallet_token: string; balance: number }
+    const payload = (await response.json()) as { wallet_id: string; wallet_token: string; balance: number }
     assert.equal(payload.balance, 3)
     assert.equal(db.credit_ledger.length, 1)
     assert.equal(db.credit_ledger[0]?.kind, 'welcome')
@@ -83,14 +89,35 @@ describe('billing', () => {
     await seedVoucher(db, 'EXPIRED', 5, { expiresAt: '2000-01-01T00:00:00.000Z' })
 
     const headers = { 'Content-Type': 'application/json', 'X-Wallet-Token': wallet_token }
-    const ok = await redeemVoucher(new Request('http://worker.test/api/billing/voucher', { method: 'POST', headers, body: JSON.stringify({ code: 'goodcode' }) }), env)
+    const ok = await redeemVoucher(
+      new Request('http://worker.test/api/billing/voucher', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ code: 'goodcode' }),
+      }),
+      env,
+    )
     assert.equal(ok.status, 200)
     assert.deepEqual(await ok.json(), { balance: 3 })
 
-    const duplicate = await redeemVoucher(new Request('http://worker.test/api/billing/voucher', { method: 'POST', headers, body: JSON.stringify({ code: 'GOODCODE' }) }), env)
+    const duplicate = await redeemVoucher(
+      new Request('http://worker.test/api/billing/voucher', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ code: 'GOODCODE' }),
+      }),
+      env,
+    )
     assert.equal(duplicate.status, 409)
 
-    const expired = await redeemVoucher(new Request('http://worker.test/api/billing/voucher', { method: 'POST', headers, body: JSON.stringify({ code: 'EXPIRED' }) }), env)
+    const expired = await redeemVoucher(
+      new Request('http://worker.test/api/billing/voucher', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ code: 'EXPIRED' }),
+      }),
+      env,
+    )
     assert.equal(expired.status, 400)
   })
 
@@ -109,7 +136,11 @@ describe('billing', () => {
     const request = new Request('http://worker.test/api/training-plan', { headers: { 'X-Wallet-Token': wallet_token } })
     const emptyWallet = new MemoryD1()
     const empty = await createTestWallet(emptyWallet)
-    const denied = await reserveCredit(new Request('http://worker.test/x', { headers: { 'X-Wallet-Token': empty.wallet_token } }), empty.env, 'req-empty')
+    const denied = await reserveCredit(
+      new Request('http://worker.test/x', { headers: { 'X-Wallet-Token': empty.wallet_token } }),
+      empty.env,
+      'req-empty',
+    )
     assert.ok(denied.error)
     assert.equal(denied.error.status, 402)
 

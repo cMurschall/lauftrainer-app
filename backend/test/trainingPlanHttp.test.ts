@@ -5,7 +5,13 @@ import type { Env } from '../src/types.ts'
 import { MemoryD1 } from './helpers/memoryD1.ts'
 import { createWallet } from '../src/billing.ts'
 
-const kv = { async get() { return null }, async put() {}, async delete() {} }
+const kv = {
+  async get() {
+    return null
+  },
+  async put() {},
+  async delete() {},
+}
 
 function mockEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -39,15 +45,12 @@ describe('createTrainingPlan HTTP', () => {
   it('requires an idempotency key', async () => {
     const response = await createTrainingPlan(planRequest({}, validBody()), mockEnv())
     assert.equal(response.status, 400)
-    assert.match((await response.json() as { detail: string }).detail, /Idempotency/)
+    assert.match(((await response.json()) as { detail: string }).detail, /Idempotency/)
   })
 
   it('rejects invalid JSON and schema payloads', async () => {
     const env = mockEnv()
-    const badJson = await createTrainingPlan(
-      planRequest({ 'X-Idempotency-Key': 'k1' }, '{not-json'),
-      env,
-    )
+    const badJson = await createTrainingPlan(planRequest({ 'X-Idempotency-Key': 'k1' }, '{not-json'), env)
     assert.equal(badJson.status, 400)
 
     const badSchema = await createTrainingPlan(
@@ -63,7 +66,7 @@ describe('createTrainingPlan HTTP', () => {
       mockEnv(),
     )
     assert.equal(response.status, 200)
-    const payload = await response.json() as { plan: { days: unknown[]; start_date?: string }; debug?: boolean }
+    const payload = (await response.json()) as { plan: { days: unknown[]; start_date?: string }; debug?: boolean }
     assert.equal(payload.debug, true)
     assert.equal(payload.plan.days.length, 7)
     assert.equal(payload.plan.start_date, '2026-08-14')
@@ -77,7 +80,7 @@ describe('createTrainingPlan HTTP', () => {
       DB: db as unknown as D1Database,
     })
     const walletResponse = await createWallet(new Request('http://worker.test/wallet', { method: 'POST' }), env)
-    const { wallet_token, wallet_id } = await walletResponse.json() as { wallet_token: string; wallet_id: string }
+    const { wallet_token, wallet_id } = (await walletResponse.json()) as { wallet_token: string; wallet_id: string }
 
     const denied = await createTrainingPlan(
       planRequest({ 'X-Idempotency-Key': 'credit-0', 'X-Wallet-Token': wallet_token }, validBody()),
@@ -99,7 +102,7 @@ describe('createTrainingPlan HTTP', () => {
       env,
     )
     assert.equal(ok.status, 200)
-    const payload = await ok.json() as { plan: { days: unknown[] } }
+    const payload = (await ok.json()) as { plan: { days: unknown[] } }
     assert.equal(payload.plan.days.length, 7)
     assert.equal(db.plan_reservations[0].status, 'plan_generation')
     assert.equal(db.balanceFor(wallet_id), 0)

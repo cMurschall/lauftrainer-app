@@ -46,7 +46,7 @@ export async function createAdminVoucher(request: Request, env: Env) {
   if (denied) return denied
   if (!env.DB) return json({ detail: 'Billing ist nicht konfiguriert.' }, 503, request, env)
 
-  const body = await request.json().catch(() => null) as {
+  const body = (await request.json().catch(() => null)) as {
     amount?: number
     max_redemptions?: number
     expires_at?: string | null
@@ -55,22 +55,28 @@ export async function createAdminVoucher(request: Request, env: Env) {
 
   const amount = Number(body?.amount)
   const maxRedemptions = Number(body?.max_redemptions ?? 1)
-  if (!Number.isInteger(amount) || amount < 1) return json({ detail: 'amount muss eine positive Ganzzahl sein.' }, 400, request, env)
-  if (!Number.isInteger(maxRedemptions) || maxRedemptions < 1) return json({ detail: 'max_redemptions muss eine positive Ganzzahl sein.' }, 400, request, env)
+  if (!Number.isInteger(amount) || amount < 1)
+    return json({ detail: 'amount muss eine positive Ganzzahl sein.' }, 400, request, env)
+  if (!Number.isInteger(maxRedemptions) || maxRedemptions < 1)
+    return json({ detail: 'max_redemptions muss eine positive Ganzzahl sein.' }, 400, request, env)
 
   const code = (body?.code?.trim() || randomCode()).toUpperCase()
   if (!/^[A-Z0-9-]{4,64}$/.test(code)) return json({ detail: 'Code-Format ungültig.' }, 400, request, env)
 
   const expiresAt = body?.expires_at?.trim() || null
-  if (expiresAt && Number.isNaN(Date.parse(expiresAt))) return json({ detail: 'expires_at ist ungültig.' }, 400, request, env)
+  if (expiresAt && Number.isNaN(Date.parse(expiresAt)))
+    return json({ detail: 'expires_at ist ungültig.' }, 400, request, env)
 
   const codeHash = await digest(code)
   try {
     await env.DB.prepare(
       'INSERT INTO vouchers(code_hash, amount, expires_at, max_redemptions, redeemed_count) VALUES(?,?,?,?,0)',
-    ).bind(codeHash, amount, expiresAt, maxRedemptions).run()
+    )
+      .bind(codeHash, amount, expiresAt, maxRedemptions)
+      .run()
   } catch (error) {
-    if (String(error).toLowerCase().includes('unique')) return json({ detail: 'Code existiert bereits.' }, 409, request, env)
+    if (String(error).toLowerCase().includes('unique'))
+      return json({ detail: 'Code existiert bereits.' }, 409, request, env)
     throw error
   }
 
@@ -82,18 +88,20 @@ export async function createAdminRestore(request: Request, env: Env) {
   if (denied) return denied
   if (!env.DB) return json({ detail: 'Billing ist nicht konfiguriert.' }, 503, request, env)
 
-  const body = await request.json().catch(() => null) as { transaction_id?: string; wallet_id?: string } | null
+  const body = (await request.json().catch(() => null)) as { transaction_id?: string; wallet_id?: string } | null
   const transactionId = body?.transaction_id?.trim() || ''
   let walletId = body?.wallet_id?.trim() || ''
 
-  if (!transactionId && !walletId) return json({ detail: 'transaction_id oder wallet_id erforderlich.' }, 400, request, env)
+  if (!transactionId && !walletId)
+    return json({ detail: 'transaction_id oder wallet_id erforderlich.' }, 400, request, env)
 
   if (transactionId) {
     const event = await env.DB.prepare('SELECT wallet_id FROM paddle_events WHERE transaction_id = ?')
       .bind(transactionId)
       .first<{ wallet_id: string }>()
     if (!event) return json({ detail: 'Transaktion nicht gefunden.' }, 404, request, env)
-    if (walletId && walletId !== event.wallet_id) return json({ detail: 'wallet_id passt nicht zur Transaktion.' }, 400, request, env)
+    if (walletId && walletId !== event.wallet_id)
+      return json({ detail: 'wallet_id passt nicht zur Transaktion.' }, 400, request, env)
     walletId = event.wallet_id
   }
 
@@ -110,11 +118,16 @@ export async function createAdminRestore(request: Request, env: Env) {
 
   const frontend = (env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
   const balance = await walletBalance(env.DB, walletId)
-  return json({
-    wallet_id: walletId,
-    balance,
-    restore_url: `${frontend}/restore#token=${encodeURIComponent(raw)}`,
-  }, 200, request, env)
+  return json(
+    {
+      wallet_id: walletId,
+      balance,
+      restore_url: `${frontend}/restore#token=${encodeURIComponent(raw)}`,
+    },
+    200,
+    request,
+    env,
+  )
 }
 
 const ADMIN_HTML = `<!doctype html>

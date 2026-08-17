@@ -1,13 +1,5 @@
 export type PlanSport =
-  | 'running'
-  | 'cycling'
-  | 'swimming'
-  | 'hiking'
-  | 'cardio'
-  | 'rowing'
-  | 'strength'
-  | 'mobility'
-  | 'other'
+  'running' | 'cycling' | 'swimming' | 'hiking' | 'cardio' | 'rowing' | 'strength' | 'mobility' | 'other'
 
 export type PlanSessionType = 'training' | 'rest'
 
@@ -86,7 +78,17 @@ export interface LoadBudget {
 }
 
 const ENDURANCE_SPORTS = new Set(['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing'])
-const KNOWN_PLAN_SPORTS = new Set(['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other'])
+const KNOWN_PLAN_SPORTS = new Set([
+  'running',
+  'cycling',
+  'swimming',
+  'hiking',
+  'cardio',
+  'rowing',
+  'strength',
+  'mobility',
+  'other',
+])
 /** Hard-session markers. Avoid matching everyday German "Tempo" / Konversationstempo. */
 const QUALITY_TOKEN = String.raw`intervalle?|intervall(?:e|s)?|tempolauf|tempo(?:\s+run|\s+session|\s+intervals?)|threshold|quality|vo2(?:max)?|fartlek|wettkampfpace|speed\s*work|schnelligkeit|\bschnell\b`
 const QUALITY_PATTERN = new RegExp(QUALITY_TOKEN, 'i')
@@ -117,17 +119,36 @@ function median(values: number[]): number | undefined {
 }
 
 function normalizeSportKey(value: unknown): string {
-  const sport = String(value ?? '').trim().toLowerCase()
+  const sport = String(value ?? '')
+    .trim()
+    .toLowerCase()
   const aliases: Record<string, string> = {
-    run: 'running', running: 'running',
-    ride: 'cycling', bike: 'cycling', cycling: 'cycling',
-    swim: 'swimming', swimming: 'swimming',
-    hike: 'hiking', hiking: 'hiking', walk: 'hiking', walking: 'hiking',
-    cardio: 'cardio', ergometer: 'cardio', treadmill: 'cardio', elliptical: 'cardio',
-    crosstrainer: 'cardio', spinning: 'cardio', indoor: 'cardio',
-    row: 'cardio', rowing: 'cardio',
-    strength: 'strength', mobility: 'mobility', yoga: 'mobility',
-    rest: 'other', recovery: 'other', other: 'other',
+    run: 'running',
+    running: 'running',
+    ride: 'cycling',
+    bike: 'cycling',
+    cycling: 'cycling',
+    swim: 'swimming',
+    swimming: 'swimming',
+    hike: 'hiking',
+    hiking: 'hiking',
+    walk: 'hiking',
+    walking: 'hiking',
+    cardio: 'cardio',
+    ergometer: 'cardio',
+    treadmill: 'cardio',
+    elliptical: 'cardio',
+    crosstrainer: 'cardio',
+    spinning: 'cardio',
+    indoor: 'cardio',
+    row: 'cardio',
+    rowing: 'cardio',
+    strength: 'strength',
+    mobility: 'mobility',
+    yoga: 'mobility',
+    rest: 'other',
+    recovery: 'other',
+    other: 'other',
   }
   return aliases[sport] || sport
 }
@@ -160,9 +181,7 @@ export function sanitizePlanInputs(input: {
     .filter((week) => week.total_minutes > 0)
     .slice(-4)
 
-  const best_recent_week_minutes = weekly.length
-    ? Math.max(...weekly.map((week) => week.total_minutes))
-    : 0
+  const best_recent_week_minutes = weekly.length ? Math.max(...weekly.map((week) => week.total_minutes)) : 0
 
   const rawWorkouts = (input.recent_workouts?.length ? input.recent_workouts : input.workouts) || []
   let short_segment_count = 0
@@ -182,7 +201,7 @@ export function sanitizePlanInputs(input: {
       duration_minutes: duration,
       distance_km: distance,
       avg_hr: asNumber(item.avg_hr),
-      elevation_gain_m: elevNoisy ? null : elevation ?? null,
+      elevation_gain_m: elevNoisy ? null : (elevation ?? null),
       confidence: short ? 'low' : 'high',
       elevation_noisy: elevNoisy || undefined,
     }
@@ -196,7 +215,9 @@ export function sanitizePlanInputs(input: {
     : 0
 
   const hrZones = asRecord(input.profile?.hr_zones)
-  const z2 = Array.isArray(hrZones.z2) ? hrZones.z2.map((value) => asNumber(value)).filter((value): value is number => value !== undefined) : []
+  const z2 = Array.isArray(hrZones.z2)
+    ? hrZones.z2.map((value) => asNumber(value)).filter((value): value is number => value !== undefined)
+    : []
   const z2High = z2.length >= 2 ? z2[1] : undefined
   const reliableHrs = reliableRuns
     .map((workout) => workout.avg_hr)
@@ -207,17 +228,19 @@ export function sanitizePlanInputs(input: {
   )
 
   const latestLoadRaw = metrics.latest_load
-  const latestLoad = latestLoadRaw && typeof latestLoadRaw === 'object' && !Array.isArray(latestLoadRaw)
-    ? {
-        ctl: asNumber((latestLoadRaw as Record<string, unknown>).ctl),
-        atl: asNumber((latestLoadRaw as Record<string, unknown>).atl),
-        tsb: asNumber((latestLoadRaw as Record<string, unknown>).tsb),
-        acwr: asNumber((latestLoadRaw as Record<string, unknown>).acwr),
-        risk: typeof (latestLoadRaw as Record<string, unknown>).risk === 'string'
-          ? String((latestLoadRaw as Record<string, unknown>).risk)
-          : undefined,
-      }
-    : null
+  const latestLoad =
+    latestLoadRaw && typeof latestLoadRaw === 'object' && !Array.isArray(latestLoadRaw)
+      ? {
+          ctl: asNumber((latestLoadRaw as Record<string, unknown>).ctl),
+          atl: asNumber((latestLoadRaw as Record<string, unknown>).atl),
+          tsb: asNumber((latestLoadRaw as Record<string, unknown>).tsb),
+          acwr: asNumber((latestLoadRaw as Record<string, unknown>).acwr),
+          risk:
+            typeof (latestLoadRaw as Record<string, unknown>).risk === 'string'
+              ? String((latestLoadRaw as Record<string, unknown>).risk)
+              : undefined,
+        }
+      : null
 
   return {
     weekly,
@@ -234,10 +257,7 @@ export function sanitizePlanInputs(input: {
   }
 }
 
-export function computeLoadBudget(
-  sanitized: SanitizedInputs,
-  profile: Record<string, unknown> = {},
-): LoadBudget {
+export function computeLoadBudget(sanitized: SanitizedInputs, profile: Record<string, unknown> = {}): LoadBudget {
   const best = sanitized.best_recent_week_minutes
   let maxEndurance: number
   if (best <= 0) {
@@ -294,11 +314,14 @@ export function computeLoadBudget(
   )
   const max_training_sessions = recovery_week ? Math.min(3, requestedFrequency) : requestedFrequency
   const max_endurance_sessions = resume_long ? Math.min(2, max_training_sessions) : max_training_sessions
-  const strengthEnabled = Boolean(profile.strength_training) ||
+  const strengthEnabled =
+    Boolean(profile.strength_training) ||
     (Array.isArray(profile.available_sports) && profile.available_sports.map(normalizeSportKey).includes('strength'))
   const max_strength_sessions = strengthEnabled ? 2 : 0
   const max_strength_minutes_per_session = strengthEnabled ? 35 : 0
-  const max_strength_minutes_total = strengthEnabled ? Math.min(70, max_strength_sessions * max_strength_minutes_per_session) : 0
+  const max_strength_minutes_total = strengthEnabled
+    ? Math.min(70, max_strength_sessions * max_strength_minutes_per_session)
+    : 0
 
   if (recovery_week && best > 0) {
     maxEndurance = Math.min(maxEndurance, Math.max(30, Math.round(best * 0.6)))
@@ -374,12 +397,14 @@ function isAllowedTrainingSport(day: PlanDay, known: Set<string>, custom: Set<st
 
 export function isQualitySession(day: PlanDay): boolean {
   if (day.session_type === 'rest') return false
-  const blob = qualitySearchText([
-    day.title,
-    day.description,
-    day.target_focus,
-    ...day.workout_steps.map((step) => `${step.step_intensity} ${step.step_instruction}`),
-  ].join(' '))
+  const blob = qualitySearchText(
+    [
+      day.title,
+      day.description,
+      day.target_focus,
+      ...day.workout_steps.map((step) => `${step.step_intensity} ${step.step_instruction}`),
+    ].join(' '),
+  )
   return QUALITY_PATTERN.test(blob)
 }
 
@@ -394,29 +419,32 @@ function toRestDay(day: PlanDay, reason: string, locale: 'de' | 'en' = 'en'): Pl
     description: reason,
     target_focus: recovery,
     total_duration_minutes: 0,
-    workout_steps: [{
-      step_duration: '0 min',
-      step_intensity: locale === 'de' ? 'Ruhe' : 'Rest',
-      step_instruction: reason,
-    }],
+    workout_steps: [
+      {
+        step_duration: '0 min',
+        step_intensity: locale === 'de' ? 'Ruhe' : 'Rest',
+        step_instruction: reason,
+      },
+    ],
   }
 }
 
 /** Soften hard cues without wiping coach language into English boilerplate. */
 function softenQuality(day: PlanDay): PlanDay {
-  const softenText = (value: string) => value
-    .replace(/\bintervalle?\b/gi, 'locker')
-    .replace(/\bintervall(?:e|s)?\b/gi, 'locker')
-    .replace(/\btempolauf\b/gi, 'lockerer Lauf')
-    .replace(/\btempo(?:\s+run|\s+session|\s+intervals?)\b/gi, 'locker')
-    .replace(/\bthreshold\b/gi, 'locker')
-    .replace(/\bquality\b/gi, 'easy')
-    .replace(/\bvo2(?:max)?\b/gi, 'easy')
-    .replace(/\bfartlek\b/gi, 'locker')
-    .replace(/\bwettkampfpace\b/gi, 'lockeres Tempo')
-    .replace(/\bspeed\s*work\b/gi, 'lockere Einheit')
-    .replace(/\bschnelligkeit\b/gi, 'Grundlage')
-    .replace(/\bschnell\b/gi, 'locker')
+  const softenText = (value: string) =>
+    value
+      .replace(/\bintervalle?\b/gi, 'locker')
+      .replace(/\bintervall(?:e|s)?\b/gi, 'locker')
+      .replace(/\btempolauf\b/gi, 'lockerer Lauf')
+      .replace(/\btempo(?:\s+run|\s+session|\s+intervals?)\b/gi, 'locker')
+      .replace(/\bthreshold\b/gi, 'locker')
+      .replace(/\bquality\b/gi, 'easy')
+      .replace(/\bvo2(?:max)?\b/gi, 'easy')
+      .replace(/\bfartlek\b/gi, 'locker')
+      .replace(/\bwettkampfpace\b/gi, 'lockeres Tempo')
+      .replace(/\bspeed\s*work\b/gi, 'lockere Einheit')
+      .replace(/\bschnelligkeit\b/gi, 'Grundlage')
+      .replace(/\bschnell\b/gi, 'locker')
 
   return {
     ...day,
@@ -451,7 +479,9 @@ function scaleStepsToDuration(day: PlanDay, targetMinutes: number): PlanDay {
     const minutes = parseStepMinutes(step.step_duration)
     if (minutes === undefined) return step
     const isEdge = index === 0 || index === day.workout_steps.length - 1
-    const next = isEdge ? Math.max(3, Math.round(minutes * Math.min(1, ratio))) : Math.max(5, Math.round(minutes * ratio))
+    const next = isEdge
+      ? Math.max(3, Math.round(minutes * Math.min(1, ratio)))
+      : Math.max(5, Math.round(minutes * ratio))
     return { ...step, step_duration: `${next} min` }
   })
   const summed = steps.reduce((sum, step) => sum + (parseStepMinutes(step.step_duration) || 0), 0)
@@ -490,26 +520,31 @@ export function reviewAndClampPlan(
     const normalizedDay: PlanDay = {
       ...day,
       sport: KNOWN_PLAN_SPORTS.has(sport) ? sport : 'other',
-      sport_label: sport === 'other' || !KNOWN_PLAN_SPORTS.has(sport) ? sportLabel || day.sport_label?.trim() || undefined : undefined,
+      sport_label:
+        sport === 'other' || !KNOWN_PLAN_SPORTS.has(sport)
+          ? sportLabel || day.sport_label?.trim() || undefined
+          : undefined,
     }
-    if (normalizedDay.session_type === 'rest' && (normalizedDay.total_duration_minutes !== 0 || normalizedDay.sport !== 'other' || normalizedDay.sport_label)) {
+    if (
+      normalizedDay.session_type === 'rest' &&
+      (normalizedDay.total_duration_minutes !== 0 || normalizedDay.sport !== 'other' || normalizedDay.sport_label)
+    ) {
       repairs.push(`rest_normalized:${normalizedDay.date}`)
       return toRestDay({ ...normalizedDay, sport: 'other', sport_label: undefined }, day.description, locale)
     }
     if (normalizedDay.session_type !== 'rest' && !isAllowedTrainingSport(normalizedDay, known, custom)) {
       repairs.push(`sport_whitelist:${normalizedDay.date}:${normalizedDay.sport_label || normalizedDay.sport}`)
-      const reason = locale === 'de'
-        ? 'In einen Ruhetag umgewandelt: Sportart ist nicht in den verfügbaren Sportarten.'
-        : 'Converted to rest: sport not in available_sports whitelist.'
+      const reason =
+        locale === 'de'
+          ? 'In einen Ruhetag umgewandelt: Sportart ist nicht in den verfügbaren Sportarten.'
+          : 'Converted to rest: sport not in available_sports whitelist.'
       return toRestDay(normalizedDay, reason, locale)
     }
     const dayLimit = budget.max_training_minutes_per_day[day.day]
     return clampDayToLimit(normalizedDay, dayLimit)
   })
 
-  const qualityIndexes = days
-    .map((day, index) => (isQualitySession(day) ? index : -1))
-    .filter((index) => index >= 0)
+  const qualityIndexes = days.map((day, index) => (isQualitySession(day) ? index : -1)).filter((index) => index >= 0)
   if (qualityIndexes.length > budget.max_quality_sessions) {
     for (const index of qualityIndexes.slice(budget.max_quality_sessions)) {
       days[index] = softenQuality(days[index])
@@ -534,9 +569,10 @@ export function reviewAndClampPlan(
   while (enduranceIndexes.length > budget.max_endurance_sessions) {
     const index = enduranceIndexes.shift()
     if (index === undefined) break
-    const reason = locale === 'de'
-      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Ausdauereinheiten erreicht.'
-      : 'Converted to rest: endurance session frequency cap reached.'
+    const reason =
+      locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Ausdauereinheiten erreicht.'
+        : 'Converted to rest: endurance session frequency cap reached.'
     days[index] = toRestDay(days[index], reason, locale)
     repairs.push(`endurance_frequency:${days[index].date}`)
   }
@@ -548,9 +584,10 @@ export function reviewAndClampPlan(
   while (strengthIndexes.length > budget.max_strength_sessions) {
     const index = strengthIndexes.shift()
     if (index === undefined) break
-    const reason = locale === 'de'
-      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Krafteinheiten erreicht.'
-      : 'Converted to rest: strength session frequency cap reached.'
+    const reason =
+      locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Krafteinheiten erreicht.'
+        : 'Converted to rest: strength session frequency cap reached.'
     days[index] = toRestDay(days[index], reason, locale)
     repairs.push(`strength_frequency:${days[index].date}`)
   }
@@ -558,19 +595,27 @@ export function reviewAndClampPlan(
   for (let index = 0; index < days.length; index += 1) {
     const current = days[index]
     if (current.session_type !== 'training' || current.sport !== 'strength') continue
-    if (budget.max_strength_minutes_per_session > 0 && current.total_duration_minutes > budget.max_strength_minutes_per_session) {
+    if (
+      budget.max_strength_minutes_per_session > 0 &&
+      current.total_duration_minutes > budget.max_strength_minutes_per_session
+    ) {
       days[index] = scaleStepsToDuration(current, budget.max_strength_minutes_per_session)
       repairs.push(`strength_session_clamped:${current.date}:${budget.max_strength_minutes_per_session}`)
     }
   }
 
-  const strengthTotal = () => days.reduce((sum, day) => (
-    day.session_type === 'training' && day.sport === 'strength' ? sum + day.total_duration_minutes : sum
-  ), 0)
+  const strengthTotal = () =>
+    days.reduce(
+      (sum, day) =>
+        day.session_type === 'training' && day.sport === 'strength' ? sum + day.total_duration_minutes : sum,
+      0,
+    )
   while (budget.max_strength_minutes_total > 0 && strengthTotal() > budget.max_strength_minutes_total) {
     const candidates = days
       .map((day, index) => ({ day, index }))
-      .filter(({ day }) => day.session_type === 'training' && day.sport === 'strength' && day.total_duration_minutes > 20)
+      .filter(
+        ({ day }) => day.session_type === 'training' && day.sport === 'strength' && day.total_duration_minutes > 20,
+      )
       .sort((a, b) => b.day.total_duration_minutes - a.day.total_duration_minutes)
     if (candidates.length) {
       const target = candidates[0]
@@ -588,20 +633,27 @@ export function reviewAndClampPlan(
       .sort((a, b) => a.day.total_duration_minutes - b.day.total_duration_minutes)
     if (!dropCandidates.length) break
     const drop = dropCandidates[0]
-    const reason = locale === 'de'
-      ? 'In einen Ruhetag umgewandelt: maximales Krafttrainingsvolumen erreicht.'
-      : 'Converted to rest: strength minutes cap reached.'
+    const reason =
+      locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: maximales Krafttrainingsvolumen erreicht.'
+        : 'Converted to rest: strength minutes cap reached.'
     days[drop.index] = toRestDay(drop.day, reason, locale)
     repairs.push(`strength_total_drop:${drop.day.date}`)
   }
 
-  const enduranceTotal = () => days.reduce((sum, day) => (
-    day.session_type === 'training' && ENDURANCE_SPORTS.has(day.sport) ? sum + day.total_duration_minutes : sum
-  ), 0)
+  const enduranceTotal = () =>
+    days.reduce(
+      (sum, day) =>
+        day.session_type === 'training' && ENDURANCE_SPORTS.has(day.sport) ? sum + day.total_duration_minutes : sum,
+      0,
+    )
   while (enduranceTotal() > budget.max_total_training_minutes) {
     const candidates = days
       .map((day, index) => ({ day, index }))
-      .filter(({ day }) => day.session_type === 'training' && ENDURANCE_SPORTS.has(day.sport) && day.total_duration_minutes > 15)
+      .filter(
+        ({ day }) =>
+          day.session_type === 'training' && ENDURANCE_SPORTS.has(day.sport) && day.total_duration_minutes > 15,
+      )
       .sort((a, b) => b.day.total_duration_minutes - a.day.total_duration_minutes)
     if (candidates.length) {
       const target = candidates[0]
@@ -612,7 +664,10 @@ export function reviewAndClampPlan(
         .sort((a, b) => days[b].total_duration_minutes - days[a].total_duration_minutes)[0]
       const trimTarget = candidates.find((item) => item.index !== longIndex) || candidates[0]
       const overflow = enduranceTotal() - budget.max_total_training_minutes
-      const floor = trimTarget.index === longIndex ? Math.min(budget.max_long_run_minutes, Math.max(15, budget.max_long_run_minutes - 5)) : 15
+      const floor =
+        trimTarget.index === longIndex
+          ? Math.min(budget.max_long_run_minutes, Math.max(15, budget.max_long_run_minutes - 5))
+          : 15
       const nextDuration = Math.max(floor, trimTarget.day.total_duration_minutes - Math.max(5, overflow))
       if (nextDuration < trimTarget.day.total_duration_minutes) {
         days[trimTarget.index] = scaleStepsToDuration(trimTarget.day, nextDuration)
@@ -626,27 +681,27 @@ export function reviewAndClampPlan(
       .sort((a, b) => a.day.total_duration_minutes - b.day.total_duration_minutes)
     if (!dropCandidates.length) break
     const drop = dropCandidates[0]
-    const reason = locale === 'de'
-      ? 'In einen Ruhetag umgewandelt: maximales Ausdauertrainingsvolumen erreicht.'
-      : 'Converted to rest: endurance minutes cap reached.'
+    const reason =
+      locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: maximales Ausdauertrainingsvolumen erreicht.'
+        : 'Converted to rest: endurance minutes cap reached.'
     days[drop.index] = toRestDay(drop.day, reason, locale)
     repairs.push(`total_drop:${drop.day.date}`)
   }
 
-  const totalTrainingIndexes = () => days
-    .map((day, index) => ({ day, index }))
-    .filter(({ day }) => day.session_type === 'training')
+  const totalTrainingIndexes = () =>
+    days.map((day, index) => ({ day, index })).filter(({ day }) => day.session_type === 'training')
   while (totalTrainingIndexes().length > budget.max_training_sessions) {
-    const drop = totalTrainingIndexes()
-      .sort((a, b) => {
-        const aOutside = preferred.length && !preferred.includes(a.day.day) ? 1 : 0
-        const bOutside = preferred.length && !preferred.includes(b.day.day) ? 1 : 0
-        return bOutside - aOutside || a.day.total_duration_minutes - b.day.total_duration_minutes
-      })[0]
+    const drop = totalTrainingIndexes().sort((a, b) => {
+      const aOutside = preferred.length && !preferred.includes(a.day.day) ? 1 : 0
+      const bOutside = preferred.length && !preferred.includes(b.day.day) ? 1 : 0
+      return bOutside - aOutside || a.day.total_duration_minutes - b.day.total_duration_minutes
+    })[0]
     if (!drop) break
-    const reason = locale === 'de'
-      ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Trainingseinheiten erreicht.'
-      : 'Converted to rest: total training session cap reached.'
+    const reason =
+      locale === 'de'
+        ? 'In einen Ruhetag umgewandelt: maximale Anzahl an Trainingseinheiten erreicht.'
+        : 'Converted to rest: total training session cap reached.'
     days[drop.index] = toRestDay(drop.day, reason, locale)
     repairs.push(`training_frequency:${drop.day.date}`)
   }

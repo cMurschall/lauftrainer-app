@@ -102,7 +102,7 @@ describe('strava oauth and sync', () => {
       env(kv),
     )
     assert.equal(sync.status, 200)
-    const payload = await sync.json() as {
+    const payload = (await sync.json()) as {
       workouts: Array<{
         sport: string
         distanceKm: number

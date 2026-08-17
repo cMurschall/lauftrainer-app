@@ -61,10 +61,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
   )
 }
 
-async function token(
-  request: Request,
-  env: Env,
-): Promise<{ access_token: string; x_user_id?: string } | undefined> {
+async function token(request: Request, env: Env): Promise<{ access_token: string; x_user_id?: string } | undefined> {
   let sessionId = request.headers.get('X-Polar-Session')
   try {
     const map = JSON.parse(request.headers.get('X-Connector-Sessions') || '{}') as Record<string, string>
@@ -171,12 +168,7 @@ function mapExercise(item: Record<string, unknown>, index: number) {
   const date = String(item['start-time'] || item.start_time || item.startTime || item.date || new Date().toISOString())
   const distance = number(item.distance)
   const ascent = number(
-    item.ascent ??
-      item.climbing ??
-      item.elevation ??
-      item['total-ascent'] ??
-      item.total_ascent ??
-      item.altitude,
+    item.ascent ?? item.climbing ?? item.elevation ?? item['total-ascent'] ?? item.total_ascent ?? item.altitude,
   )
   const elevationGainM = ascent !== undefined && ascent > 0 ? ascent : undefined
   const durationSeconds = seconds(item.duration ?? item['duration-seconds'])

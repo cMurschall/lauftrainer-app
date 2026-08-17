@@ -1,6 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { addDaysToDateKey, assertRollingPlan, describeGeminiFailure, normalizePlan, weekdayFromDateKey } from '../src/training.ts'
+import {
+  addDaysToDateKey,
+  assertRollingPlan,
+  describeGeminiFailure,
+  normalizePlan,
+  weekdayFromDateKey,
+} from '../src/training.ts'
 
 describe('rolling training plan validation', () => {
   it('maps weekdays and consecutive dates from the start date', () => {
@@ -12,17 +18,19 @@ describe('rolling training plan validation', () => {
   it('fills empty workout_steps on rest days before schema validation', () => {
     const normalized = normalizePlan({
       week_summary: { focus_title: 'Base', goal_description: 'Rebuild' },
-      days: [{
-        date: '2026-08-15',
-        day: 'saturday',
-        sport: 'other',
-        session_type: 'rest',
-        title: 'Rest',
-        description: 'Recovery day',
-        target_focus: 'Recovery',
-        total_duration_minutes: 0,
-        workout_steps: [],
-      }],
+      days: [
+        {
+          date: '2026-08-15',
+          day: 'saturday',
+          sport: 'other',
+          session_type: 'rest',
+          title: 'Rest',
+          description: 'Recovery day',
+          target_focus: 'Recovery',
+          total_duration_minutes: 0,
+          workout_steps: [],
+        },
+      ],
     }) as { days: Array<{ workout_steps: unknown[] }> }
     assert.equal(normalized.days[0].workout_steps.length, 1)
   })
@@ -43,18 +51,26 @@ describe('rolling training plan validation', () => {
         workout_steps: [{ step_duration: '30 min', step_intensity: 'easy', step_instruction: 'Run easy' }],
       }
     })
-    const plan = assertRollingPlan({
-      week_summary: { focus_title: 'Base', goal_description: 'Rebuild' },
-      days,
-    }, start)
+    const plan = assertRollingPlan(
+      {
+        week_summary: { focus_title: 'Base', goal_description: 'Rebuild' },
+        days,
+      },
+      start,
+    )
     assert.equal(plan.start_date, start)
     assert.equal(plan.days[0].date, start)
     assert.equal(plan.days[6].date, '2026-08-20')
 
-    assert.throws(() => assertRollingPlan({
-      week_summary: { focus_title: 'Base', goal_description: 'Rebuild' },
-      days: days.map((day, index) => index === 3 ? { ...day, date: '2026-08-19', day: 'wednesday' } : day),
-    }, start))
+    assert.throws(() =>
+      assertRollingPlan(
+        {
+          week_summary: { focus_title: 'Base', goal_description: 'Rebuild' },
+          days: days.map((day, index) => (index === 3 ? { ...day, date: '2026-08-19', day: 'wednesday' } : day)),
+        },
+        start,
+      ),
+    )
   })
 })
 

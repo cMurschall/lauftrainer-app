@@ -76,7 +76,7 @@ function runs(durations: number[], averageHr = 132): Array<Record<string, unknow
     date: `2026-08-${String(12 - index).padStart(2, '0')}`,
     sport: 'running',
     duration_minutes,
-    distance_km: Math.round(duration_minutes / 6 * 10) / 10,
+    distance_km: Math.round((duration_minutes / 6) * 10) / 10,
     avg_hr: averageHr + (index % 3),
     elevation_gain_m: 40,
   }))
@@ -127,7 +127,11 @@ const scenarios: Scenario[] = [
     locale: 'de',
     coachStyle: 'pragmatist',
     body: {
-      profile: { ...baseProfile, training_frequency_per_week: 4, preferred_training_days: ['monday', 'wednesday', 'friday', 'sunday'] },
+      profile: {
+        ...baseProfile,
+        training_frequency_per_week: 4,
+        preferred_training_days: ['monday', 'wednesday', 'friday', 'sunday'],
+      },
       goals: [],
       metrics: {
         latest_load: { date: '2026-08-13', ctl: 36, atl: 38, tsb: -2, acwr: 1.03, risk: 'low' },
@@ -150,7 +154,17 @@ const scenarios: Scenario[] = [
         training_frequency_per_week: 4,
         preferred_training_days: ['friday', 'sunday', 'tuesday', 'thursday'],
       },
-      goals: [{ type: 'race', title: 'Stadtlauf 5 km', date: '2026-08-22', sport: 'running', distance_km: 5, target_time: '00:22:00', priority: 'A' }],
+      goals: [
+        {
+          type: 'race',
+          title: 'Stadtlauf 5 km',
+          date: '2026-08-22',
+          sport: 'running',
+          distance_km: 5,
+          target_time: '00:22:00',
+          priority: 'A',
+        },
+      ],
       metrics: {
         latest_load: { date: '2026-08-13', ctl: 42, atl: 39, tsb: 3, acwr: 0.96, risk: 'low' },
         weekly: weekly([210, 225, 230, 205]),
@@ -174,7 +188,16 @@ const scenarios: Scenario[] = [
         preferred_training_days: ['tuesday', 'thursday', 'saturday', 'sunday'],
         max_training_minutes_per_day: { tuesday: 70, thursday: 70, saturday: 50, sunday: 150 },
       },
-      goals: [{ type: 'race', title: 'Herbstmarathon', date: '2026-09-20', sport: 'running', distance_km: 42.2, priority: 'A' }],
+      goals: [
+        {
+          type: 'race',
+          title: 'Herbstmarathon',
+          date: '2026-09-20',
+          sport: 'running',
+          distance_km: 42.2,
+          priority: 'A',
+        },
+      ],
       metrics: {
         latest_load: { date: '2026-08-13', ctl: 54, atl: 56, tsb: -2, acwr: 1.04, risk: 'low' },
         weekly: weekly([270, 285, 300, 310]),
@@ -200,11 +223,21 @@ const scenarios: Scenario[] = [
       goals: [],
       metrics: {
         latest_load: { date: '2026-08-13', ctl: 31, atl: 30, tsb: 1, acwr: 0.98, risk: 'low' },
-        weekly: weekly([190, 205, 215, 200]).map((week) => ({ ...week, cycling_minutes: week.total_minutes, running_minutes: 0 })),
+        weekly: weekly([190, 205, 215, 200]).map((week) => ({
+          ...week,
+          cycling_minutes: week.total_minutes,
+          running_minutes: 0,
+        })),
       },
       recent_workouts: runs([80, 65, 55, 70]).map((workout) => ({ ...workout, sport: 'cycling', distance_km: 30 })),
     },
-    expect: { maxQuality: 1, minRestDays: 4, maxTrainingDays: 3, requiredSports: ['cycling'], forbiddenSports: ['running'] },
+    expect: {
+      maxQuality: 1,
+      minRestDays: 4,
+      maxTrainingDays: 3,
+      requiredSports: ['cycling'],
+      forbiddenSports: ['running'],
+    },
   },
   {
     id: 'mixed-strength-time-limits',
@@ -230,7 +263,12 @@ const scenarios: Scenario[] = [
       },
       recent_workouts: runs([55, 40, 35, 45, 30]),
     },
-    expect: { maxQuality: 1, minRestDays: 2, requiredSports: ['running', 'strength'], forbiddenSports: ['cycling', 'swimming'] },
+    expect: {
+      maxQuality: 1,
+      minRestDays: 2,
+      requiredSports: ['running', 'strength'],
+      forbiddenSports: ['cycling', 'swimming'],
+    },
   },
   {
     id: 'knee-limitation',
@@ -242,7 +280,8 @@ const scenarios: Scenario[] = [
       profile: {
         ...baseProfile,
         available_sports: ['running', 'cycling', 'mobility'],
-        limitations: 'Aktuell leichte Schmerzen an der Außenseite des rechten Knies. Keine Intervalle, kein Bergablaufen.',
+        limitations:
+          'Aktuell leichte Schmerzen an der Außenseite des rechten Knies. Keine Intervalle, kein Bergablaufen.',
         personal_notes: 'Radfahren ist beschwerdefrei möglich.',
       },
       goals: [],
@@ -277,9 +316,33 @@ const scenarios: Scenario[] = [
         start_date: '2026-08-07',
         week_summary: { focus_title: 'Grundlage und Schwelle', goal_description: 'Kontrollierter Aufbau' },
         days: [
-          { date: '2026-08-07', day: 'friday', sport: 'running', session_type: 'training', title: 'Locker', total_duration_minutes: 40, completed: true },
-          { date: '2026-08-09', day: 'sunday', sport: 'running', session_type: 'training', title: 'Langer Lauf', total_duration_minutes: 70, completed: true },
-          { date: '2026-08-11', day: 'tuesday', sport: 'running', session_type: 'training', title: 'Schwellenintervalle', total_duration_minutes: 50, completed: false },
+          {
+            date: '2026-08-07',
+            day: 'friday',
+            sport: 'running',
+            session_type: 'training',
+            title: 'Locker',
+            total_duration_minutes: 40,
+            completed: true,
+          },
+          {
+            date: '2026-08-09',
+            day: 'sunday',
+            sport: 'running',
+            session_type: 'training',
+            title: 'Langer Lauf',
+            total_duration_minutes: 70,
+            completed: true,
+          },
+          {
+            date: '2026-08-11',
+            day: 'tuesday',
+            sport: 'running',
+            session_type: 'training',
+            title: 'Schwellenintervalle',
+            total_duration_minutes: 50,
+            completed: false,
+          },
         ],
       },
     },
@@ -324,7 +387,9 @@ function parseArgs(argv: string[]): CliOptions {
     else if (argument === '--out-dir') options.outputDir = resolve(argv[++index] || options.outputDir)
     else if (argument === '--scenario') options.scenarioIds = (argv[++index] || '').split(',').filter(Boolean)
     else if (argument === '--help' || argument === '-h') {
-      console.log('Usage: tsx scripts/evaluate-training-plans.ts [--max-calls 10] [--scenario id,id] [--out-dir path] [--model name]')
+      console.log(
+        'Usage: tsx scripts/evaluate-training-plans.ts [--max-calls 10] [--scenario id,id] [--out-dir path] [--model name]',
+      )
       process.exit(0)
     } else throw new Error(`Unbekanntes Argument: ${argument}`)
   }
@@ -341,7 +406,9 @@ function planText(plan: TrainingPlanLike): string {
       day.target_focus,
       ...day.workout_steps.flatMap((step) => [step.step_intensity, step.step_instruction]),
     ]),
-  ].join(' ').toLowerCase()
+  ]
+    .join(' ')
+    .toLowerCase()
 }
 
 function evaluate(
@@ -358,10 +425,14 @@ function evaluate(
   const failures: string[] = []
   const warnings: string[] = []
 
-  if (scenario.expect.maxQuality !== undefined && qualityDays.length > scenario.expect.maxQuality) failures.push(`quality ${qualityDays.length} > ${scenario.expect.maxQuality}`)
-  if (scenario.expect.minRestDays !== undefined && restDays < scenario.expect.minRestDays) failures.push(`rest days ${restDays} < ${scenario.expect.minRestDays}`)
-  if (scenario.expect.minTrainingDays !== undefined && trainingDays.length < scenario.expect.minTrainingDays) failures.push(`training days ${trainingDays.length} < ${scenario.expect.minTrainingDays}`)
-  if (scenario.expect.maxTrainingDays !== undefined && trainingDays.length > scenario.expect.maxTrainingDays) failures.push(`training days ${trainingDays.length} > ${scenario.expect.maxTrainingDays}`)
+  if (scenario.expect.maxQuality !== undefined && qualityDays.length > scenario.expect.maxQuality)
+    failures.push(`quality ${qualityDays.length} > ${scenario.expect.maxQuality}`)
+  if (scenario.expect.minRestDays !== undefined && restDays < scenario.expect.minRestDays)
+    failures.push(`rest days ${restDays} < ${scenario.expect.minRestDays}`)
+  if (scenario.expect.minTrainingDays !== undefined && trainingDays.length < scenario.expect.minTrainingDays)
+    failures.push(`training days ${trainingDays.length} < ${scenario.expect.minTrainingDays}`)
+  if (scenario.expect.maxTrainingDays !== undefined && trainingDays.length > scenario.expect.maxTrainingDays)
+    failures.push(`training days ${trainingDays.length} > ${scenario.expect.maxTrainingDays}`)
   for (const sport of scenario.expect.requiredSports || []) {
     if (!usedSports.includes(sport)) failures.push(`required sport missing: ${sport}`)
   }
@@ -377,15 +448,19 @@ function evaluate(
   }
 
   for (const day of plan.days) {
-    if (day.session_type === 'rest' && day.total_duration_minutes !== 0) failures.push(`${day.date}: rest day has ${day.total_duration_minutes} min`)
-    if (day.session_type === 'training' && day.total_duration_minutes <= 0) failures.push(`${day.date}: training has no duration`)
+    if (day.session_type === 'rest' && day.total_duration_minutes !== 0)
+      failures.push(`${day.date}: rest day has ${day.total_duration_minutes} min`)
+    if (day.session_type === 'training' && day.total_duration_minutes <= 0)
+      failures.push(`${day.date}: training has no duration`)
     if (!day.workout_steps.length) failures.push(`${day.date}: no workout steps`)
     const limit = budget?.max_training_minutes_per_day[day.day]
-    if (limit && day.total_duration_minutes > limit) failures.push(`${day.date}: ${day.total_duration_minutes} min > daily cap ${limit}`)
+    if (limit && day.total_duration_minutes > limit)
+      failures.push(`${day.date}: ${day.total_duration_minutes} min > daily cap ${limit}`)
   }
 
   if (repairs.length) warnings.push(`${repairs.length} server repair(s) required`)
-  const untranslatedRepairText = /\bconverted to rest|frequency cap reached|recovery\b/.test(text) && scenario.locale === 'de'
+  const untranslatedRepairText =
+    /\bconverted to rest|frequency cap reached|recovery\b/.test(text) && scenario.locale === 'de'
   if (untranslatedRepairText) warnings.push('English repair text leaked into German output')
 
   const score = Math.max(0, 100 - failures.length * 15 - warnings.length * 4 - Math.min(12, repairs.length * 2))
@@ -398,8 +473,12 @@ function evaluate(
     rest_days: restDays,
     quality_days: qualityDays.length,
     used_sports: usedSports,
-    endurance_minutes: trainingDays.filter((day) => ['running', 'cycling', 'swimming', 'rowing', 'hiking'].includes(day.sport)).reduce((sum, day) => sum + day.total_duration_minutes, 0),
-    strength_minutes: trainingDays.filter((day) => day.sport === 'strength').reduce((sum, day) => sum + day.total_duration_minutes, 0),
+    endurance_minutes: trainingDays
+      .filter((day) => ['running', 'cycling', 'swimming', 'rowing', 'hiking'].includes(day.sport))
+      .reduce((sum, day) => sum + day.total_duration_minutes, 0),
+    strength_minutes: trainingDays
+      .filter((day) => day.sport === 'strength')
+      .reduce((sum, day) => sum + day.total_duration_minutes, 0),
     repairs,
   }
 }
@@ -423,11 +502,17 @@ async function runScenario(scenario: Scenario, model: string, outputDir: string)
   } as unknown as Env
   const startedAt = Date.now()
   const response = await createTrainingPlan(request, env)
-  const payload = await response.json() as WorkerPayload
+  const payload = (await response.json()) as WorkerPayload
   if (!response.ok || !payload.plan) throw new Error(payload.detail || `Worker antwortete mit HTTP ${response.status}`)
   const evaluation = evaluate(scenario, payload.plan, payload.meta?.load_budget, payload.meta?.repairs || [])
   const result = {
-    scenario: { id: scenario.id, label: scenario.label, rationale: scenario.rationale, locale: scenario.locale, coach_style: scenario.coachStyle },
+    scenario: {
+      id: scenario.id,
+      label: scenario.label,
+      rationale: scenario.rationale,
+      locale: scenario.locale,
+      coach_style: scenario.coachStyle,
+    },
     model,
     generated_at: new Date().toISOString(),
     duration_ms: Date.now() - startedAt,
@@ -443,9 +528,13 @@ async function runScenario(scenario: Scenario, model: string, outputDir: string)
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY fehlt.')
-  const selected = options.scenarioIds.map((id) => scenarios.find((scenario) => scenario.id === id)).filter((scenario): scenario is Scenario => Boolean(scenario))
-  if (!selected.length) throw new Error(`Keine gültigen Szenarien. Verfügbar: ${scenarios.map((scenario) => scenario.id).join(', ')}`)
-  if (selected.length > options.maxCalls) throw new Error(`${selected.length} Szenarien überschreiten das Call-Limit ${options.maxCalls}.`)
+  const selected = options.scenarioIds
+    .map((id) => scenarios.find((scenario) => scenario.id === id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+  if (!selected.length)
+    throw new Error(`Keine gültigen Szenarien. Verfügbar: ${scenarios.map((scenario) => scenario.id).join(', ')}`)
+  if (selected.length > options.maxCalls)
+    throw new Error(`${selected.length} Szenarien überschreiten das Call-Limit ${options.maxCalls}.`)
   await mkdir(options.outputDir, { recursive: true })
 
   const results: Array<Record<string, unknown>> = []
@@ -454,7 +543,9 @@ async function main() {
       const result = await runScenario(scenario, options.model, options.outputDir)
       results.push(result)
       const evaluation = result.evaluation as Record<string, unknown>
-      console.log(`${scenario.id}: ${evaluation.assessment} (${evaluation.score}/100, ${evaluation.training_days} Trainingstage, ${(evaluation.repairs as string[]).length} Reparaturen)`)
+      console.log(
+        `${scenario.id}: ${evaluation.assessment} (${evaluation.score}/100, ${evaluation.training_days} Trainingstage, ${(evaluation.repairs as string[]).length} Reparaturen)`,
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       results.push({ scenario: { id: scenario.id, label: scenario.label }, error: message })
@@ -464,7 +555,11 @@ async function main() {
 
   const successful = results.filter((result) => result.evaluation)
   const averageScore = successful.length
-    ? Math.round(successful.reduce((sum, result) => sum + Number((result.evaluation as Record<string, unknown>).score), 0) / successful.length * 10) / 10
+    ? Math.round(
+        (successful.reduce((sum, result) => sum + Number((result.evaluation as Record<string, unknown>).score), 0) /
+          successful.length) *
+          10,
+      ) / 10
     : 0
   const report = {
     generated_at: new Date().toISOString(),
@@ -472,12 +567,17 @@ async function main() {
     call_count: selected.length,
     average_score: averageScore,
     passed: successful.filter((result) => (result.evaluation as Record<string, unknown>).assessment === 'pass').length,
-    reviewed: successful.filter((result) => (result.evaluation as Record<string, unknown>).assessment === 'review').length,
-    failed: results.length - successful.filter((result) => (result.evaluation as Record<string, unknown>).assessment !== 'fail').length,
+    reviewed: successful.filter((result) => (result.evaluation as Record<string, unknown>).assessment === 'review')
+      .length,
+    failed:
+      results.length -
+      successful.filter((result) => (result.evaluation as Record<string, unknown>).assessment !== 'fail').length,
     results,
   }
   await writeFile(resolve(options.outputDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  console.log(`Report: ${resolve(options.outputDir, 'report.json')} (${averageScore}/100 average, ${selected.length} Gemini calls)`)
+  console.log(
+    `Report: ${resolve(options.outputDir, 'report.json')} (${averageScore}/100 average, ${selected.length} Gemini calls)`,
+  )
 }
 
 main().catch((error) => {

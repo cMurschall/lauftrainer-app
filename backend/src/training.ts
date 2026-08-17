@@ -14,28 +14,34 @@ import {
 const weekDayEnum = z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
 const coachStyleEnum = z.enum(['mentor', 'pragmatist', 'performance'])
 
-const previousPlanDaySchema = z.object({
-  date: z.string().optional(),
-  day: z.string(),
-  sport: z.string(),
-  session_type: z.string(),
-  title: z.string(),
-  total_duration_minutes: z.number().int().nonnegative(),
-  completed: z.boolean(),
-}).passthrough()
+const previousPlanDaySchema = z
+  .object({
+    date: z.string().optional(),
+    day: z.string(),
+    sport: z.string(),
+    session_type: z.string(),
+    title: z.string(),
+    total_duration_minutes: z.number().int().nonnegative(),
+    completed: z.boolean(),
+  })
+  .passthrough()
 
 const requestSchema = z.object({
   locale: z.enum(['de', 'en']).default('de'),
   plan_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   coach_style: coachStyleEnum.default('pragmatist'),
-  previous_plan: z.object({
-    start_date: z.string().optional(),
-    week_summary: z.object({
-      focus_title: z.string(),
-      goal_description: z.string(),
-    }).optional(),
-    days: z.array(previousPlanDaySchema).max(7),
-  }).optional(),
+  previous_plan: z
+    .object({
+      start_date: z.string().optional(),
+      week_summary: z
+        .object({
+          focus_title: z.string(),
+          goal_description: z.string(),
+        })
+        .optional(),
+      days: z.array(previousPlanDaySchema).max(7),
+    })
+    .optional(),
   profile: z.record(z.unknown()).default({}),
   goals: z.array(z.record(z.unknown())).max(20).default([]),
   metrics: z.record(z.unknown()).default({}),
@@ -44,7 +50,11 @@ const requestSchema = z.object({
   workouts: z.array(z.record(z.unknown())).max(14).optional(),
 })
 
-const stepSchema = z.object({ step_duration: z.string().min(1), step_intensity: z.string().min(1), step_instruction: z.string().min(1) })
+const stepSchema = z.object({
+  step_duration: z.string().min(1),
+  step_intensity: z.string().min(1),
+  step_instruction: z.string().min(1),
+})
 const daySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   day: weekDayEnum,
@@ -59,7 +69,10 @@ const daySchema = z.object({
 })
 const weekSummarySchema = z.object({ focus_title: z.string().min(1), goal_description: z.string().min(1) })
 const planSchema = z.object({
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  start_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   week_summary: weekSummarySchema,
   days: z.array(daySchema).length(7),
 })
@@ -74,12 +87,16 @@ const responseSchema = {
       required: ['focus_title', 'goal_description'],
     },
     days: {
-      type: 'ARRAY', items: {
+      type: 'ARRAY',
+      items: {
         type: 'OBJECT',
         properties: {
           date: { type: 'STRING' },
           day: { type: 'STRING', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] },
-          sport: { type: 'STRING', enum: ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other'] },
+          sport: {
+            type: 'STRING',
+            enum: ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing', 'strength', 'mobility', 'other'],
+          },
           sport_label: { type: 'STRING' },
           session_type: { type: 'STRING', enum: ['training', 'rest'] },
           title: { type: 'STRING' },
@@ -100,7 +117,17 @@ const responseSchema = {
             },
           },
         },
-        required: ['date', 'day', 'sport', 'session_type', 'title', 'description', 'target_focus', 'total_duration_minutes', 'workout_steps'],
+        required: [
+          'date',
+          'day',
+          'sport',
+          'session_type',
+          'title',
+          'description',
+          'target_focus',
+          'total_duration_minutes',
+          'workout_steps',
+        ],
       },
     },
   },
@@ -185,16 +212,25 @@ export function describeGeminiFailure(status: number, body: unknown): GeminiFail
   }
 
   if (status === 503 || status === 500) {
-    return { clientStatus: 503, detail: 'Die KI-Planerstellung ist gerade überlastet. Bitte in einer Minute erneut versuchen.', logLine }
+    return {
+      clientStatus: 503,
+      detail: 'Die KI-Planerstellung ist gerade überlastet. Bitte in einer Minute erneut versuchen.',
+      logLine,
+    }
   }
 
   // Never surface the upstream provider or its status code to the client.
-  return { clientStatus: 502, detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.', logLine }
+  return {
+    clientStatus: 502,
+    detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.',
+    logLine,
+  }
 }
 
 export async function createTrainingPlan(request: Request, env: Env): Promise<Response> {
   const requestId = request.headers.get('X-Idempotency-Key')?.trim()
-  if (!requestId || requestId.length > 128) return json({ detail: 'X-Idempotency-Key fehlt oder ist ungültig.' }, 400, request, env)
+  if (!requestId || requestId.length > 128)
+    return json({ detail: 'X-Idempotency-Key fehlt oder ist ungültig.' }, 400, request, env)
   const localMode = env.TRAINING_PLAN_MODE === 'mock' || env.TRAINING_PLAN_MODE === 'local'
   const reservation = localMode
     ? { error: undefined, reservationId: undefined, replay: undefined }
@@ -203,13 +239,21 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
     if (reservation.reservationId) await finishReservation(env, reservation.reservationId, null, false)
   }
   if (reservation.error) return reservation.error
-  if (reservation.replay) return reservation.replay.result_json ? json({ plan: JSON.parse(reservation.replay.result_json), replay: true }, 200, request, env) : json({ detail: 'Diese Anfrage wird bereits verarbeitet.' }, 409, request, env)
+  if (reservation.replay)
+    return reservation.replay.result_json
+      ? json({ plan: JSON.parse(reservation.replay.result_json), replay: true }, 200, request, env)
+      : json({ detail: 'Diese Anfrage wird bereits verarbeitet.' }, 409, request, env)
   const rawBody = await request.text()
   if (rawBody.length > 128 * 1024) return json({ detail: 'Request ist zu groß.' }, 413, request, env)
   let body: unknown
-  try { body = JSON.parse(rawBody) } catch { return json({ detail: 'Ungültiges JSON.' }, 400, request, env) }
+  try {
+    body = JSON.parse(rawBody)
+  } catch {
+    return json({ detail: 'Ungültiges JSON.' }, 400, request, env)
+  }
   const parsed = requestSchema.safeParse(body)
-  if (!parsed.success) return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
+  if (!parsed.success)
+    return json({ detail: 'Ungültige Trainingsdaten.', issues: parsed.error.issues }, 400, request, env)
   const sanitized = sanitizePlanInputs({
     metrics: parsed.data.metrics,
     recent_workouts: parsed.data.recent_workouts,
@@ -217,7 +261,11 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
     profile: parsed.data.profile,
   })
   const budget = computeLoadBudget(sanitized, parsed.data.profile)
-  if (env.TRAINING_PLAN_MODE === 'mock' || (env.TRAINING_PLAN_MODE === 'local' && !env.GEMINI_API_KEY) || !env.GEMINI_API_KEY) {
+  if (
+    env.TRAINING_PLAN_MODE === 'mock' ||
+    (env.TRAINING_PLAN_MODE === 'local' && !env.GEMINI_API_KEY) ||
+    !env.GEMINI_API_KEY
+  ) {
     const reviewed = reviewAndClampPlan(
       createDebugPlan(parsed.data.locale, parsed.data.plan_start_date, budget),
       budget,
@@ -225,41 +273,80 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
       parsed.data.locale,
     )
     if (reservation.reservationId) await finishReservation(env, reservation.reservationId, reviewed.plan, true)
-    const payload = env.TRAINING_PLAN_MODE === 'local'
-      ? { plan: reviewed.plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.', meta: { load_budget: budget, repairs: reviewed.repairs } }
-      : { plan: reviewed.plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.' }
+    const payload =
+      env.TRAINING_PLAN_MODE === 'local'
+        ? {
+            plan: reviewed.plan,
+            debug: true,
+            detail: 'Lokaler Mock-Trainingsplan.',
+            meta: { load_budget: budget, repairs: reviewed.repairs },
+          }
+        : { plan: reviewed.plan, debug: true, detail: 'Lokaler Mock-Trainingsplan.' }
     return json(payload, 200, request, env)
   }
   const prompt = createPromptEnglish(parsed.data, sanitized, budget)
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
-  const geminiBody = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 } }
+  const geminiBody = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema, temperature: 0.2 },
+  }
   let response: Response
-  try { response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(geminiBody),
-    signal: AbortSignal.timeout(45_000),
-  }) } catch (error) {
-    await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { error: error instanceof Error ? error.message : String(error) })
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geminiBody),
+        signal: AbortSignal.timeout(45_000),
+      },
+    )
+  } catch (error) {
+    await logLocalGeminiCall(
+      env,
+      { requestId, model, prompt, geminiBody },
+      { error: error instanceof Error ? error.message : String(error) },
+    )
     await releaseReservation()
-    return json({ detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.' }, 502, request, env)
+    return json(
+      { detail: 'Die KI-Planerstellung ist momentan nicht erreichbar. Bitte später erneut versuchen.' },
+      502,
+      request,
+      env,
+    )
   }
   const responseText = await response.text()
   let responseBody: unknown = responseText
-  try { responseBody = JSON.parse(responseText) } catch { /* Keep non-JSON error responses readable in the log. */ }
-  await logLocalGeminiCall(env, { requestId, model, prompt, geminiBody }, { status: response.status, statusText: response.statusText, body: responseBody })
+  try {
+    responseBody = JSON.parse(responseText)
+  } catch {
+    /* Keep non-JSON error responses readable in the log. */
+  }
+  await logLocalGeminiCall(
+    env,
+    { requestId, model, prompt, geminiBody },
+    { status: response.status, statusText: response.statusText, body: responseBody },
+  )
   if (!response.ok) {
     const failure = describeGeminiFailure(response.status, responseBody)
     // Observability only keeps what we print, and the request URL carries the API key.
     console.error(failure.logLine)
     await releaseReservation()
-    const headers = failure.retryAfterSeconds ? { 'Retry-After': String(Math.ceil(failure.retryAfterSeconds)) } : undefined
+    const headers = failure.retryAfterSeconds
+      ? { 'Retry-After': String(Math.ceil(failure.retryAfterSeconds)) }
+      : undefined
     return json({ detail: failure.detail }, failure.clientStatus, request, env, headers)
   }
   const payload = JSON.parse(responseText) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
   const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('')
   if (!text) {
     await releaseReservation()
-    return json({ detail: 'Die KI-Planerstellung lieferte keine verwertbare Antwort. Bitte erneut versuchen.' }, 502, request, env)
+    return json(
+      { detail: 'Die KI-Planerstellung lieferte keine verwertbare Antwort. Bitte erneut versuchen.' },
+      502,
+      request,
+      env,
+    )
   }
   let plan: z.infer<typeof planSchema>
   let repairs: string[] = []
@@ -273,13 +360,14 @@ export async function createTrainingPlan(request: Request, env: Env): Promise<Re
     throw error
   }
   if (reservation.reservationId) await finishReservation(env, reservation.reservationId, plan, true)
-  if (env.TRAINING_PLAN_MODE === 'local') return json({ plan, meta: { load_budget: budget, repairs } }, 200, request, env)
+  if (env.TRAINING_PLAN_MODE === 'local')
+    return json({ plan, meta: { load_budget: budget, repairs } }, 200, request, env)
   return json({ plan }, 200, request, env)
 }
 
 async function logLocalGeminiCall(
   env: Env,
-  request: { requestId: string, model: string, prompt: string, geminiBody: unknown },
+  request: { requestId: string; model: string; prompt: string; geminiBody: unknown },
   response: unknown,
 ): Promise<void> {
   if (env.TRAINING_PLAN_MODE !== 'local') return
@@ -289,7 +377,7 @@ async function logLocalGeminiCall(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         request: { ...request, sentAt: new Date().toISOString() },
-        response: { ...response as Record<string, unknown>, receivedAt: new Date().toISOString() },
+        response: { ...(response as Record<string, unknown>), receivedAt: new Date().toISOString() },
       }),
       signal: AbortSignal.timeout(2_000),
     })
@@ -298,19 +386,27 @@ async function logLocalGeminiCall(
   }
 }
 
-function defaultWorkoutSteps(sessionType: string, description: unknown): Array<{
+function defaultWorkoutSteps(
+  sessionType: string,
+  description: unknown,
+): Array<{
   step_duration: string
   step_intensity: string
   step_instruction: string
 }> {
-  const instruction = typeof description === 'string' && description.trim()
-    ? description.trim()
-    : (sessionType === 'rest' ? 'Rest day' : 'Complete the session as planned.')
-  return [{
-    step_duration: sessionType === 'rest' ? 'Rest day' : 'Session',
-    step_intensity: sessionType === 'rest' ? 'Recovery' : 'Easy',
-    step_instruction: instruction,
-  }]
+  const instruction =
+    typeof description === 'string' && description.trim()
+      ? description.trim()
+      : sessionType === 'rest'
+        ? 'Rest day'
+        : 'Complete the session as planned.'
+  return [
+    {
+      step_duration: sessionType === 'rest' ? 'Rest day' : 'Session',
+      step_intensity: sessionType === 'rest' ? 'Recovery' : 'Easy',
+      step_instruction: instruction,
+    },
+  ]
 }
 
 export function normalizePlan(value: unknown): unknown {
@@ -340,33 +436,57 @@ export function normalizePlan(value: unknown): unknown {
 }
 
 function normalizeSport(value: unknown): string {
-  const sport = String(value ?? '').trim().toLowerCase()
+  const sport = String(value ?? '')
+    .trim()
+    .toLowerCase()
   const aliases: Record<string, string> = {
-    run: 'running', running: 'running',
-    ride: 'cycling', bike: 'cycling', cycling: 'cycling',
-    swim: 'swimming', swimming: 'swimming',
-    hike: 'hiking', hiking: 'hiking', walk: 'hiking', walking: 'hiking',
-    cardio: 'cardio', ergometer: 'cardio', treadmill: 'cardio', elliptical: 'cardio',
-    crosstrainer: 'cardio', spinning: 'cardio', indoor: 'cardio',
-    row: 'cardio', rowing: 'cardio',
-    strength: 'strength', mobility: 'mobility', yoga: 'mobility',
-    rest: 'other', recovery: 'other', other: 'other',
+    run: 'running',
+    running: 'running',
+    ride: 'cycling',
+    bike: 'cycling',
+    cycling: 'cycling',
+    swim: 'swimming',
+    swimming: 'swimming',
+    hike: 'hiking',
+    hiking: 'hiking',
+    walk: 'hiking',
+    walking: 'hiking',
+    cardio: 'cardio',
+    ergometer: 'cardio',
+    treadmill: 'cardio',
+    elliptical: 'cardio',
+    crosstrainer: 'cardio',
+    spinning: 'cardio',
+    indoor: 'cardio',
+    row: 'cardio',
+    rowing: 'cardio',
+    strength: 'strength',
+    mobility: 'mobility',
+    yoga: 'mobility',
+    rest: 'other',
+    recovery: 'other',
+    other: 'other',
   }
   return aliases[sport] || sport
 }
 
 function normalizeSessionType(value: unknown): string {
-  const sessionType = String(value ?? '').trim().toLowerCase()
+  const sessionType = String(value ?? '')
+    .trim()
+    .toLowerCase()
   if (['rest', 'recovery', 'rest day', 'recovery day'].includes(sessionType)) return 'rest'
   return 'training'
 }
 
 function createDebugPlan(locale: 'de' | 'en', startDate: string, budget: LoadBudget): z.infer<typeof planSchema> {
   const english = locale === 'en'
-  const longMinutes = Math.max(0, Math.min(budget.max_long_run_minutes, Math.max(15, Math.round(budget.max_total_training_minutes * 0.45))))
+  const longMinutes = Math.max(
+    0,
+    Math.min(budget.max_long_run_minutes, Math.max(15, Math.round(budget.max_total_training_minutes * 0.45))),
+  )
   const easyMinutes = Math.max(0, Math.min(30, Math.max(0, budget.max_total_training_minutes - longMinutes)))
   const templates = english
-    ? [
+    ? ([
         ['Rest', 'TEST PLAN — no Gemini key configured.', 'Recovery', 0],
         ['Running', 'TEST PLAN — easy aerobic run.', 'Base endurance', easyMinutes],
         ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
@@ -374,8 +494,8 @@ function createDebugPlan(locale: 'de' | 'en', startDate: string, budget: LoadBud
         ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
         ['Running', 'TEST PLAN — relaxed long run.', 'Endurance', longMinutes],
         ['Rest', 'TEST PLAN — recovery day.', 'Recovery', 0],
-      ] as const
-    : [
+      ] as const)
+    : ([
         ['Rest', 'TESTPLAN — Gemini-Key ist nicht konfiguriert.', 'Erholung', 0],
         ['Running', 'TESTPLAN — lockerer aerober Lauf.', 'Grundlagenausdauer', easyMinutes],
         ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
@@ -383,40 +503,56 @@ function createDebugPlan(locale: 'de' | 'en', startDate: string, budget: LoadBud
         ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
         ['Running', 'TESTPLAN — entspannter langer Lauf.', 'Ausdauer', longMinutes],
         ['Rest', 'TESTPLAN — Erholungstag.', 'Erholung', 0],
-      ] as const
+      ] as const)
   const summary = english
-    ? { focus_title: 'Aerobic base and recovery', goal_description: 'Build consistent endurance while allowing recovery between demanding sessions over the next 7 days.' }
-    : { focus_title: 'Aerobe Basis und Erholung', goal_description: 'Baue deine Ausdauer in den nächsten 7 Tagen kontinuierlich auf und lasse zwischen fordernden Einheiten bewusst Erholung zu.' }
-  return assertRollingPlan(planSchema.parse({
-    start_date: startDate,
-    week_summary: summary,
-    days: templates.map(([sport, description, focus, duration], index) => {
-      const date = addDaysToDateKey(startDate, index)
-      return {
-        date,
-        day: weekdayFromDateKey(date),
-        sport: sport.toLowerCase() === 'rest' ? 'other' : sport.toLowerCase(),
-        session_type: sport.toLowerCase() === 'rest' ? 'rest' : 'training',
-        title: focus,
-        description,
-        target_focus: focus,
-        total_duration_minutes: duration,
-        workout_steps: [{
-          step_duration: duration ? `${duration} min` : (english ? 'Rest day' : 'Ruhetag'),
-          step_intensity: duration ? (english ? 'Easy' : 'Locker') : (english ? 'Recovery' : 'Erholung'),
-          step_instruction: description,
-        }],
+    ? {
+        focus_title: 'Aerobic base and recovery',
+        goal_description:
+          'Build consistent endurance while allowing recovery between demanding sessions over the next 7 days.',
       }
+    : {
+        focus_title: 'Aerobe Basis und Erholung',
+        goal_description:
+          'Baue deine Ausdauer in den nächsten 7 Tagen kontinuierlich auf und lasse zwischen fordernden Einheiten bewusst Erholung zu.',
+      }
+  return assertRollingPlan(
+    planSchema.parse({
+      start_date: startDate,
+      week_summary: summary,
+      days: templates.map(([sport, description, focus, duration], index) => {
+        const date = addDaysToDateKey(startDate, index)
+        return {
+          date,
+          day: weekdayFromDateKey(date),
+          sport: sport.toLowerCase() === 'rest' ? 'other' : sport.toLowerCase(),
+          session_type: sport.toLowerCase() === 'rest' ? 'rest' : 'training',
+          title: focus,
+          description,
+          target_focus: focus,
+          total_duration_minutes: duration,
+          workout_steps: [
+            {
+              step_duration: duration ? `${duration} min` : english ? 'Rest day' : 'Ruhetag',
+              step_intensity: duration ? (english ? 'Easy' : 'Locker') : english ? 'Recovery' : 'Erholung',
+              step_instruction: description,
+            },
+          ],
+        }
+      }),
     }),
-  }), startDate)
+    startDate,
+  )
 }
 
 function parseJson(text: string): unknown {
   const trimmed = text.trim()
-  try { return JSON.parse(trimmed) } catch {
+  try {
+    return JSON.parse(trimmed)
+  } catch {
     const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]
     if (fenced) return JSON.parse(fenced)
-    const start = trimmed.indexOf('{'), end = trimmed.lastIndexOf('}')
+    const start = trimmed.indexOf('{'),
+      end = trimmed.lastIndexOf('}')
     if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1))
     throw new Error('Gemini lieferte kein gültiges JSON-Objekt.')
   }
@@ -526,7 +662,8 @@ function createPromptEnglish(
     'Return only valid JSON without Markdown.',
     coachStyleBlock(data.coach_style),
   ]
-  const schema = 'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Optional sport_label is only for custom sports with sport "other". Each step needs step_duration, step_intensity, and step_instruction.'
+  const schema =
+    'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Optional sport_label is only for custom sports with sport "other". Each step needs step_duration, step_intensity, and step_instruction.'
   return [
     ...instructions,
     schema,

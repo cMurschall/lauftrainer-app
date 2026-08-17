@@ -8,7 +8,13 @@ import { MemoryD1 } from './helpers/memoryD1.ts'
 const baseEnv = {
   ALLOWED_ORIGIN: 'http://localhost:5173',
   FRONTEND_URL: 'http://localhost:5173',
-  POLAR_SESSIONS: { async get() { return null }, async put() {}, async delete() {} },
+  POLAR_SESSIONS: {
+    async get() {
+      return null
+    },
+    async put() {},
+    async delete() {},
+  },
   ADMIN_SECRET: 'test-admin-secret',
 }
 
@@ -24,7 +30,7 @@ async function createTestWallet(db: MemoryD1) {
   const env = envWithDb(db)
   const response = await createWallet(new Request('http://worker.test/api/billing/wallet', { method: 'POST' }), env)
   assert.equal(response.status, 201)
-  return { env, ...(await response.json() as { wallet_token: string; wallet_id: string }) }
+  return { env, ...((await response.json()) as { wallet_token: string; wallet_id: string }) }
 }
 
 describe('admin', () => {
@@ -36,7 +42,10 @@ describe('admin', () => {
       false,
     )
     assert.equal(
-      isAdminAuthorized(new Request('http://worker.test/x', { headers: { 'X-Admin-Secret': 'test-admin-secret' } }), env),
+      isAdminAuthorized(
+        new Request('http://worker.test/x', { headers: { 'X-Admin-Secret': 'test-admin-secret' } }),
+        env,
+      ),
       true,
     )
     assert.equal(
@@ -71,7 +80,7 @@ describe('admin', () => {
       env,
     )
     assert.equal(created.status, 201)
-    const payload = await created.json() as { code: string; amount: number; max_redemptions: number }
+    const payload = (await created.json()) as { code: string; amount: number; max_redemptions: number }
     assert.equal(payload.code, 'BETA-TEST-01')
     assert.equal(payload.amount, 7)
     assert.equal(payload.max_redemptions, 3)
@@ -116,20 +125,26 @@ describe('admin', () => {
       env,
     )
     assert.equal(restored.status, 200)
-    const payload = await restored.json() as { wallet_id: string; balance: number; restore_url: string }
+    const payload = (await restored.json()) as { wallet_id: string; balance: number; restore_url: string }
     assert.equal(payload.wallet_id, wallet_id)
     assert.equal(payload.balance, 10)
     assert.match(payload.restore_url, /^http:\/\/localhost:5173\/restore#token=/)
 
-    const oldToken = await balance(new Request('http://worker.test/api/billing/balance', {
-      headers: { 'X-Wallet-Token': wallet_token },
-    }), env)
+    const oldToken = await balance(
+      new Request('http://worker.test/api/billing/balance', {
+        headers: { 'X-Wallet-Token': wallet_token },
+      }),
+      env,
+    )
     assert.equal(oldToken.status, 401)
 
     const token = decodeURIComponent(payload.restore_url.split('#token=')[1] || '')
-    const newToken = await balance(new Request('http://worker.test/api/billing/balance', {
-      headers: { 'X-Wallet-Token': token },
-    }), env)
+    const newToken = await balance(
+      new Request('http://worker.test/api/billing/balance', {
+        headers: { 'X-Wallet-Token': token },
+      }),
+      env,
+    )
     assert.equal(newToken.status, 200)
     assert.deepEqual(await newToken.json(), { balance: 10 })
   })
@@ -146,7 +161,7 @@ describe('admin', () => {
       env,
     )
     assert.equal(restored.status, 200)
-    const payload = await restored.json() as { restore_url: string }
+    const payload = (await restored.json()) as { restore_url: string }
     assert.ok(payload.restore_url.includes('/restore#token='))
   })
 })

@@ -12,7 +12,9 @@
     "deploy": "wrangler deploy",
     "test": "tsx --test test/*.test.ts",
     "test:plan": "tsx scripts/evaluate-training-plans.ts",
-    "test:plan:legacy": "tsx scripts/test-training-plan.ts"
+    "test:plan:legacy": "tsx scripts/test-training-plan.ts",
+    "format": "prettier --write \"src/**/*.{ts,json}\" \"test/**/*.{ts,json}\" \"scripts/**/*.{ts,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,json}\" \"test/**/*.{ts,json}\" \"scripts/**/*.{ts,json}\""
   },
   "dependencies": {
     "zod": "^3.24.2"
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260812.1",
     "concurrently": "^10.0.4",
+    "prettier": "^3.9.6",
     "tsx": "^4.23.12",
     "typescript": "^5.8.2",
     "wrangler": "^4.30.0"

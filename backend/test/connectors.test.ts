@@ -28,10 +28,13 @@ describe('connectors orchestration', () => {
     const polarSession = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     const stravaSession = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     await kv.put(`polar-session:${polarSession}`, JSON.stringify({ access_token: 'polar' }))
-    await kv.put(`strava-session:${stravaSession}`, JSON.stringify({
-      access_token: 'strava',
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-    }))
+    await kv.put(
+      `strava-session:${stravaSession}`,
+      JSON.stringify({
+        access_token: 'strava',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    )
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -68,7 +71,7 @@ describe('connectors orchestration', () => {
       env(kv),
     )
     assert.equal(response.status, 200)
-    const payload = await response.json() as {
+    const payload = (await response.json()) as {
       results: Array<{ connector: string; workouts: unknown[]; error?: string }>
     }
     const polar = payload.results.find((item) => item.connector === 'polar')

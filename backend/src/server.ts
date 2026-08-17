@@ -13,7 +13,8 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request, env) })
     const path = new URL(request.url).pathname
     try {
-      if (request.method === 'GET' && path === '/health') return json({ status: 'ok', version: packageJson.version, commit: env.COMMIT_SHA || '' }, 200, request, env)
+      if (request.method === 'GET' && path === '/health')
+        return json({ status: 'ok', version: packageJson.version, commit: env.COMMIT_SHA || '' }, 200, request, env)
       if (request.method === 'GET' && path === '/admin') return await adminPage(request, env)
       if (request.method === 'POST' && path === '/api/admin/vouchers') return await createAdminVoucher(request, env)
       if (request.method === 'POST' && path === '/api/admin/restore') return await createAdminRestore(request, env)
@@ -24,8 +25,10 @@ export default {
       if (request.method === 'GET' && path === '/api/connectors/status') return await listStatus(request, env)
       if (request.method === 'GET' && path === '/api/connectors/polar/connect') return await connect(request, env)
       if (request.method === 'GET' && path === '/api/connectors/polar/callback') return await callback(request, env)
-      if (request.method === 'GET' && path === '/api/connectors/strava/connect') return await strava.connect(request, env)
-      if (request.method === 'GET' && path === '/api/connectors/strava/callback') return await strava.callback(request, env)
+      if (request.method === 'GET' && path === '/api/connectors/strava/connect')
+        return await strava.connect(request, env)
+      if (request.method === 'GET' && path === '/api/connectors/strava/callback')
+        return await strava.callback(request, env)
       if (request.method === 'POST' && path === '/api/connectors/sync') return await syncAll(request, env)
       const disconnectMatch = path.match(/^\/api\/connectors\/(polar|strava)\/disconnect$/)
       if (request.method === 'POST' && disconnectMatch) return await disconnect(request, env, disconnectMatch[1])
@@ -37,18 +40,26 @@ export default {
       if (request.method === 'POST' && path === '/api/billing/webhook') return await paddleWebhook(request, env)
       if (request.method === 'GET' && path === '/api/billing/region') {
         const country = request.headers.get('CF-IPCountry') || request.headers.get('x-vercel-ip-country')
-        return json({ country: country && /^[A-Z]{2}$/.test(country.toUpperCase()) ? country.toUpperCase() : null }, 200, request, env)
+        return json(
+          { country: country && /^[A-Z]{2}$/.test(country.toUpperCase()) ? country.toUpperCase() : null },
+          200,
+          request,
+          env,
+        )
       }
       return json({ detail: 'Not found' }, 404, request, env)
     } catch (error) {
       console.error('Worker error:', error)
-      const detail = env.TRAINING_PLAN_MODE === 'local' && error instanceof Error
-        ? `Lokaler KI-Fehler: ${error.message}`
-        : path.startsWith('/api/polar/')
-          ? 'Polar-OAuth konnte nicht verarbeitet werden.'
-          : 'KI-Aufruf konnte nicht verarbeitet werden.'
+      const detail =
+        env.TRAINING_PLAN_MODE === 'local' && error instanceof Error
+          ? `Lokaler KI-Fehler: ${error.message}`
+          : path.startsWith('/api/polar/')
+            ? 'Polar-OAuth konnte nicht verarbeitet werden.'
+            : 'KI-Aufruf konnte nicht verarbeitet werden.'
       return json({ detail }, 502, request, env)
     }
   },
-  async scheduled(_event: ScheduledEvent, env: Env) { await cleanupReservations(env) }
+  async scheduled(_event: ScheduledEvent, env: Env) {
+    await cleanupReservations(env)
+  },
 }

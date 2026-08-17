@@ -255,7 +255,11 @@ class MemoryStatement {
       return 1
     }
 
-    if (sql.startsWith("UPDATE plan_reservations SET status = 'released', completed_at = ? WHERE status = 'pending_plan_generation' AND expires_at <=")) {
+    if (
+      sql.startsWith(
+        "UPDATE plan_reservations SET status = 'released', completed_at = ? WHERE status = 'pending_plan_generation' AND expires_at <=",
+      )
+    ) {
       let changes = 0
       for (const row of this.#db.plan_reservations) {
         if (row.status === 'pending_plan_generation' && String(row.expires_at) <= String(b[1])) {
@@ -301,7 +305,12 @@ class MemoryStatement {
   }
 }
 
-export async function seedVoucher(db: MemoryD1, code: string, amount: number, opts: { expiresAt?: string | null; max?: number } = {}) {
+export async function seedVoucher(
+  db: MemoryD1,
+  code: string,
+  amount: number,
+  opts: { expiresAt?: string | null; max?: number } = {},
+) {
   const hash = await digest(code.trim().toUpperCase())
   db.vouchers.push({
     code_hash: hash,

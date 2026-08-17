@@ -29,7 +29,9 @@ const server = createServer((request, response) => {
         request?: { requestId?: string }
       }
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const requestId = String(entry.request?.requestId || 'request').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80)
+      const requestId = String(entry.request?.requestId || 'request')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 80)
       const filename = `${timestamp}-${requestId}-${randomUUID().slice(0, 8)}.json`
       await writeFile(resolve(outputDirectory, filename), `${JSON.stringify(entry, null, 2)}\n`, 'utf8')
       response.writeHead(204).end()

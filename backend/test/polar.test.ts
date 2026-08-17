@@ -125,7 +125,7 @@ describe('polar oauth and sync', () => {
       env(kv),
     )
     assert.equal(ok.status, 200)
-    const payload = await ok.json() as { workouts: Array<Record<string, unknown>>; count: number }
+    const payload = (await ok.json()) as { workouts: Array<Record<string, unknown>>; count: number }
     assert.equal(payload.count, 1)
     assert.equal(payload.workouts[0].durationSeconds, 2730)
     assert.equal(payload.workouts[0].distanceKm, 7.2)

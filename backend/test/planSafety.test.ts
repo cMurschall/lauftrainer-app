@@ -15,11 +15,13 @@ function day(partial: Partial<PlanDay> & Pick<PlanDay, 'date' | 'day' | 'sport' 
     title: partial.title || 'Session',
     description: partial.description || 'Session',
     target_focus: partial.target_focus || 'Focus',
-    workout_steps: partial.workout_steps || [{
-      step_duration: `${partial.total_duration_minutes || 0} min`,
-      step_intensity: partial.target_focus?.includes('interval') ? 'intervals' : 'easy',
-      step_instruction: partial.description || 'Do the session',
-    }],
+    workout_steps: partial.workout_steps || [
+      {
+        step_duration: `${partial.total_duration_minutes || 0} min`,
+        step_intensity: partial.target_focus?.includes('interval') ? 'intervals' : 'easy',
+        step_instruction: partial.description || 'Do the session',
+      },
+    ],
     ...partial,
   }
 }
@@ -73,9 +75,7 @@ describe('computeLoadBudget', () => {
         ],
         latest_load: { ctl: 8.4, risk: 'low' },
       },
-      recent_workouts: [
-        { sport: 'running', duration_minutes: 8, distance_km: 1 },
-      ],
+      recent_workouts: [{ sport: 'running', duration_minutes: 8, distance_km: 1 }],
       profile: { training_frequency_per_week: 3, strength_training: true },
     })
     const budget = computeLoadBudget(sanitized, {
@@ -204,37 +204,51 @@ describe('reviewAndClampPlan', () => {
       available_sports: ['running', 'strength'],
       preferred_training_days: ['monday', 'friday'],
     })
-    const enduranceTotal = plan.days.reduce((sum, item) => (
-      item.session_type === 'training' && ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing'].includes(item.sport)
-        ? sum + item.total_duration_minutes
-        : sum
-    ), 0)
-    const longestRun = Math.max(0, ...plan.days.filter((item) => item.sport === 'running').map((item) => item.total_duration_minutes))
+    const enduranceTotal = plan.days.reduce(
+      (sum, item) =>
+        item.session_type === 'training' &&
+        ['running', 'cycling', 'swimming', 'hiking', 'cardio', 'rowing'].includes(item.sport)
+          ? sum + item.total_duration_minutes
+          : sum,
+      0,
+    )
+    const longestRun = Math.max(
+      0,
+      ...plan.days.filter((item) => item.sport === 'running').map((item) => item.total_duration_minutes),
+    )
     const qualityCount = plan.days.filter((item) => isQualitySession(item)).length
     assert.ok(enduranceTotal <= 36)
     assert.ok(longestRun <= 26)
     assert.equal(qualityCount, 0)
     assert.equal(plan.days.find((item) => item.date === '2026-08-18')?.session_type, 'rest')
     assert.ok(repairs.some((item) => item.startsWith('sport_whitelist')))
-    assert.ok(repairs.some((item) => item.startsWith('long_clamped') || item.startsWith('total_clamped') || item.startsWith('total_drop')))
+    assert.ok(
+      repairs.some(
+        (item) => item.startsWith('long_clamped') || item.startsWith('total_clamped') || item.startsWith('total_drop'),
+      ),
+    )
   })
 
   it('does not spend endurance budget on strength minutes', () => {
-    const { plan } = reviewAndClampPlan(planFromDays([
-      day({ date: '2026-08-14', day: 'friday', sport: 'running', total_duration_minutes: 20, title: 'Easy' }),
-      day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 45, title: 'Long' }),
-      day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-18', day: 'tuesday', sport: 'strength', total_duration_minutes: 35, title: 'Kraft' }),
-      day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-    ]), {
-      ...baseBudget,
-      max_total_training_minutes: 60,
-      max_long_run_minutes: 45,
-      max_endurance_sessions: 2,
-      resume_long: true,
-    }, { available_sports: ['running', 'strength'], strength_training: true })
+    const { plan } = reviewAndClampPlan(
+      planFromDays([
+        day({ date: '2026-08-14', day: 'friday', sport: 'running', total_duration_minutes: 20, title: 'Easy' }),
+        day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 45, title: 'Long' }),
+        day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-18', day: 'tuesday', sport: 'strength', total_duration_minutes: 35, title: 'Kraft' }),
+        day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      ]),
+      {
+        ...baseBudget,
+        max_total_training_minutes: 60,
+        max_long_run_minutes: 45,
+        max_endurance_sessions: 2,
+        resume_long: true,
+      },
+      { available_sports: ['running', 'strength'], strength_training: true },
+    )
     assert.equal(plan.days.find((item) => item.date === '2026-08-16')?.total_duration_minutes, 45)
     assert.equal(plan.days.find((item) => item.date === '2026-08-18')?.total_duration_minutes, 35)
   })
@@ -250,22 +264,43 @@ describe('reviewAndClampPlan', () => {
       target_focus: 'Aerobe Aktivierung, Körpergefühl',
       workout_steps: [
         { step_duration: '3 Minuten', step_intensity: 'Sehr leicht', step_instruction: 'Gehe zügig.' },
-        { step_duration: '5 Minuten', step_intensity: 'Leicht (Zone 2 / Konversationstempo)', step_instruction: 'Jogge unterhaltungsfähig.' },
+        {
+          step_duration: '5 Minuten',
+          step_intensity: 'Leicht (Zone 2 / Konversationstempo)',
+          step_instruction: 'Jogge unterhaltungsfähig.',
+        },
         { step_duration: '2 Minuten', step_intensity: 'Sehr leicht', step_instruction: 'Gehe langsam.' },
       ],
     })
     assert.equal(isQualitySession(easy), false)
-    const { plan } = reviewAndClampPlan(planFromDays([
-      easy,
-      day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 15, title: 'Grundlagenlauf', description: 'Locker', target_focus: 'Ausdauer', workout_steps: [
-        { step_duration: '15 Minuten', step_intensity: 'Leicht (Konversationstempo)', step_instruction: 'Locker laufen.' },
-      ] }),
-      day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-    ]), baseBudget, { available_sports: ['running', 'strength'] })
+    const { plan } = reviewAndClampPlan(
+      planFromDays([
+        easy,
+        day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({
+          date: '2026-08-16',
+          day: 'sunday',
+          sport: 'running',
+          total_duration_minutes: 15,
+          title: 'Grundlagenlauf',
+          description: 'Locker',
+          target_focus: 'Ausdauer',
+          workout_steps: [
+            {
+              step_duration: '15 Minuten',
+              step_intensity: 'Leicht (Konversationstempo)',
+              step_instruction: 'Locker laufen.',
+            },
+          ],
+        }),
+        day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      ]),
+      baseBudget,
+      { available_sports: ['running', 'strength'] },
+    )
     const friday = plan.days.find((item) => item.date === '2026-08-14')
     assert.equal(friday?.title, 'Leichter Wiedereinstiegslauf')
     assert.match(friday?.description || '', /leichter Lauf/i)
@@ -273,25 +308,30 @@ describe('reviewAndClampPlan', () => {
   })
 
   it('normalizes malformed rest days and caps all structured sessions', () => {
-    const { plan, repairs } = reviewAndClampPlan(planFromDays([
-      day({ date: '2026-08-14', day: 'friday', sport: 'mobility', session_type: 'rest', total_duration_minutes: 20 }),
-      day({ date: '2026-08-15', day: 'saturday', sport: 'running', total_duration_minutes: 40 }),
-      day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 45 }),
-      day({ date: '2026-08-17', day: 'monday', sport: 'strength', total_duration_minutes: 30 }),
-      day({ date: '2026-08-18', day: 'tuesday', sport: 'running', total_duration_minutes: 30 }),
-      day({ date: '2026-08-19', day: 'wednesday', sport: 'strength', total_duration_minutes: 30 }),
-      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-    ]), {
-      ...baseBudget,
-      max_total_training_minutes: 150,
-      max_long_run_minutes: 60,
-      max_training_sessions: 3,
-      max_strength_sessions: 2,
-      max_strength_minutes_total: 70,
-    }, {
-      available_sports: ['running', 'strength', 'mobility'],
-      preferred_training_days: ['saturday', 'monday', 'wednesday'],
-    }, 'de')
+    const { plan, repairs } = reviewAndClampPlan(
+      planFromDays([
+        day({ date: '2026-08-14', day: 'friday', sport: 'mobility', session_type: 'rest', total_duration_minutes: 20 }),
+        day({ date: '2026-08-15', day: 'saturday', sport: 'running', total_duration_minutes: 40 }),
+        day({ date: '2026-08-16', day: 'sunday', sport: 'running', total_duration_minutes: 45 }),
+        day({ date: '2026-08-17', day: 'monday', sport: 'strength', total_duration_minutes: 30 }),
+        day({ date: '2026-08-18', day: 'tuesday', sport: 'running', total_duration_minutes: 30 }),
+        day({ date: '2026-08-19', day: 'wednesday', sport: 'strength', total_duration_minutes: 30 }),
+        day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      ]),
+      {
+        ...baseBudget,
+        max_total_training_minutes: 150,
+        max_long_run_minutes: 60,
+        max_training_sessions: 3,
+        max_strength_sessions: 2,
+        max_strength_minutes_total: 70,
+      },
+      {
+        available_sports: ['running', 'strength', 'mobility'],
+        preferred_training_days: ['saturday', 'monday', 'wednesday'],
+      },
+      'de',
+    )
 
     const friday = plan.days.find((item) => item.date === '2026-08-14')
     assert.equal(friday?.session_type, 'rest')
@@ -299,7 +339,10 @@ describe('reviewAndClampPlan', () => {
     assert.equal(friday?.total_duration_minutes, 0)
     assert.equal(plan.days.filter((item) => item.session_type === 'training').length, 3)
     assert.deepEqual(
-      plan.days.filter((item) => item.session_type === 'training').map((item) => item.day).sort(),
+      plan.days
+        .filter((item) => item.session_type === 'training')
+        .map((item) => item.day)
+        .sort(),
       ['monday', 'saturday', 'wednesday'],
     )
     assert.ok(repairs.some((item) => item.startsWith('rest_normalized')))
@@ -308,36 +351,40 @@ describe('reviewAndClampPlan', () => {
   })
 
   it('keeps custom sports via sport_label and rejects unknown labels', () => {
-    const { plan, repairs } = reviewAndClampPlan(planFromDays([
-      day({
-        date: '2026-08-14',
-        day: 'friday',
-        sport: 'other',
-        sport_label: 'Yoga',
-        total_duration_minutes: 30,
-        title: 'Mobility flow',
-      }),
-      day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({
-        date: '2026-08-16',
-        day: 'sunday',
-        sport: 'other',
-        sport_label: 'Ski',
-        total_duration_minutes: 40,
-        title: 'Ski',
-      }),
-      day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-      day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
-    ]), {
-      ...baseBudget,
-      max_total_training_minutes: 90,
-      max_long_run_minutes: 45,
-      max_training_sessions: 2,
-    }, {
-      available_sports: ['running', 'Yoga'],
-    })
+    const { plan, repairs } = reviewAndClampPlan(
+      planFromDays([
+        day({
+          date: '2026-08-14',
+          day: 'friday',
+          sport: 'other',
+          sport_label: 'Yoga',
+          total_duration_minutes: 30,
+          title: 'Mobility flow',
+        }),
+        day({ date: '2026-08-15', day: 'saturday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({
+          date: '2026-08-16',
+          day: 'sunday',
+          sport: 'other',
+          sport_label: 'Ski',
+          total_duration_minutes: 40,
+          title: 'Ski',
+        }),
+        day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      ]),
+      {
+        ...baseBudget,
+        max_total_training_minutes: 90,
+        max_long_run_minutes: 45,
+        max_training_sessions: 2,
+      },
+      {
+        available_sports: ['running', 'Yoga'],
+      },
+    )
 
     const friday = plan.days.find((item) => item.date === '2026-08-14')
     const sunday = plan.days.find((item) => item.date === '2026-08-16')
