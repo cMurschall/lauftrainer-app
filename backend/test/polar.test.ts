@@ -71,6 +71,25 @@ describe('polar oauth and sync', () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/v3/users')) return new Response(null, { status: 409 })
+      // Detail fetch: list endpoint never embeds route points even with route=true.
+      if (/\/v3\/exercises\/[^/?]+/.test(url)) {
+        return new Response(
+          JSON.stringify({
+            id: 'ex-1',
+            name: 'Morning Run',
+            sport: 'RUNNING',
+            'start-time': '2026-08-10T10:00:00Z',
+            duration: 'PT45M30S',
+            distance: 7200,
+            has_route: true,
+            route: [
+              { latitude: 52.52, longitude: 13.405 },
+              { latitude: 52.521, longitude: 13.406 },
+            ],
+          }),
+          { status: 200 },
+        )
+      }
       if (url.includes('/v3/exercises')) {
         return new Response(
           JSON.stringify([
@@ -84,6 +103,7 @@ describe('polar oauth and sync', () => {
               'average-heart-rate': 142,
               calories: 500,
               ascent: 80,
+              has_route: true,
             },
           ]),
           { status: 200 },
@@ -111,5 +131,54 @@ describe('polar oauth and sync', () => {
     assert.equal(payload.workouts[0].distanceKm, 7.2)
     assert.equal(payload.workouts[0].averageHeartRate, 142)
     assert.equal(payload.workouts[0].elevationGainM, 80)
+    const records = payload.workouts[0].records as Array<Record<string, unknown>>
+    assert.equal(records.length, 2)
+    assert.equal(records[0].latitude, 52.52)
+    assert.equal(records[1].longitude, 13.406)
+  })
+
+  it('maps route points from list payload without a second request', async () => {
+    const kv = new MemoryKV()
+    const session = '33333333-3333-4333-8333-333333333333'
+    await kv.put(`polar-session:${session}`, JSON.stringify({ access_token: 'tok' }))
+    let detailCalls = 0
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (/\/v3\/exercises\/[^/?]+/.test(url)) {
+        detailCalls += 1
+        return new Response('should not be called', { status: 500 })
+      }
+      if (url.includes('/v3/exercises')) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 'ex-2',
+              sport: 'RUNNING',
+              'start-time': '2026-08-11T10:00:00Z',
+              duration: 'PT10M',
+              distance: 2000,
+              route: [
+                { lat: 48.1, lon: 11.5 },
+                { lat: 48.11, lon: 11.51 },
+              ],
+            },
+          ]),
+          { status: 200 },
+        )
+      }
+      return new Response('unexpected', { status: 500 })
+    }) as typeof fetch
+
+    const ok = await polar.sync(
+      new Request('http://worker.test/api/polar/sync', {
+        headers: { 'X-Polar-Session': session },
+      }),
+      env(kv),
+    )
+    assert.equal(ok.status, 200)
+    assert.equal(detailCalls, 0)
+    const payload = (await ok.json()) as { workouts: Array<{ records: unknown[] }> }
+    assert.equal(payload.workouts[0].records.length, 2)
   })
 })

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from './i18n'
 import { useTheme } from './composables/useTheme'
@@ -23,11 +23,20 @@ const settings = useSettingsStore()
 const plan = usePlanStore()
 const analysis = useAnalysisStore()
 const { theme } = storeToRefs(settings)
-const { t, formatTime } = useI18n()
+const { t, locale, formatTime } = useI18n()
 const frontendLocalMode = ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
 const frontendVersion = frontendPackage.version
 const buildTime = __BUILD_TIME__
 const frontendCommit = import.meta.env.VITE_COMMIT_SHA || ''
+const buildLabel = computed(() =>
+  new Date(buildTime).toLocaleString(locale.value === 'de' ? 'de-DE' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }),
+)
 const { visible: pwaInstallVisible, ios: pwaInstallIos, install: installPwa, dismiss: dismissPwaInstall } = usePwaInstall()
 
 useTheme(theme)
@@ -83,12 +92,34 @@ onMounted(async () => {
       <footer class="diagnostics-footer">
         <details>
           <summary>{{ t.technicalInformation }}</summary>
-          <div class="diagnostics-content">
-            <BackendStatus :check="checkBackend" :checked-at="ui.backendCheckedAt" :status="ui.backendStatus" :version="ui.backendVersion" />
-            <span>{{ t.frontendVersion }} {{ frontendVersion }}<template v-if="frontendCommit"> · {{ frontendCommit }}</template></span>
-            <span>Build: {{ new Date(buildTime).toLocaleString() }}</span>
-            <span>{{ t.backendVersion }} {{ ui.backendVersion }}<template v-if="ui.backendCommit"> · {{ ui.backendCommit }}</template></span>
-          </div>
+          <dl class="diagnostics-content">
+            <div class="diagnostics-item">
+              <dt>{{ t.diagnosticsStatus }}</dt>
+              <dd>
+                <BackendStatus :check="checkBackend" :checked-at="ui.backendCheckedAt" :status="ui.backendStatus" />
+              </dd>
+            </div>
+            <div class="diagnostics-item">
+              <dt>{{ t.frontendVersion }}</dt>
+              <dd>
+                <span>{{ frontendVersion }}</span>
+                <small v-if="frontendCommit">{{ frontendCommit }}</small>
+              </dd>
+            </div>
+            <div class="diagnostics-item">
+              <dt>{{ t.backendVersion }}</dt>
+              <dd>
+                <span>{{ ui.backendVersion }}</span>
+                <small v-if="ui.backendCommit">{{ ui.backendCommit }}</small>
+              </dd>
+            </div>
+            <div class="diagnostics-item">
+              <dt>{{ t.diagnosticsBuild }}</dt>
+              <dd>
+                <span>{{ buildLabel }}</span>
+              </dd>
+            </div>
+          </dl>
         </details>
         <nav class="legal-links" :aria-label="t.imprint">
           <RouterLink to="/impressum">{{ t.imprint }}</RouterLink>
