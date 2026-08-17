@@ -2,12 +2,17 @@ import {
   Map as MapLibreMap,
   LngLatBounds,
   addProtocol,
+  setWorkerUrl,
   type GeoJSONSource,
   type StyleSpecification,
 } from 'maplibre-gl'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { Protocol } from 'pmtiles'
 import type { FeatureCollection } from 'geojson'
+
+// MapLibre v6: Vite must bundle the worker; otherwise Firefox blocks .vite/deps/*.mjs (empty MIME).
+setWorkerUrl(maplibreWorkerUrl)
 
 /** Germany extract bbox used by scripts/extract-germany-pmtiles.ps1 (west,south,east,north). */
 export const GERMANY_BBOX = {
@@ -72,7 +77,13 @@ const ROUTE_SOURCE = 'workout-route'
 const ROUTE_LAYER = 'workout-route-line'
 const ROUTE_COLOR = '#fb923c'
 
-function emptyBasemapStyle(): StyleSpecification {
+export type MapTheme = 'light' | 'dark'
+
+export function resolvedDomTheme(): MapTheme {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
+
+function emptyBasemapStyle(theme: MapTheme): StyleSpecification {
   return {
     version: 8,
     sources: {},
@@ -80,30 +91,33 @@ function emptyBasemapStyle(): StyleSpecification {
       {
         id: 'background',
         type: 'background',
-        paint: { 'background-color': '#0D1117' },
+        paint: { 'background-color': theme === 'dark' ? '#0D1117' : '#E8EEF4' },
       },
     ],
   }
 }
 
-export function buildMapStyle(options: { showBasemap: boolean }): StyleSpecification {
+export function buildMapStyle(options: { showBasemap: boolean; theme?: MapTheme }): StyleSpecification {
+  const theme = options.theme ?? resolvedDomTheme()
   if (!options.showBasemap || !hasMapTilesUrl()) {
-    return emptyBasemapStyle()
+    return emptyBasemapStyle(theme)
   }
 
+  const flavor = theme === 'dark' ? 'dark' : 'light'
   return {
     version: 8,
     glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-    sprite: 'https://protomaps.github.io/basemaps-assets/sprites/v4/dark',
+    sprite: `https://protomaps.github.io/basemaps-assets/sprites/v4/${flavor}`,
     sources: {
       protomaps: {
         type: 'vector',
         url: `pmtiles://${MAP_PMTILES_URL}`,
+        // Required by OSM / Protomaps license when basemap tiles are shown.
         attribution:
-          '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
+          '<a href="https://protomaps.com">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       },
     },
-    layers: layers('protomaps', namedFlavor('dark'), { lang: 'de' }),
+    layers: layers('protomaps', namedFlavor(flavor), { lang: 'de' }),
   }
 }
 

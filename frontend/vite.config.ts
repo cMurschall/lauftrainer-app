@@ -7,6 +7,10 @@ export default defineConfig({
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
+  optimizeDeps: {
+    // Keep MapLibre's ESM worker out of the prebundle so setWorkerUrl(?worker&url) works in Firefox.
+    exclude: ['maplibre-gl'],
+  },
   plugins: [
     tailwindcss(),
     vue(),
