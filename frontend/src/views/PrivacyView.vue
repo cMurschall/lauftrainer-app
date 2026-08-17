@@ -80,58 +80,39 @@
     </section>
 
     <section>
-      <h2>7. Kartendetails (OpenStreetMap / Overpass)</h2>
+      <h2>7. Kartendetails (Basemap / PMTiles)</h2>
       <p>
-        Die GPS-Spur deines Trainings bleibt lokal auf dem Gerät. Zusätzliche Kartendetails
-        (Straßen, Gewässer, Wälder, Wohngebiete) werden nur geladen, wenn du eine Aktivität
-        aufklappst und dem Laden der Details zustimmst — oder wenn du das in den Einstellungen
-        dauerhaft erlaubst.
+        Die GPS-Spur deines Trainings bleibt lokal auf dem Gerät. Eine Hintergrundkarte
+        (Straßen, Gewässer, Wälder aus OpenStreetMap-Daten via Protomaps) wird nur geladen,
+        wenn du eine Aktivität aufklappst und dem Laden zustimmst — oder wenn du das in den
+        Einstellungen dauerhaft erlaubst.
       </p>
       <p>
-        Dafür sendet dein Browser eine Anfrage direkt an eine öffentliche Overpass-API
-        (OpenStreetMap-Daten). Übermittelt werden technisch notwendige Verbindungsdaten
-        (insbesondere deine IP-Adresse) sowie eine grob gerasterte Bounding-Box um die
-        Strecke — nicht die vollständige Track-Punktliste und keine Trainingsmetriken.
-        LaufTrainer speichert diese Anfrage nicht serverseitig.
+        Dafür lädt dein Browser Vector-Tiles per HTTP-Range-Request direkt von unserem
+        Karten-Archiv auf Cloudflare R2 (eine PMTiles-Datei für Deutschland). Übermittelt
+        werden technisch notwendige Verbindungsdaten (insbesondere deine IP-Adresse) sowie
+        welche Kachelbereiche angefragt werden — daraus lässt sich ungefähr ableiten, in
+        welcher Gegend die Strecke liegt. Die vollständige Track-Punktliste und
+        Trainingsmetriken werden dabei nicht gesendet. LaufTrainer speichert die Anfragen
+        nicht als Workout-Historie.
       </p>
       <p>
-        Die abgefragte Bounding-Box wird auf ein Gitter von 0,02° (rund 2 km) aufgerundet
-        und ist damit bewusst ungenauer als deine Strecke. Geladene Gebiete werden lokal
-        in IndexedDB zwischengespeichert und für weitere Trainings in derselben Gegend
-        wiederverwendet. Dadurch sind sie offline verfügbar, und für Läufe rund um deinen
-        Wohnort entsteht in der Regel gar keine weitere Anfrage.
+        Außerhalb des Deutschland-Ausschnitts oder ohne Zustimmung bleibt nur die lokale
+        Streckenlinie sichtbar. Schriftarten und Sprites für die Karte können von den
+        öffentlichen Protomaps-Asset-Hosts geladen werden.
       </p>
       <p>
-        In dünn besiedelten Gegenden fragt der Browser für dieselbe Bounding-Box zusätzlich
-        die kleineren Wohnstraßen ab, damit auch Dörfer erkennbar bleiben. In Städten
-        unterbleibt das, weil die Datenmenge dort zu groß würde. Diese zweite Abfrage
-        übermittelt keine weiteren personenbezogenen Daten — es ist dieselbe grob gerasterte
-        Bounding-Box.
-      </p>
-      <p>
-        Die öffentlichen Overpass-Server sind häufig überlastet. Deshalb fragt der Browser
-        der Reihe nach mehrere Instanzen ab, bis eine antwortet:
-        <code>overpass.private.coffee</code> (Österreich) und
-        <code>overpass-api.de</code> (Deutschland). Beide liegen innerhalb der EU.
-      </p>
-      <p>
-        Die Nutzungsbedingungen der Overpass-API verlangen, dass sich anfragende Programme
-        zu erkennen geben. Deshalb sendet der Browser als Referrer ausschließlich die
-        Adresse dieser Anwendung (nur die Domain, ohne Pfad). Welche Seite du gerade
-        geöffnet hast oder welches Training du ansiehst, ist für die Betreiber damit nicht
-        sichtbar.
-      </p>
-      <p>
-        Du kannst Kartendetails jederzeit in den Einstellungen ablehnen oder erneut erlauben.
-        Ohne Zustimmung bleibt die lokale Streckenlinie sichtbar, die Hintergrundkarte entfällt.
+        Du kannst die Basemap jederzeit in den Einstellungen ablehnen oder erneut erlauben.
         Ergänzend gelten die Hinweise der OpenStreetMap-Foundation:
         <a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noreferrer"
           >Privacy Policy der OSMF</a
         >
-        sowie die Nutzungsbedingungen von OpenStreetMap /
+        sowie
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
           >Copyright und Daten</a
-        >.
+        >
+        und die Angaben von
+        <a href="https://protomaps.com" target="_blank" rel="noreferrer">Protomaps</a>.
       </p>
     </section>
 

@@ -312,8 +312,8 @@ export const workoutDb = {
   clearAnalysisCache: () => transaction<undefined>('analysisCache', 'readwrite', (store) => store.clear()),
 
   /**
-   * Keyed by map area, not by workout: several sessions from the same
-   * neighbourhood then share one cached answer instead of each hitting Overpass.
+   * Keyed by map area, not by workout. Legacy Overpass cache; unused by the
+   * PMTiles basemap path, but kept so old installs can still be pruned/cleared.
    */
   getMapContext: async (cacheKey: string) => {
     const db = await openDatabase()
@@ -453,7 +453,7 @@ export type MapContextStats = {
   approxBytes: number
 }
 
-/** Compact size label for the map-cache row in Settings (binary units). */
+/** Compact size label for leftover map-cache tooling (legacy IndexedDB store). */
 export function formatMapCacheBytes(bytes: number, locale: string): string {
   if (bytes < 1024) return '< 1 KB'
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -461,7 +461,7 @@ export function formatMapCacheBytes(bytes: number, locale: string): string {
 }
 
 export function defaultClearDataSelection(): ClearDataSelection {
-  return { workouts: true, plan: true, goals: true, profile: true, mapContext: true }
+  return { workouts: true, plan: true, goals: true, profile: true }
 }
 
 export function hasClearDataSelection(selection: ClearDataSelection): boolean {

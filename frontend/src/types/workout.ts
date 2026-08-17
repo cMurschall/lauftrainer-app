@@ -8,7 +8,8 @@ export interface ActivityRecord {
   latitude?: number
   longitude?: number
 }
-/** OSM background layers for a route preview, each path as [lon, lat] pairs. */
+
+/** @deprecated Legacy Overpass cache shape; kept for IndexedDB migration compatibility. */
 export interface MapContext {
   waterways: [number, number][][]
   waterAreas: [number, number][][]
@@ -16,13 +17,7 @@ export interface MapContext {
   coastlines: [number, number][][]
   residential: [number, number][][]
   forests: [number, number][][]
-  /** Largest named settlement in the map bbox, when Overpass returned one. */
   placeName?: string
-  /**
-   * Set when this is a rural area whose residential-street pass did not succeed.
-   * The base layers are usable, so they are cached anyway; the flag lets a later
-   * load complete them instead of freezing the gap in IndexedDB forever.
-   */
   streetsPending?: boolean
 }
 export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const

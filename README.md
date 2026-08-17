@@ -41,6 +41,44 @@ cd frontend
 npm run deploy
 ```
 
+### Basemap (PMTiles on R2)
+
+Route previews use MapLibre + a Germany vector basemap served as a single PMTiles archive from Cloudflare R2 (direct Range requests, no Worker in the map path).
+
+1. Install the [`pmtiles` CLI](https://github.com/protomaps/go-pmtiles/releases).
+2. Extract Germany (about once a month):
+
+```powershell
+.\scripts\extract-germany-pmtiles.ps1 -SourceDate 20260815 -MaxZoom 12
+```
+
+3. Create an **R2 Standard** bucket (not Infrequent Access). Upload `germany.pmtiles`.
+4. CORS on the bucket (adjust origins to your Pages URL):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://lauftrainer-app.pages.dev",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Range", "If-Match", "if-match", "range"],
+    "ExposeHeaders": ["ETag", "Content-Length", "Accept-Ranges"],
+    "MaxAgeSeconds": 86400
+  }
+]
+```
+
+5. Enable a public bucket URL or custom domain, then set in the Pages build env / local `.env`:
+
+```text
+VITE_MAP_PMTILES_URL=https://<your-maps-host>/germany.pmtiles
+```
+
+Without that URL (or with map consent denied / routes outside Germany), the UI shows the GPS route only.
+
 ## Backend (Cloudflare Worker)
 
 ```powershell

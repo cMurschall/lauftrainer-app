@@ -14,11 +14,8 @@ import { useAnalysisStore } from '../stores/analysis'
 import { clearLocalData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
 import {
   defaultClearDataSelection,
-  formatMapCacheBytes,
   hasClearDataSelection,
-  workoutDb,
   type ClearDataSelection,
-  type MapContextStats,
 } from '../db/database'
 import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
 import {
@@ -125,19 +122,10 @@ const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverla
 const showDeletePanel = ref(false)
 const deleteSelection = ref<ClearDataSelection>(defaultClearDataSelection())
 const canDeleteSelection = computed(() => hasClearDataSelection(deleteSelection.value))
-const mapCacheStats = ref<MapContextStats | null>(null)
-const mapCacheStatsLabel = computed(() => {
-  const stats = mapCacheStats.value
-  if (!stats || stats.areaCount === 0) return t.value.deleteMapContextEmpty
-  return t.value.deleteMapContextStats
-    .replace('{count}', String(stats.areaCount))
-    .replace('{size}', formatMapCacheBytes(stats.approxBytes, locale.value))
-})
 
 async function openDeletePanel() {
   deleteSelection.value = defaultClearDataSelection()
   showDeletePanel.value = true
-  mapCacheStats.value = await workoutDb.getMapContextStats()
 }
 
 function closeDeletePanel() {
@@ -643,14 +631,6 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
           <span>
             <strong>{{ t.deleteProfile }}</strong>
             <small>{{ t.deleteProfileHelp }}</small>
-          </span>
-        </label>
-        <label class="delete-option">
-          <input v-model="deleteSelection.mapContext" type="checkbox" />
-          <span>
-            <strong>{{ t.deleteMapContext }}</strong>
-            <small>{{ mapCacheStatsLabel }}</small>
-            <small>{{ t.deleteMapContextHelp }}</small>
           </span>
         </label>
       </div>

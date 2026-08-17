@@ -25,6 +25,7 @@ The **codebase is the source of truth**. Keep this file aligned when architectur
   - Backend must **not** persist workout/history bodies. It may hold OAuth session tokens (KV), billing/credits (D1), and proxy structured LLM requests.
 - **Backend:** Cloudflare Worker (`backend/src/server.ts`, Wrangler), not Express/FastAPI.
 - **Data Visualizations:** Chart.js via `vue-chartjs` (`MiniChart.vue`).
+- **Maps:** MapLibre + PMTiles (Germany extract on Cloudflare R2, direct Range requests; no Worker in the map path). Workout GPS route overlay is local; Overpass is not used.
 - **Billing:** Anonymous wallet + Paddle checkout/webhooks (`/api/billing/*`).
 
 ### Main app routes / nav

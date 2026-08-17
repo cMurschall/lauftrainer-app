@@ -37,7 +37,7 @@ export interface AppSettings {
   locale: 'de' | 'en'
   connectors: ConnectorSettings[]
   coachStyle: CoachStyle
-  /** Whether OSM/Overpass map details may leave the device. */
+  /** Whether basemap tiles (approx. location via R2 Range reads) may be loaded. */
   mapDetailsConsent: MapDetailsConsent
 }
 

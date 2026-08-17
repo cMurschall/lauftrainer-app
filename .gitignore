@@ -12,3 +12,5 @@ backend/scripts/test-training-plan.ts
 frontend/.env.local
 backend/.dev.vars
 .wrangler/
+germany.pmtiles
+scripts/pmtiles.exe

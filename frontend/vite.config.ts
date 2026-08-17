@@ -12,6 +12,16 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // PMTiles are Range-read from R2; never let the service worker cache the archive.
+        navigateFallbackDenylist: [/\.pmtiles($|\?)/i],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.toLowerCase().endsWith('.pmtiles'),
+            handler: 'NetworkOnly',
+          },
+        ],
+      },
       manifest: {
         name: 'LaufTrainer',
         short_name: 'LaufTrainer',
