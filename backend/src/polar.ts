@@ -36,11 +36,32 @@ export async function status(request: Request, env: Env) { return json({ connect
 function seconds(value: unknown) { if (typeof value === 'number') return value; if (typeof value !== 'string') return 0; const match = value.match(/^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/i); return match ? Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0) : 0 }
 function number(value: unknown) { const result = typeof value === 'number' ? value : Number(value); return Number.isFinite(result) ? result : undefined }
 
+function recordsFromPolarRoute(item: Record<string, unknown>, workoutDurationSeconds: number) {
+  const routeCandidate = item.route ?? item.locations
+  if (!Array.isArray(routeCandidate) || routeCandidate.length < 2) return []
+  const last = routeCandidate.length - 1
+  const points: Array<{ elapsedSeconds: number; latitude: number; longitude: number }> = []
+  for (let index = 0; index < routeCandidate.length; index += 1) {
+    const point = routeCandidate[index] as Record<string, unknown>
+    const latitude = number(point.latitude ?? point.lat)
+    const longitude = number(point.longitude ?? point.lon ?? point.lng)
+    if (latitude === undefined || longitude === undefined) continue
+    const fromTime = seconds(point.time ?? point.duration)
+    points.push({
+      elapsedSeconds: fromTime > 0 ? fromTime : last === 0 ? 0 : Math.round((Math.max(0, workoutDurationSeconds) * index) / last),
+      latitude,
+      longitude,
+    })
+  }
+  return points.length >= 2 ? points : []
+}
+
 export async function sync(request: Request, env: Env): Promise<Response> {
   const access = await token(request, env); if (!access) return json({ detail: 'Polar ist nicht verbunden.' }, 401, request, env)
   const headers = { Authorization: `Bearer ${access.access_token}`, Accept: 'application/json' }
   if (access.x_user_id) { const registration = await fetch('https://www.polaraccesslink.com/v3/users', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ 'member-id': access.x_user_id }) }); if (!registration.ok && registration.status !== 409) return json({ detail: `Polar-Nutzer konnte nicht registriert werden (${registration.status}).` }, 502, request, env) }
-  const response = await fetch('https://www.polaraccesslink.com/v3/exercises', { headers }); if (response.status === 204) return json({ workouts: [], count: 0 }, 200, request, env); if (!response.ok) return json({ detail: `Polar-Trainings konnten nicht geladen werden (${response.status}).` }, 502, request, env)
+  // route=true includes AccessLink location samples when Polar has a GPS track.
+  const response = await fetch('https://www.polaraccesslink.com/v3/exercises?route=true', { headers }); if (response.status === 204) return json({ workouts: [], count: 0 }, 200, request, env); if (!response.ok) return json({ detail: `Polar-Trainings konnten nicht geladen werden (${response.status}).` }, 502, request, env)
   const raw = await response.json() as unknown, exercises = Array.isArray(raw) ? raw : (raw as { exercises?: unknown[] }).exercises || []
   const workouts = exercises.map((exercise, index) => {
     const item = exercise as Record<string, unknown>
@@ -58,19 +79,20 @@ export async function sync(request: Request, env: Env): Promise<Response> {
         item.altitude,
     )
     const elevationGainM = ascent !== undefined && ascent > 0 ? ascent : undefined
+    const durationSeconds = seconds(item.duration ?? item['duration-seconds'])
     return {
       id: `polar-${String(item.id || item['exercise-id'] || `${date}-${index}`)}`,
       source: 'polar-json',
       name: String(item.name || item.sport || 'Polar workout'),
       sport: String(item.sport || 'RUNNING'),
       date,
-      durationSeconds: seconds(item.duration ?? item['duration-seconds']),
+      durationSeconds,
       distanceKm: distance !== undefined && distance > 100 ? distance / 1000 : distance,
       averageHeartRate: number(item['average-heart-rate'] ?? item.average_heart_rate ?? item.averageHeartRate),
       calories: number(item.calories),
       ascentM: elevationGainM,
       elevationGainM,
-      records: [],
+      records: recordsFromPolarRoute(item, durationSeconds),
       importedAt: new Date().toISOString(),
     }
   })

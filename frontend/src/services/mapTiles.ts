@@ -53,9 +53,10 @@ export function routeCoordinatesFromRecords(
   if (!records?.length) return []
   const coords: LonLat[] = []
   for (const record of records) {
-    if (record.latitude === undefined || record.longitude === undefined) continue
-    if (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude)) continue
-    coords.push([record.longitude, record.latitude])
+    const latitude = Number(record.latitude)
+    const longitude = Number(record.longitude)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue
+    coords.push([longitude, latitude])
   }
   return coords
 }

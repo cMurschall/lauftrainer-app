@@ -1834,6 +1834,11 @@
     pointer-events: none;
   }
 
+  .activity-route-map-missing {
+    margin: 0;
+    font-size: 0.78rem;
+  }
+
   .map-modal-canvas {
     aspect-ratio: 8 / 5;
     max-height: 70vh;

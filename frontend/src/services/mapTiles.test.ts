@@ -14,10 +14,12 @@ describe('routeCoordinatesFromRecords', () => {
         { latitude: 54.3, longitude: 10.1 },
         { latitude: undefined, longitude: 10.2 },
         { latitude: 54.4, longitude: 10.3 },
+        { latitude: '54.5' as unknown as number, longitude: '10.4' as unknown as number },
       ]),
     ).toEqual([
       [10.1, 54.3],
       [10.3, 54.4],
+      [10.4, 54.5],
     ])
   })
 

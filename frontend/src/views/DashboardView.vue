@@ -550,6 +550,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                     />
                   </button>
                 </div>
+                <p v-else class="activity-route-map-missing muted">{{ t.mapNoGpsTrack }}</p>
               </div>
 
               <!-- RPE Rating -->
