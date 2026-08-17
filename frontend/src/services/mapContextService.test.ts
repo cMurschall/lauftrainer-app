@@ -13,6 +13,7 @@ import {
   isRuralArea,
   type MapContext,
   maxPlaceRank,
+  explainRuralDecision,
   parseBboxString,
   parseMapContextCacheKey,
   residentialCoverage,
@@ -326,7 +327,7 @@ describe('fetchMapContext', () => {
 
     expect(progress.some((line) => line.includes('keine HTTP-Antwort'))).toBe(true)
     expect(progress.some((line) => line.includes('504'))).toBe(true)
-    expect(progress.at(-1)).toContain('200')
+    expect(progress.some((line) => line.includes('200'))).toBe(true)
   })
 
   it('names every failing mirror once none answers', async () => {
@@ -746,6 +747,14 @@ describe('rural heuristic', () => {
     // No place, no residential land: nothing to detail, so keep it a single request.
     expect(isRuralArea(empty(), area, 0)).toBe(false)
   })
+
+  it('explains the rural/urban verdict in plain language', () => {
+    const village = empty()
+    village.residential = [[[0, 0], [0.2, 0], [0.2, 0.2], [0, 0.2], [0, 0]]]
+    expect(explainRuralDecision(village, area, 40).reason).toMatch(/ländlich.*Wohnstraßen nachladen/)
+    expect(explainRuralDecision(empty(), area, 60).reason).toMatch(/städtisch.*Ort-Rang/)
+    expect(explainRuralDecision(empty(), area, 0).reason).toMatch(/keine Siedlung/)
+  })
 })
 
 describe('fetchMapContext rural augmentation', () => {
@@ -767,13 +776,19 @@ describe('fetchMapContext rural augmentation', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(villageBase), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(streets), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
+    const progress: string[] = []
 
-    const context = await fetchMapContext('54.3700,10.4700,54.4000,10.5300')
+    const context = await fetchMapContext('54.3700,10.4700,54.4000,10.5300', {
+      onProgress: (event) => {
+        if (event.decision) progress.push(event.decision)
+      },
+    })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain('living_street')
     expect(context.highways).toHaveLength(2)
     expect(context.placeName).toBe('Satjendorf')
+    expect(progress.some((line) => /ländlich.*Wohnstraßen nachladen/.test(line))).toBe(true)
   })
 
   it('keeps the base layers and flags the gap when the street pass fails', async () => {

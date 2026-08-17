@@ -356,7 +356,11 @@ async function loadCachedArea(cacheKey: string, routeBox: BoundingBox) {
 }
 
 function traceProgress(workoutId: string) {
-  return ({ endpoint, attempt, total, durationMs, status, error, phase }: MapContextProgress) => {
+  return ({ endpoint, attempt, total, durationMs, status, error, phase, decision }: MapContextProgress) => {
+    if (phase === 'decide' && decision) {
+      traceMap(workoutId, decision)
+      return
+    }
     const tag = phase === 'streets' ? 'Wohnstraßen ' : ''
     if (durationMs === undefined) traceMap(workoutId, `${tag}Versuch ${attempt}/${total}: ${endpoint}`)
     else if (error) traceMap(workoutId, `${tag}${endpoint} fehlgeschlagen nach ${durationMs} ms — ${error}`)

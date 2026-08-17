@@ -264,12 +264,42 @@ export function maxPlaceRank(data: { elements?: OverpassElement[] } | null | und
  * The settlement gate (a place label or some residential land) keeps the second
  * request from firing on tiles that hold nothing but a through-road or open water.
  */
-export function isRuralArea(context: MapContext, area: BoundingBox, placeRank: number): boolean {
-  if (placeRank >= URBAN_PLACE_RANK) return false
+export function explainRuralDecision(
+  context: MapContext,
+  area: BoundingBox,
+  placeRank: number,
+): { rural: boolean; reason: string } {
   const coverage = residentialCoverage(context, area)
-  if (coverage >= RESIDENTIAL_URBAN_COVERAGE) return false
-  const hasSettlement = placeRank > 0 || coverage > 0
-  return hasSettlement
+  const coveragePct = Math.round(coverage * 100)
+  const urbanPct = Math.round(RESIDENTIAL_URBAN_COVERAGE * 100)
+
+  if (placeRank >= URBAN_PLACE_RANK) {
+    return {
+      rural: false,
+      reason: `städtisch — kein Wohnstraßen-Nachladen (Ort-Rang ${placeRank} ≥ ${URBAN_PLACE_RANK})`,
+    }
+  }
+  if (coverage >= RESIDENTIAL_URBAN_COVERAGE) {
+    return {
+      rural: false,
+      reason: `städtisch — kein Wohnstraßen-Nachladen (Wohnfläche ${coveragePct}% ≥ ${urbanPct}%)`,
+    }
+  }
+  if (placeRank > 0 || coverage > 0) {
+    const detail =
+      placeRank > 0
+        ? `Ort-Rang ${placeRank}, Wohnfläche ${coveragePct}%`
+        : `Wohnfläche ${coveragePct}%, kein Place-Node`
+    return { rural: true, reason: `ländlich — Wohnstraßen nachladen (${detail})` }
+  }
+  return {
+    rural: false,
+    reason: 'kein Nachladen — keine Siedlung erkannt (Ort-Rang 0, Wohnfläche 0%)',
+  }
+}
+
+export function isRuralArea(context: MapContext, area: BoundingBox, placeRank: number): boolean {
+  return explainRuralDecision(context, area, placeRank).rural
 }
 
 type OverpassGeometry = { lat: number; lon: number }
@@ -626,8 +656,10 @@ export interface MapContextProgress {
   durationMs?: number
   status?: number
   error?: string
-  /** Which query is running: the base layers or the rural residential-street add-on. */
-  phase?: 'base' | 'streets'
+  /** Which query is running: the base layers, the rural street add-on, or the rural/urban decision. */
+  phase?: 'base' | 'streets' | 'decide'
+  /** Human-readable rural/urban verdict, set when `phase` is `decide`. */
+  decision?: string
 }
 
 export interface FetchMapContextOptions {
@@ -763,10 +795,20 @@ export async function fetchMapContext(bbox: string, options: FetchMapContextOpti
 
   // Rural tiles get a second, street-only pass; cities never do (see isRuralArea).
   const area = parseBboxString(bbox)
-  if (area && isRuralArea(context, area, maxPlaceRank(base.data))) {
-    // Start with the mirror that just answered: retrying one that timed out in
-    // the base pass would burn another full timeout for nothing.
-    await addResidentialStreets(bbox, context, endpointsPreferring(endpoints, base.url), timeoutMs, options.onProgress)
+  if (area) {
+    const verdict = explainRuralDecision(context, area, maxPlaceRank(base.data))
+    options.onProgress?.({
+      endpoint: 'decide',
+      attempt: 0,
+      total: 0,
+      phase: 'decide',
+      decision: verdict.reason,
+    })
+    if (verdict.rural) {
+      // Start with the mirror that just answered: retrying one that timed out in
+      // the base pass would burn another full timeout for nothing.
+      await addResidentialStreets(bbox, context, endpointsPreferring(endpoints, base.url), timeoutMs, options.onProgress)
+    }
   }
 
   return context
