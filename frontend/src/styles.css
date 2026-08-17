@@ -34,11 +34,16 @@
   --chart-purple: #b98cf2;
   /* Route preview layers. Alpha is baked in so the SVG needs no opacity attrs. */
   --map-water: #38bdf8;
+  --map-water-fill: rgba(56, 189, 248, 0.24);
   --map-coast: #7dd3fc;
   --map-road: rgba(240, 246, 252, 0.3);
   --map-forest: rgba(16, 185, 129, 0.2);
   --map-urban: rgba(240, 246, 252, 0.09);
-  --map-route-glow: rgba(16, 185, 129, 0.45);
+  /* Warm, so the track never competes with the green vegetation or blue water it crosses. */
+  --map-route: #fb923c;
+  /* Faint on purpose: the warm line already separates itself, and a stronger halo
+     bleeds into the near-black background and softens the corners. */
+  --map-route-glow: rgba(251, 146, 60, 0.18);
 }
 
 :root[data-theme='light'] {
@@ -58,11 +63,13 @@
   --accent-soft: rgba(5, 150, 105, 0.1);
   --accent-ink: #fff;
   --map-water: #0284c7;
+  --map-water-fill: rgba(2, 132, 199, 0.18);
   --map-coast: #0369a1;
   --map-road: rgba(31, 41, 51, 0.32);
   --map-forest: rgba(5, 150, 105, 0.16);
   --map-urban: rgba(31, 41, 51, 0.07);
-  --map-route-glow: rgba(5, 150, 105, 0.35);
+  --map-route: #ea580c;
+  --map-route-glow: rgba(234, 88, 12, 0.3);
 }
 
 @layer base {
@@ -1764,6 +1771,48 @@
     background: var(--surface);
     color: var(--text);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .modal-card-wide {
+    width: min(100%, 60rem);
+  }
+
+  .map-modal-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .map-modal-head strong {
+    font-size: 1.05rem;
+  }
+
+  .map-modal-head .button {
+    margin-left: auto;
+    padding: 0.15rem 0.6rem;
+    font-size: 1.1rem;
+    line-height: 1.4;
+  }
+
+  /* Keep the 240×150 aspect ratio of the projection so nothing is distorted. */
+  .map-modal-canvas {
+    aspect-ratio: 8 / 5;
+    max-height: 70vh;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-raised);
+    overflow: hidden;
+  }
+
+  .map-zoom-trigger {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: zoom-in;
+    min-height: 100px;
+    max-height: 140px;
   }
 
   .modal-card textarea {

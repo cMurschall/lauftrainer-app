@@ -92,16 +92,34 @@
         (OpenStreetMap-Daten). Übermittelt werden technisch notwendige Verbindungsdaten
         (insbesondere deine IP-Adresse) sowie eine grob gerasterte Bounding-Box um die
         Strecke — nicht die vollständige Track-Punktliste und keine Trainingsmetriken.
-        LaufTrainer speichert diese Anfrage nicht serverseitig; geladene Details können
-        lokal in IndexedDB zwischengespeichert werden, damit sie offline erneut verfügbar sind.
+        LaufTrainer speichert diese Anfrage nicht serverseitig.
+      </p>
+      <p>
+        Die abgefragte Bounding-Box wird auf ein Gitter von 0,02° (rund 2 km) aufgerundet
+        und ist damit bewusst ungenauer als deine Strecke. Geladene Gebiete werden lokal
+        in IndexedDB zwischengespeichert und für weitere Trainings in derselben Gegend
+        wiederverwendet. Dadurch sind sie offline verfügbar, und für Läufe rund um deinen
+        Wohnort entsteht in der Regel gar keine weitere Anfrage.
+      </p>
+      <p>
+        In dünn besiedelten Gegenden fragt der Browser für dieselbe Bounding-Box zusätzlich
+        die kleineren Wohnstraßen ab, damit auch Dörfer erkennbar bleiben. In Städten
+        unterbleibt das, weil die Datenmenge dort zu groß würde. Diese zweite Abfrage
+        übermittelt keine weiteren personenbezogenen Daten — es ist dieselbe grob gerasterte
+        Bounding-Box.
       </p>
       <p>
         Die öffentlichen Overpass-Server sind häufig überlastet. Deshalb fragt der Browser
         der Reihe nach mehrere Instanzen ab, bis eine antwortet:
-        <code>overpass.kumi.systems</code> und <code>overpass.private.coffee</code>
-        (beide Österreich) sowie <code>overpass-api.de</code> (Deutschland). Alle liegen
-        innerhalb der EU. Die Anfrage wird ohne Referrer gesendet, die aufgerufene Seite
-        ist für die Betreiber also nicht sichtbar.
+        <code>overpass.private.coffee</code> (Österreich) und
+        <code>overpass-api.de</code> (Deutschland). Beide liegen innerhalb der EU.
+      </p>
+      <p>
+        Die Nutzungsbedingungen der Overpass-API verlangen, dass sich anfragende Programme
+        zu erkennen geben. Deshalb sendet der Browser als Referrer ausschließlich die
+        Adresse dieser Anwendung (nur die Domain, ohne Pfad). Welche Seite du gerade
+        geöffnet hast oder welches Training du ansiehst, ist für die Betreiber damit nicht
+        sichtbar.
       </p>
       <p>
         Du kannst Kartendetails jederzeit in den Einstellungen ablehnen oder erneut erlauben.

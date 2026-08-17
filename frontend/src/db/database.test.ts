@@ -178,6 +178,31 @@ describe('local database and backups', () => {
     await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'performance', mapDetailsConsent: 'denied' })
     expect(await workoutDb.getWorkoutRevision()).toBe(before)
   })
+
+  it('reports empty and occupied map-cache footprints for the settings UI', async () => {
+    expect(await workoutDb.getMapContextStats()).toEqual({ areaCount: 0, approxBytes: 0 })
+    await workoutDb.saveMapContext('map:4:54.3600,10.5200,54.3800,10.5400', {
+      waterways: [],
+      waterAreas: [[[10.53, 54.37], [10.54, 54.38], [10.53, 54.37]]],
+      highways: [],
+      coastlines: [],
+      residential: [],
+      forests: [],
+      placeName: 'Satjendorf',
+    })
+    const stats = await workoutDb.getMapContextStats()
+    expect(stats.areaCount).toBe(1)
+    expect(stats.approxBytes).toBeGreaterThan(40)
+  })
+})
+
+describe('formatMapCacheBytes', () => {
+  it('formats binary units for the map-cache label', async () => {
+    const { formatMapCacheBytes } = await import('./database')
+    expect(formatMapCacheBytes(400, 'de')).toBe('< 1 KB')
+    expect(formatMapCacheBytes(12_345, 'de')).toBe('12 KB')
+    expect(formatMapCacheBytes(1_800_000, 'de')).toMatch(/1[,.]7 MB/)
+  })
 })
 
 describe('shared ISO week boundaries', () => {

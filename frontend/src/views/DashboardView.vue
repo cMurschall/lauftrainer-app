@@ -21,7 +21,21 @@ import { useAnalysisStore } from '../stores/analysis'
 import { useUiStore } from '../stores/ui'
 import { syncConnectors } from '../stores/dataLifecycle'
 import { workoutDb } from '../db/database'
-import { boundingBoxFromRecords, fetchMapContext, hasMapDetails, quantizeBbox } from '../services/mapContextService'
+import {
+  type BoundingBox,
+  boundingBoxFromRecords,
+  buildSeaPolygons,
+  completeMapContext,
+  fetchMapContext,
+  findCoveringAreaKey,
+  formatBbox,
+  hasMapDetails,
+  isClosedRing,
+  MAP_CONTEXT_KEY_PREFIX,
+  type MapContextProgress,
+  mapContextCacheKey,
+  quantizeBox,
+} from '../services/mapContextService'
 import {
   averageWeeklyMinutes,
   connectorBannerKind,
@@ -30,6 +44,7 @@ import {
   weeklyTrend,
   type WeeklyTrendEntry,
 } from '../utils/dashboardUi'
+import RouteMap, { type RouteMapLayers } from '../components/RouteMap.vue'
 
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -204,6 +219,22 @@ const mapContextLoading = ref<Record<string, boolean>>({})
 const mapConsentOpen = ref(false)
 let mapConsentResolver: ((allowed: boolean) => void) | null = null
 
+/** In-flight Overpass requests by area, so workouts nearby share one round trip. */
+const areaRequests = new Map<string, Promise<MapContext>>()
+
+/** Projected SVG paths per workout; only a new context invalidates an entry. */
+const mapPathCache = new Map<string, RouteMapLayers | null>()
+
+function setMapContext(workoutId: string, context: MapContext) {
+  mapContexts.value[workoutId] = context
+  mapPathCache.delete(workoutId)
+}
+
+const enlargedMapId = ref<string | null>(null)
+const enlargedWorkout = computed(() =>
+  enlargedMapId.value ? summaries.value.find((workout) => workout.id === enlargedMapId.value) || null : null,
+)
+
 // TEMP map diagnostics — remove this flag, mapDiagnostics, traceMap, layerCount
 // and the diagnostics line in the template once mobile map loading is verified.
 const SHOW_MAP_DIAGNOSTICS = true
@@ -212,13 +243,20 @@ const isOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
 const updateOnlineState = () => {
   isOnline.value = navigator.onLine
 }
+const closeEnlargedMapOnEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') enlargedMapId.value = null
+}
 onMounted(() => {
   window.addEventListener('online', updateOnlineState)
   window.addEventListener('offline', updateOnlineState)
+  window.addEventListener('keydown', closeEnlargedMapOnEscape)
+  // A cached area can weigh a megabyte, so reclaim what an older parser wrote.
+  void workoutDb.pruneMapContexts(MAP_CONTEXT_KEY_PREFIX)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('online', updateOnlineState)
   window.removeEventListener('offline', updateOnlineState)
+  window.removeEventListener('keydown', closeEnlargedMapOnEscape)
 })
 
 function traceMap(workoutId: string, message: string) {
@@ -231,12 +269,28 @@ function layerCount(context: Partial<MapContext> | null | undefined): string {
   const size = (layer?: unknown[]) => layer?.length || 0
   return [
     `hw ${size(context?.highways)}`,
-    `ww ${size(context?.waterways)}`,
     `wa ${size(context?.waterAreas)}`,
     `co ${size(context?.coastlines)}`,
     `re ${size(context?.residential)}`,
     `fo ${size(context?.forests)}`,
   ].join(' · ')
+}
+
+/** TEMP: dumps the sea/area geometry decisions for one preview into the console. */
+function logMapGeometry(workoutId: string) {
+  if (!SHOW_MAP_DIAGNOSTICS) return
+  const context = mapContexts.value[workoutId]
+  const debug: string[] = []
+  const paths = getMapContextPaths(workoutId, debug)
+  console.groupCollapsed(`[map] ${workoutId} ${mapPlaceLabel(workoutId)} — ${layerCount(context)}`)
+  for (const line of debug) console.info(line)
+  console.info('Pfade', {
+    sea: paths?.sea.length ?? 0,
+    waterAreas: paths?.waterAreas.length ?? 0,
+    coastlines: paths?.coastlines.length ?? 0,
+  })
+  console.info('Rohdaten', context)
+  console.groupEnd()
 }
 
 function askMapDetailsConsent(): Promise<boolean> {
@@ -273,6 +327,63 @@ function mapDetailsHint(workoutId: string): string {
   return ''
 }
 
+/**
+ * A cached area counts as a hit when it covers the route we need. Pass the
+ * padded route box here — not the quantized fetch box — otherwise a slightly
+ * larger neighbour run never reuses a perfectly good cached area.
+ */
+async function loadCachedArea(cacheKey: string, routeBox: BoundingBox) {
+  const keys = await workoutDb.listMapContextKeys()
+  const exact = await workoutDb.getMapContext(cacheKey)
+  if (hasMapDetails(exact)) {
+    return { context: exact as MapContext, bbox: cacheKey.slice(MAP_CONTEXT_KEY_PREFIX.length), how: 'exakt' as const }
+  }
+
+  const covering = findCoveringAreaKey(keys, routeBox)
+  if (!covering) {
+    return { context: null, bbox: '', how: 'miss' as const, keyCount: keys.length }
+  }
+  const context = await workoutDb.getMapContext(covering)
+  if (!hasMapDetails(context)) {
+    return { context: null, bbox: '', how: 'miss' as const, keyCount: keys.length }
+  }
+  return {
+    context: context as MapContext,
+    bbox: covering.slice(MAP_CONTEXT_KEY_PREFIX.length),
+    how: 'überdeckend' as const,
+    keyCount: keys.length,
+  }
+}
+
+function traceProgress(workoutId: string) {
+  return ({ endpoint, attempt, total, durationMs, status, error, phase }: MapContextProgress) => {
+    const tag = phase === 'streets' ? 'Wohnstraßen ' : ''
+    if (durationMs === undefined) traceMap(workoutId, `${tag}Versuch ${attempt}/${total}: ${endpoint}`)
+    else if (error) traceMap(workoutId, `${tag}${endpoint} fehlgeschlagen nach ${durationMs} ms — ${error}`)
+    else traceMap(workoutId, `${tag}${endpoint} antwortete ${status} nach ${durationMs} ms`)
+  }
+}
+
+/**
+ * A cached rural area can be missing its residential streets when Overpass was
+ * unreachable at the time. Fill that in now instead of keeping the gap forever.
+ */
+async function completeCachedStreets(workoutId: string, areaBbox: string, context: MapContext) {
+  if (!context.streetsPending) return
+  if (settings.mapDetailsConsent !== 'allowed') return
+
+  traceMap(workoutId, 'Wohnstraßen fehlen im Cache — werden nachgeladen')
+  const gained = await completeMapContext(areaBbox, context, { onProgress: traceProgress(workoutId) })
+  if (!gained) return
+
+  // A fresh object, so the reactive assignment actually re-renders the preview.
+  const merged = { ...context }
+  setMapContext(workoutId, merged)
+  await workoutDb.saveMapContext(mapContextCacheKey(areaBbox), merged)
+  traceMap(workoutId, `Wohnstraßen ergänzt (${layerCount(merged)})`)
+  logMapGeometry(workoutId)
+}
+
 async function loadMapContextForWorkout(workoutId: string, force = false) {
   if (mapContextLoading.value[workoutId]) return
   if (mapContexts.value[workoutId] && !force) {
@@ -296,49 +407,85 @@ async function loadMapContextForWorkout(workoutId: string, force = false) {
     return
   }
 
-  const localContext = force ? null : await workoutDb.getMapContext(workoutId)
-  if (hasMapDetails(localContext)) {
-    mapContexts.value[workoutId] = localContext as MapContext
-    traceMap(
-      workoutId,
-      `aus IndexedDB (${layerCount(localContext)}${(localContext as MapContext).placeName ? ` · Ort ${(localContext as MapContext).placeName}` : ''})`,
-    )
-    return
-  }
-  if (force) traceMap(workoutId, 'manueller Neuversuch, lokaler Cache übersprungen')
-  else traceMap(workoutId, localContext ? `IndexedDB leer (${layerCount(localContext)})` : 'nicht in IndexedDB')
-
-  let consent = settings.mapDetailsConsent
-  if (consent === 'unset') {
-    traceMap(workoutId, 'warte auf Zustimmung')
-    const allowed = await askMapDetailsConsent()
-    consent = allowed ? 'allowed' : 'denied'
-  }
-  if (consent === 'denied') {
-    traceMap(workoutId, 'Zustimmung: nie laden (Einstellungen → Kartendetails)')
-    return
-  }
-
-  const bbox = quantizeBbox(box)
+  const area = quantizeBox(box)
+  const bbox = formatBbox(area)
+  const cacheKey = mapContextCacheKey(bbox)
   const startedAt = Date.now()
-  traceMap(workoutId, `Overpass-Abfrage bbox=${bbox}`)
+
+  // Claimed before the first await: the cache read and the consent dialog are
+  // both async, and a second call must not slip past into a duplicate request.
   mapContextLoading.value[workoutId] = true
   mapContextFailed.value[workoutId] = false
   try {
-    const context = await fetchMapContext(bbox, {
-      onProgress: ({ endpoint, attempt, total, durationMs, status, error }) => {
-        if (durationMs === undefined) {
-          traceMap(workoutId, `Versuch ${attempt}/${total}: ${endpoint}`)
-        } else if (error) {
-          traceMap(workoutId, `${endpoint} fehlgeschlagen nach ${durationMs} ms — ${error}`)
-        } else {
-          traceMap(workoutId, `${endpoint} antwortete ${status} nach ${durationMs} ms`)
-        }
-      },
-    })
-    mapContexts.value[workoutId] = context
+    const cached = force ? null : await loadCachedArea(cacheKey, box)
+    if (cached?.context) {
+      setMapContext(workoutId, cached.context)
+      traceMap(
+        workoutId,
+        `Cache-Treffer (${cached.how}), Gebiet ${cached.bbox} (${layerCount(cached.context)}${cached.context.placeName ? ` · Ort ${cached.context.placeName}` : ''})`,
+      )
+      logMapGeometry(workoutId)
+      await completeCachedStreets(workoutId, cached.bbox, cached.context)
+      return
+    }
+    if (force) traceMap(workoutId, 'manueller Neuversuch, lokaler Cache übersprungen')
+    else {
+      const keyCount = cached?.keyCount ?? 0
+      traceMap(
+        workoutId,
+        `Cache-Miss für ${bbox} (${keyCount} Gebiet${keyCount === 1 ? '' : 'e'} in IndexedDB)`,
+      )
+    }
+
+    let consent = settings.mapDetailsConsent
+    if (consent === 'unset') {
+      traceMap(workoutId, 'warte auf Zustimmung')
+      const allowed = await askMapDetailsConsent()
+      consent = allowed ? 'allowed' : 'denied'
+    }
+    if (consent === 'denied') {
+      traceMap(workoutId, 'Zustimmung: nie laden (Einstellungen → Kartendetails)')
+      return
+    }
+
+    // Two workouts from the same area must not race each other onto Overpass.
+    const pending = areaRequests.get(cacheKey)
+    if (pending) traceMap(workoutId, `wartet auf laufende Abfrage für Gebiet ${bbox}`)
+    else traceMap(workoutId, `Overpass-Abfrage Gebiet ${bbox}`)
+
+    const request =
+      pending ||
+      fetchMapContext(bbox, { onProgress: traceProgress(workoutId) }).finally(() => areaRequests.delete(cacheKey))
+    areaRequests.set(cacheKey, request)
+
+    const context = await request
+    setMapContext(workoutId, context)
     traceMap(workoutId, `fertig nach ${Date.now() - startedAt} ms (${layerCount(context)}${context.placeName ? ` · Ort ${context.placeName}` : ''})`)
-    await workoutDb.saveMapContext(workoutId, context)
+    logMapGeometry(workoutId)
+
+    // Empty answers must not be cached: hasMapDetails would reject them on the
+    // next open and we would hammer Overpass for the same miss forever.
+    if (!hasMapDetails(context)) {
+      traceMap(workoutId, 'Antwort ohne Zeichenflächen — nicht in IndexedDB gespeichert')
+      return
+    }
+
+    try {
+      await workoutDb.saveMapContext(cacheKey, context)
+      const verify = await workoutDb.getMapContext(cacheKey)
+      if (!hasMapDetails(verify)) {
+        traceMap(workoutId, `IndexedDB-Schreiben fehlgeschlagen für ${cacheKey}`)
+      } else {
+        const stats = await workoutDb.getMapContextStats()
+        traceMap(
+          workoutId,
+          `IndexedDB gespeichert (${stats.areaCount} Gebiete · ca. ${Math.max(1, Math.round(stats.approxBytes / 1024))} KB)`,
+        )
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      traceMap(workoutId, `IndexedDB-Fehler: ${detail}`)
+    }
   } catch (error) {
     // Overpass throttles heavily; keep the route visible and flag the missing layers.
     mapContextFailed.value[workoutId] = true
@@ -424,7 +571,19 @@ function getRouteSvgPath(workoutId: string) {
   return path
   }
 
-  function getMapContextPaths(workoutId: string) {
+  /**
+   * The template calls this on every render, and rebuilding the sea polygons each
+   * time is wasteful, so results are memoised until the context itself changes.
+   * A debug run is never cached: it exists to observe the computation.
+   */
+  function getMapContextPaths(workoutId: string, debug?: string[]) {
+  if (!debug && mapPathCache.has(workoutId)) return mapPathCache.get(workoutId)!
+  const paths = buildMapContextPaths(workoutId, debug)
+  if (!debug) mapPathCache.set(workoutId, paths)
+  return paths
+  }
+
+  function buildMapContextPaths(workoutId: string, debug?: string[]) {
   const context = mapContexts.value[workoutId]
   if (!context) return null
 
@@ -465,23 +624,38 @@ function getRouteSvgPath(workoutId: string) {
   const xOffset = padding + (innerWidth - (lngRange * lngScale * scale)) / 2
   const yOffset = padding + (innerHeight - (latRange * scale)) / 2
 
+  const projectPoint = (lon: number, lat: number): [number, number] => [
+    xOffset + (lon - minLng) * lngScale * scale,
+    height - (yOffset + (lat - minLat) * scale),
+  ]
+
   const projectCoords = (coords: number[][], close: boolean = false) => {
     if (coords.length === 0) return ''
     const path = coords
       .map(([lon, lat], index) => {
-        const x = xOffset + (lon - minLng) * lngScale * scale
-        const y = height - (yOffset + (lat - minLat) * scale)
+        const [x, y] = projectPoint(lon, lat)
         return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
       })
       .join(' ')
     return close ? `${path} Z` : path
   }
 
-  const waterwaysPaths = (context.waterways || [])
-    .map(coords => projectCoords(coords))
-    .filter(Boolean)
+  const polygonToPath = (polygon: [number, number][]): string =>
+    `M ${polygon.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L ')} Z`
 
-  const waterAreasPaths = (context.waterAreas || [])
+  const seaPaths = buildSeaPolygons(
+    (context.coastlines || []).map((coords) => coords.map(([lon, lat]) => projectPoint(lon, lat))),
+    width,
+    height,
+    debug,
+  ).map(polygonToPath)
+
+  const closedWaterAreas = (context.waterAreas || []).filter(isClosedRing)
+  debug?.push(
+    `waterAreas=${(context.waterAreas || []).length}, davon geschlossen=${closedWaterAreas.length}`,
+  )
+
+  const waterAreasPaths = closedWaterAreas
     .map(coords => projectCoords(coords, true))
     .filter(Boolean)
 
@@ -502,8 +676,8 @@ function getRouteSvgPath(workoutId: string) {
     .filter(Boolean)
 
   return {
-    waterways: waterwaysPaths,
     waterAreas: waterAreasPaths,
+    sea: seaPaths,
     highways: highwaysPaths,
     coastlines: coastlinesPaths,
     residential: residentialPaths,
@@ -544,6 +718,31 @@ function getRouteSvgPath(workoutId: string) {
         <button class="button primary" type="button" @click="resolveMapDetailsConsent(true)">
           {{ t.mapDetailsConsentAllow }}
         </button>
+      </div>
+    </div>
+  </div>
+  <div
+    v-if="enlargedWorkout && getRouteSvgPath(enlargedWorkout.id)"
+    class="modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    :aria-label="mapPlaceLabel(enlargedWorkout.id)"
+    @click="enlargedMapId = null"
+  >
+    <div class="modal-card modal-card-wide" @click.stop>
+      <div class="map-modal-head">
+        <strong>{{ mapPlaceLabel(enlargedWorkout.id) }}</strong>
+        <span class="muted"
+          >{{ formatSport(enlargedWorkout.sport) }} · {{ formatActivityDate(enlargedWorkout.date, locale) }}</span
+        >
+        <button class="button secondary" type="button" :aria-label="t.mapClose" @click="enlargedMapId = null">×</button>
+      </div>
+      <div class="map-modal-canvas">
+        <RouteMap
+          :route-path="getRouteSvgPath(enlargedWorkout.id)!"
+          :layers="getMapContextPaths(enlargedWorkout.id)"
+          :route-width="1.6"
+        />
       </div>
     </div>
   </div>
@@ -720,70 +919,15 @@ function getRouteSvgPath(workoutId: string) {
                     style="position: absolute; top: 6px; right: 8px; color: var(--subtle); font-size: 0.62rem; font-weight: 550; pointer-events: none;"
                     >{{ mapDetailsHint(workout.id) }}</span
                   >
-                  <svg viewBox="0 0 240 150" style="width: 100%; height: 100%; min-height: 100px; display: block; max-height: 140px;">
-                    <!-- Background Water (fill entire bbox) -->
-                    <rect width="240" height="150" fill="var(--map-water)" />
-                    
-                    <!-- Background Forests & Parks -->
-                    <template v-if="getMapContextPaths(workout.id)">
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.forests"
-                        :key="`f-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="var(--map-forest)"
-                      />
-                      <!-- Background Residential areas -->
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.residential"
-                        :key="`r-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="var(--map-urban)"
-                      />
-                      <!-- Background Coastlines / Sea Boundary -->
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.coastlines"
-                        :key="`c-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="none"
-                        stroke="var(--map-coast)"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      <!-- Background Highways / Streets -->
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.highways"
-                        :key="`h-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="none"
-                        stroke="var(--map-road)"
-                        stroke-width="1.1"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      <!-- Background Waterways / Rivers -->
-                      <path
-                        v-for="(path, pIdx) in getMapContextPaths(workout.id)!.waterways"
-                        :key="`w-${workout.id}-${pIdx}`"
-                        :d="path"
-                        fill="none"
-                        stroke="var(--map-water)"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </template>
-                    <!-- Main Glowing Route Path -->
-                    <path
-                      :d="getRouteSvgPath(workout.id)!"
-                      fill="none"
-                      stroke="var(--accent)"
-                      stroke-width="2.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      style="filter: drop-shadow(0 0 3px var(--map-route-glow));"
-                    />
-                  </svg>
+                  <button
+                    type="button"
+                    class="map-zoom-trigger"
+                    :aria-label="t.mapEnlarge"
+                    :title="t.mapEnlarge"
+                    @click.stop="enlargedMapId = workout.id"
+                  >
+                    <RouteMap :route-path="getRouteSvgPath(workout.id)!" :layers="getMapContextPaths(workout.id)" />
+                  </button>
                   <!-- TEMP map diagnostics — remove this block together with SHOW_MAP_DIAGNOSTICS. -->
                   <div
                     v-if="SHOW_MAP_DIAGNOSTICS"

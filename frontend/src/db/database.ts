@@ -7,7 +7,12 @@ import { toWorkoutSummary, type WorkoutSummary } from '../utils/workoutSummary'
 import { planHasDatedDays } from '../utils/planDates'
 
 const DB_NAME = 'lauftrainer-local'
-const DB_VERSION = 7
+/**
+ * Must be raised whenever a store is added below: `onupgradeneeded` only runs on
+ * a version change, so an existing database keeps missing the new store and every
+ * access silently degrades. Version 8 adds `mapContext`.
+ */
+const DB_VERSION = 8
 const USER_DATA_STORES = ['workouts', 'settings', 'plans', 'planHistory', 'goals', 'analysisCache', 'mapContext'] as const
 
 type StoredPlan = {
@@ -56,6 +61,18 @@ function openDatabase(): Promise<IDBDatabase> {
     }
   })
   return dbPromise
+}
+
+/**
+ * The map cache degrades to a no-op when its store is absent, which happened once
+ * because the store was added without raising DB_VERSION. Say so instead of
+ * pretending the cache is simply empty.
+ */
+function hasMapContextStore(db: IDBDatabase, operation: string): boolean {
+  if (db.objectStoreNames.contains('mapContext')) return true
+  console.warn(`[LaufTrainer] Karten-Cache nicht verfügbar: Object Store 'mapContext' fehlt (${operation}).`)
+  diagnosticLog('db.mapContext.missingStore', { operation, version: db.version, stores: [...db.objectStoreNames] })
+  return false
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -294,23 +311,84 @@ export const workoutDb = {
 
   clearAnalysisCache: () => transaction<undefined>('analysisCache', 'readwrite', (store) => store.clear()),
 
-  getMapContext: async (workoutId: string) => {
+  /**
+   * Keyed by map area, not by workout: several sessions from the same
+   * neighbourhood then share one cached answer instead of each hitting Overpass.
+   */
+  getMapContext: async (cacheKey: string) => {
     const db = await openDatabase()
-    if (!db.objectStoreNames.contains('mapContext')) return undefined
+    if (!hasMapContextStore(db, 'get')) return undefined
     try {
-      return await transaction<MapContext | undefined>('mapContext', 'readonly', (store) => store.get(workoutId))
+      return await transaction<MapContext | undefined>('mapContext', 'readonly', (store) => store.get(cacheKey))
     } catch {
       return undefined
     }
   },
 
-  saveMapContext: async (workoutId: string, context: MapContext) => {
+  /** Areas already on the device, so a covering one can be reused without a request. */
+  listMapContextKeys: async (): Promise<string[]> => {
     const db = await openDatabase()
-    if (!db.objectStoreNames.contains('mapContext')) return undefined
+    if (!hasMapContextStore(db, 'listKeys')) return []
     try {
-      return await transaction<IDBValidKey>('mapContext', 'readwrite', (store) => store.put(context, workoutId))
+      const keys = await transaction<IDBValidKey[]>('mapContext', 'readonly', (store) => store.getAllKeys())
+      return keys.filter((key): key is string => typeof key === 'string')
+    } catch {
+      return []
+    }
+  },
+
+  /**
+   * Rough footprint for the settings UI. IndexedDB stores structured clones; JSON
+   * length is close enough to show whether the cache is empty or several MB.
+   */
+  getMapContextStats: async (): Promise<MapContextStats> => {
+    const db = await openDatabase()
+    if (!hasMapContextStore(db, 'stats')) return { areaCount: 0, approxBytes: 0 }
+    try {
+      const entries = await transaction<MapContext[]>('mapContext', 'readonly', (store) => store.getAll())
+      if (!entries.length) return { areaCount: 0, approxBytes: 0 }
+      let approxBytes = 0
+      for (const entry of entries) {
+        try {
+          approxBytes += new Blob([JSON.stringify(entry)]).size
+        } catch {
+          approxBytes += JSON.stringify(entry).length
+        }
+      }
+      return { areaCount: entries.length, approxBytes }
+    } catch {
+      return { areaCount: 0, approxBytes: 0 }
+    }
+  },
+
+  saveMapContext: async (cacheKey: string, context: MapContext) => {
+    const db = await openDatabase()
+    if (!hasMapContextStore(db, 'save')) return undefined
+    try {
+      return await transaction<IDBValidKey>('mapContext', 'readwrite', (store) => store.put(context, cacheKey))
     } catch {
       return undefined
+    }
+  },
+
+  /**
+   * Cached areas can reach a megabyte each in dense cities, so drop the entries
+   * an older parser wrote instead of letting them sit unreadable forever.
+   */
+  pruneMapContexts: async (keyPrefix: string) => {
+    const db = await openDatabase()
+    if (!hasMapContextStore(db, 'prune')) return 0
+    try {
+      const keys = await transaction<IDBValidKey[]>('mapContext', 'readonly', (store) => store.getAllKeys())
+      const stale = keys.filter((key) => typeof key !== 'string' || !key.startsWith(keyPrefix))
+      if (stale.length === 0) return 0
+      await multiStoreTransaction(['mapContext'], 'readwrite', async (stores) => {
+        for (const key of stale) stores.mapContext.delete(key)
+      })
+      diagnosticLog('db.prune.mapContext', { removed: stale.length })
+      return stale.length
+    } catch {
+      return 0
     }
   },
 
@@ -368,6 +446,19 @@ export const workoutDb = {
 export type ClearDataKey = 'workouts' | 'plan' | 'goals' | 'profile' | 'mapContext'
 
 export type ClearDataSelection = Partial<Record<ClearDataKey, boolean>>
+
+export type MapContextStats = {
+  areaCount: number
+  /** Approximate UTF-8 size of the cached JSON payloads. */
+  approxBytes: number
+}
+
+/** Compact size label for the map-cache row in Settings (binary units). */
+export function formatMapCacheBytes(bytes: number, locale: string): string {
+  if (bytes < 1024) return '< 1 KB'
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toLocaleString(locale, { maximumFractionDigits: 1 })} MB`
+}
 
 export function defaultClearDataSelection(): ClearDataSelection {
   return { workouts: true, plan: true, goals: true, profile: true, mapContext: true }

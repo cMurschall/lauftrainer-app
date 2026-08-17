@@ -18,6 +18,12 @@ export interface MapContext {
   forests: [number, number][][]
   /** Largest named settlement in the map bbox, when Overpass returned one. */
   placeName?: string
+  /**
+   * Set when this is a rural area whose residential-street pass did not succeed.
+   * The base layers are usable, so they are cached anyway; the flag lets a later
+   * load complete them instead of freezing the gap in IndexedDB forever.
+   */
+  streetsPending?: boolean
 }
 export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]

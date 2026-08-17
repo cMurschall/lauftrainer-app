@@ -209,7 +209,10 @@ const translations = {
     deleteProfile: 'Athletenprofil und Trainingsrahmen',
     deleteProfileHelp: 'LTHR, Sportarten, bevorzugte Tage, Leistungsnotizen und Einschränkungen',
     deleteMapContext: 'Karten-Cache',
-    deleteMapContextHelp: 'Offline-Kartendaten für Streckenverläufe',
+    deleteMapContextHelp:
+      'Lokal gespeicherte OpenStreetMap-Ausschnitte (Straßen, Gewässer, Wälder) um deine Strecken. Mehrere Trainings derselben Gegend teilen sich einen Eintrag — ohne erneute Overpass-Abfrage. Beim Löschen der Workouts wird der Cache mitentfernt.',
+    deleteMapContextStats: '{count} Gebiete · ca. {size}',
+    deleteMapContextEmpty: 'leer',
     confirmDeleteSelected: 'Ausgewählte lokale Daten wirklich löschen? Das kann nicht rückgängig gemacht werden.',
     deleteNothingSelected: 'Bitte mindestens eine Kategorie wählen.',
     deleteConfirmAction: 'Auswahl löschen',
@@ -309,6 +312,8 @@ const translations = {
     mapDetailsUnavailable: 'Kartendetails nicht verfügbar',
     mapDetailsDisabled: 'Kartendetails deaktiviert',
     mapRouteFallback: 'Strecke',
+    mapEnlarge: 'Karte vergrößern',
+    mapClose: 'Karte schließen',
     mapDetailsConsentTitle: 'Kartendetails laden?',
     mapDetailsConsentBody:
       'Für Straßen, Gewässer und Wälder fragt dein Browser OpenStreetMap (Overpass) an. Dabei werden deine IP-Adresse und ein grober Kartenausschnitt um die Strecke übertragen — nicht die komplette GPS-Spur. Die Anfrage speichern wir nicht. Details:',
@@ -555,7 +560,10 @@ const translations = {
     deleteProfile: 'Athlete profile and training framework',
     deleteProfileHelp: 'LTHR, sports, preferred days, performance notes, and limitations',
     deleteMapContext: 'Map cache',
-    deleteMapContextHelp: 'Offline map data for routes',
+    deleteMapContextHelp:
+      'Locally stored OpenStreetMap excerpts (roads, water, forests) around your routes. Several sessions in the same area share one entry — without another Overpass request. Deleting workouts clears this cache too.',
+    deleteMapContextStats: '{count} areas · about {size}',
+    deleteMapContextEmpty: 'empty',
     confirmDeleteSelected: 'Really delete the selected local data? This cannot be undone.',
     deleteNothingSelected: 'Please select at least one category.',
     deleteConfirmAction: 'Delete selection',
@@ -655,6 +663,8 @@ const translations = {
     mapDetailsUnavailable: 'Map details unavailable',
     mapDetailsDisabled: 'Map details turned off',
     mapRouteFallback: 'Route',
+    mapEnlarge: 'Enlarge map',
+    mapClose: 'Close map',
     mapDetailsConsentTitle: 'Load map details?',
     mapDetailsConsentBody:
       'To show roads, water and forests, your browser contacts OpenStreetMap (Overpass). That sends your IP address and a coarse map bounding box around the route — not the full GPS track. We do not store that request. Details:',
