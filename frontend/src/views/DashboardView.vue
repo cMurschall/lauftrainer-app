@@ -256,8 +256,15 @@ function showBasemapFor(workoutId: string): boolean {
   return routeHasBasemapCoverage(workoutRouteCoordinates(workoutId))
 }
 
-function mapPlaceLabel(_workoutId: string): string {
-  return t.value.mapRouteFallback
+const mapPlaceNames = ref<Record<string, string>>({})
+
+function mapPlaceLabel(workoutId: string): string {
+  return mapPlaceNames.value[workoutId] || t.value.mapRouteFallback
+}
+
+function onMapPlaceName(workoutId: string, name: string) {
+  if (!name || mapPlaceNames.value[workoutId] === name) return
+  mapPlaceNames.value = { ...mapPlaceNames.value, [workoutId]: name }
 }
 
 function mapDetailsHint(workoutId: string): string {
@@ -355,6 +362,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
           :coordinates="workoutRouteCoordinates(enlargedWorkout.id)"
           :show-basemap="showBasemapFor(enlargedWorkout.id)"
           interactive
+          @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
         />
       </div>
     </div>
@@ -482,8 +490,8 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; cursor: default;"
               @click.stop
             >
-              <!-- Details stats grid & Route Silhouette side-by-side -->
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
+              <!-- Details stats, then full-width route map -->
+              <div style="display: flex; flex-direction: column; gap: 14px;">
                 <!-- Details stats grid -->
                 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 0.8rem; color: var(--text);">
                   <div v-if="workout.distanceKm" style="display: flex; flex-direction: column; gap: 1px;">
@@ -520,17 +528,14 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                   </div>
                 </div>
 
-                <!-- Right Column: Route Map -->
-                <div v-if="hasRouteMap(workout.id)" style="display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; position: relative; justify-content: center; align-items: center;">
+                <!-- Full-width route map under stats -->
+                <div v-if="hasRouteMap(workout.id)" class="activity-route-map">
                   <span
-                    style="position: absolute; top: 6px; left: 8px; z-index: 1; color: var(--muted); font-size: 0.65rem; font-weight: 550; letter-spacing: 0.3px; text-transform: uppercase; pointer-events: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    class="activity-route-map-label"
+                    :style="{ textTransform: mapPlaceNames[workout.id] ? 'none' : 'uppercase' }"
                     >{{ mapPlaceLabel(workout.id) }}</span
                   >
-                  <span
-                    v-if="mapDetailsHint(workout.id)"
-                    style="position: absolute; top: 6px; right: 8px; z-index: 1; color: var(--subtle); font-size: 0.62rem; font-weight: 550; pointer-events: none;"
-                    >{{ mapDetailsHint(workout.id) }}</span
-                  >
+                  <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{ mapDetailsHint(workout.id) }}</span>
                   <button
                     type="button"
                     class="map-zoom-trigger"
@@ -541,6 +546,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                     <WorkoutMap
                       :coordinates="workoutRouteCoordinates(workout.id)"
                       :show-basemap="showBasemapFor(workout.id)"
+                      @place-name="(name) => onMapPlaceName(workout.id, name)"
                     />
                   </button>
                 </div>

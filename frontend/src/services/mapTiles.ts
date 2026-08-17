@@ -7,7 +7,7 @@ import {
   type StyleSpecification,
 } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-import { layers, namedFlavor } from '@protomaps/basemaps'
+import { layers, namedFlavor, type Flavor } from '@protomaps/basemaps'
 import { Protocol } from 'pmtiles'
 import type { FeatureCollection } from 'geojson'
 
@@ -23,6 +23,12 @@ export const GERMANY_BBOX = {
 } as const
 
 export const MAP_PMTILES_URL = String(import.meta.env.VITE_MAP_PMTILES_URL || '').trim()
+
+/**
+ * Experimental: restyle PMTiles toward the old Overpass SVG look (few layers, app tokens).
+ * Set VITE_MAP_STYLE=protomaps to use the stock Protomaps light/dark flavors again.
+ */
+export const MAP_STYLE_MODE = String(import.meta.env.VITE_MAP_STYLE || 'overpass-feel').trim()
 
 export function hasMapTilesUrl(): boolean {
   return MAP_PMTILES_URL.length > 0
@@ -83,6 +89,236 @@ export function resolvedDomTheme(): MapTheme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
 }
 
+/**
+ * Colors aligned with the former SVG `--map-*` tokens: water / soft forest /
+ * faint urban / light roads on a deep slate canvas — without place/POI labels.
+ */
+export function lauftrainerOverpassFlavor(theme: MapTheme): Flavor {
+  const base = namedFlavor(theme === 'dark' ? 'dark' : 'light')
+  if (theme === 'dark') {
+    const earth = '#161B22'
+    const road = '#6B7280'
+    const roadMajor = '#9CA3AF'
+    return {
+      ...base,
+      background: '#0D1117',
+      earth,
+      park_a: '#12352C',
+      park_b: '#0F2A22',
+      hospital: earth,
+      industrial: earth,
+      school: earth,
+      wood_a: '#134E3A',
+      wood_b: '#0F3D2E',
+      pedestrian: '#1C2230',
+      scrub_a: '#1A2E24',
+      scrub_b: '#15261E',
+      glacier: '#1E293B',
+      sand: '#1C2230',
+      beach: '#1C2230',
+      aerodrome: earth,
+      runway: '#2A3140',
+      water: '#1E4A66',
+      zoo: earth,
+      military: earth,
+      pier: '#2A3140',
+      buildings: '#1C2230',
+      other: '#3F4654',
+      minor_service: '#3F4654',
+      minor_a: road,
+      minor_b: road,
+      link: roadMajor,
+      major: roadMajor,
+      highway: '#D1D5DB',
+      railway: '#374151',
+      boundaries: '#2A3140',
+      tunnel_other: '#3F4654',
+      tunnel_minor: road,
+      tunnel_link: road,
+      tunnel_major: roadMajor,
+      tunnel_highway: roadMajor,
+      bridges_other: '#3F4654',
+      bridges_minor: road,
+      bridges_link: roadMajor,
+      bridges_major: roadMajor,
+      bridges_highway: '#D1D5DB',
+      landcover: {
+        barren: earth,
+        farmland: '#1A2E24',
+        forest: '#134E3A',
+        glacier: '#1E293B',
+        grassland: '#1A2E24',
+        scrub: '#15261E',
+        // Distinct from earth so inhabited areas read like the old SVG residential fill.
+        urban_area: '#2A3341',
+      },
+    }
+  }
+
+  const earth = '#F2F4F7'
+  const road = '#94A3B8'
+  const roadMajor = '#64748B'
+  return {
+    ...base,
+    background: '#E8EEF4',
+    earth,
+    park_a: '#BBF7D0',
+    park_b: '#A7F3D0',
+    hospital: earth,
+    industrial: earth,
+    school: earth,
+    wood_a: '#86EFAC',
+    wood_b: '#6EE7B7',
+    pedestrian: '#E2E8F0',
+    scrub_a: '#D1FAE5',
+    scrub_b: '#A7F3D0',
+    glacier: '#E0F2FE',
+    sand: '#F1F5F9',
+    beach: '#E0F2FE',
+    aerodrome: earth,
+    runway: '#CBD5E1',
+    water: '#7DD3FC',
+    zoo: earth,
+    military: earth,
+    pier: '#CBD5E1',
+    buildings: '#E2E8F0',
+    other: '#CBD5E1',
+    minor_service: '#CBD5E1',
+    minor_a: road,
+    minor_b: road,
+    link: roadMajor,
+    major: roadMajor,
+    highway: '#475569',
+    railway: '#94A3B8',
+    boundaries: '#E2E8F0',
+    tunnel_other: '#CBD5E1',
+    tunnel_minor: road,
+    tunnel_link: road,
+    tunnel_major: roadMajor,
+    tunnel_highway: roadMajor,
+    bridges_other: '#CBD5E1',
+    bridges_minor: road,
+    bridges_link: roadMajor,
+    bridges_major: roadMajor,
+    bridges_highway: '#475569',
+    landcover: {
+      barren: earth,
+      farmland: '#D1FAE5',
+      forest: '#86EFAC',
+      glacier: '#E0F2FE',
+      grassland: '#BBF7D0',
+      scrub: '#A7F3D0',
+      urban_area: '#D0D7E0',
+    },
+  }
+}
+
+/** Extra fill so OSM landuse=residential shows even when stock styles omit it. */
+function residentialLanduseLayer(theme: MapTheme): StyleSpecification['layers'][number] {
+  return {
+    id: 'landuse_residential_feel',
+    type: 'fill',
+    source: 'protomaps',
+    'source-layer': 'landuse',
+    filter: ['==', ['get', 'kind'], 'residential'],
+    paint: {
+      'fill-color': theme === 'dark' ? '#2A3341' : '#D0D7E0',
+      'fill-opacity': 1,
+    },
+  }
+}
+
+const PLACE_RANK: Record<string, number> = {
+  city: 70,
+  town: 60,
+  municipality: 55,
+  village: 50,
+  suburb: 40,
+  quarter: 35,
+  neighbourhood: 30,
+  neighborhood: 30,
+  hamlet: 25,
+  locality: 20,
+  farm: 10,
+  allotments: 5,
+}
+
+function placeFeatureName(props: Record<string, unknown> | null | undefined): string | undefined {
+  if (!props) return undefined
+  for (const key of ['name:de', 'name', 'name2', 'pgf:name']) {
+    const value = props[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function placeFeatureRank(props: Record<string, unknown> | null | undefined): number {
+  if (!props) return 0
+  const detail = String(props.kind_detail || props.kind || '').toLowerCase()
+  const fromDetail = PLACE_RANK[detail] || 0
+  const population = Number(props.population)
+  const popBonus = Number.isFinite(population) ? Math.min(20, Math.log10(Math.max(population, 10))) : 0
+  return fromDetail + popBonus
+}
+
+function haversineKm(a: LonLat, b: LonLat): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(b[1] - a[1])
+  const dLng = toRad(b[0] - a[0])
+  const lat1 = toRad(a[1])
+  const lat2 = toRad(b[1])
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 6371 * 2 * Math.asin(Math.sqrt(h))
+}
+
+export function routeCentroid(coords: LonLat[]): LonLat | null {
+  if (!coords.length) return null
+  let sumLng = 0
+  let sumLat = 0
+  for (const [lng, lat] of coords) {
+    sumLng += lng
+    sumLat += lat
+  }
+  return [sumLng / coords.length, sumLat / coords.length]
+}
+
+/**
+ * Pick the best municipality/locality label from loaded Protomaps `places` features
+ * near the route centroid (no Overpass).
+ */
+export function resolvePlaceNameFromMap(map: MapLibreMap, coords: LonLat[]): string | undefined {
+  const center = routeCentroid(coords)
+  if (!center || !map.getSource('protomaps')) return undefined
+
+  let features: ReturnType<MapLibreMap['querySourceFeatures']> = []
+  try {
+    features = map.querySourceFeatures('protomaps', { sourceLayer: 'places' })
+  } catch {
+    return undefined
+  }
+  if (!features.length) return undefined
+
+  type Candidate = { name: string; score: number }
+  const candidates: Candidate[] = []
+  for (const feature of features) {
+    const name = placeFeatureName(feature.properties as Record<string, unknown>)
+    if (!name) continue
+    const rank = placeFeatureRank(feature.properties as Record<string, unknown>)
+    if (rank < 20) continue
+    const geometry = feature.geometry
+    if (geometry.type !== 'Point') continue
+    const [lng, lat] = geometry.coordinates
+    const distanceKm = haversineKm(center, [lng, lat])
+    // Prefer important places close to the route; soft distance penalty.
+    const score = rank - distanceKm * 8
+    candidates.push({ name, score })
+  }
+  if (!candidates.length) return undefined
+  candidates.sort((a, b) => b.score - a.score)
+  return candidates[0]?.name
+}
+
 function emptyBasemapStyle(theme: MapTheme): StyleSpecification {
   return {
     version: 8,
@@ -103,11 +339,18 @@ export function buildMapStyle(options: { showBasemap: boolean; theme?: MapTheme 
     return emptyBasemapStyle(theme)
   }
 
-  const flavor = theme === 'dark' ? 'dark' : 'light'
+  const useOverpassFeel = MAP_STYLE_MODE !== 'protomaps'
+  const stockName = theme === 'dark' ? 'dark' : 'light'
+  const flavor = useOverpassFeel ? lauftrainerOverpassFlavor(theme) : namedFlavor(stockName)
+  const baseLayers = layers('protomaps', flavor, useOverpassFeel ? undefined : { lang: 'de' })
+  const styledLayers = useOverpassFeel
+    ? insertResidentialLayer(baseLayers, theme)
+    : baseLayers
+
   return {
     version: 8,
     glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-    sprite: `https://protomaps.github.io/basemaps-assets/sprites/v4/${flavor}`,
+    sprite: `https://protomaps.github.io/basemaps-assets/sprites/v4/${stockName}`,
     sources: {
       protomaps: {
         type: 'vector',
@@ -117,8 +360,24 @@ export function buildMapStyle(options: { showBasemap: boolean; theme?: MapTheme 
           '<a href="https://protomaps.com">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       },
     },
-    layers: layers('protomaps', namedFlavor(flavor), { lang: 'de' }),
+    // Omit `lang` in overpass-feel to drop map labels; place name is resolved separately for the UI chip.
+    layers: styledLayers,
   }
+}
+
+function insertResidentialLayer(
+  styleLayers: StyleSpecification['layers'],
+  theme: MapTheme,
+): StyleSpecification['layers'] {
+  const residential = residentialLanduseLayer(theme)
+  const layersList = [...styleLayers]
+  const waterIdx = layersList.findIndex((layer) => layer.id === 'water')
+  if (waterIdx >= 0) {
+    layersList.splice(waterIdx, 0, residential)
+  } else {
+    layersList.splice(1, 0, residential)
+  }
+  return layersList
 }
 
 export function routeGeoJson(coords: LonLat[]): FeatureCollection {

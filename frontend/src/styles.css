@@ -1794,7 +1794,46 @@
     line-height: 1.4;
   }
 
-  /* Keep the 240×150 aspect ratio of the projection so nothing is distorted. */
+  /* Preview map under activity stats: full width, readable height. */
+  .activity-route-map {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+
+  .activity-route-map-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    z-index: 1;
+    max-width: 70%;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.65rem;
+    font-weight: 550;
+    letter-spacing: 0.3px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .activity-route-map-hint {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 1;
+    color: var(--subtle);
+    font-size: 0.62rem;
+    font-weight: 550;
+    pointer-events: none;
+  }
+
   .map-modal-canvas {
     aspect-ratio: 8 / 5;
     max-height: 70vh;
@@ -1807,13 +1846,13 @@
   .map-zoom-trigger {
     display: block;
     width: 100%;
-    aspect-ratio: 8 / 5;
+    aspect-ratio: 16 / 9;
     padding: 0;
     border: 0;
     background: none;
     cursor: zoom-in;
-    min-height: 100px;
-    max-height: 140px;
+    min-height: 160px;
+    max-height: 280px;
     overflow: hidden;
     border-radius: 4px;
   }

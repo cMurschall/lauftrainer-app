@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   GERMANY_BBOX,
   hasMapTilesUrl,
+  lauftrainerOverpassFlavor,
   routeCoordinatesFromRecords,
   routeHasBasemapCoverage,
 } from './mapTiles'
@@ -54,5 +55,28 @@ describe('routeHasBasemapCoverage', () => {
 describe('hasMapTilesUrl', () => {
   it('is a boolean based on build-time env', () => {
     expect(typeof hasMapTilesUrl()).toBe('boolean')
+  })
+})
+
+describe('lauftrainerOverpassFlavor', () => {
+  it('keeps deep slate / soft forest / water tones in dark mode', () => {
+    const flavor = lauftrainerOverpassFlavor('dark')
+    expect(flavor.background).toBe('#0D1117')
+    expect(flavor.earth).toBe('#161B22')
+    expect(flavor.water).toBe('#1E4A66')
+    expect(flavor.wood_a).toBe('#134E3A')
+    expect(flavor.landcover?.urban_area).toBe('#2A3341')
+  })
+})
+
+describe('routeCentroid', () => {
+  it('averages lon/lat pairs', async () => {
+    const { routeCentroid } = await import('./mapTiles')
+    expect(
+      routeCentroid([
+        [10, 54],
+        [12, 56],
+      ]),
+    ).toEqual([11, 55])
   })
 })

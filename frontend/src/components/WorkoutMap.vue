@@ -10,6 +10,7 @@ import {
   type LonLat,
   type MapTheme,
   MapLibreMap,
+  resolvePlaceNameFromMap,
   upsertRouteLayer,
 } from '../services/mapTiles'
 
@@ -26,6 +27,10 @@ const props = withDefaults(
     interactive: false,
   },
 )
+
+const emit = defineEmits<{
+  placeName: [name: string]
+}>()
 
 const settings = useSettingsStore()
 const { theme } = storeToRefs(settings)
@@ -45,9 +50,29 @@ const containerRef = ref<HTMLElement | null>(null)
 let map: MapLibreMap | null = null
 let resizeObserver: ResizeObserver | null = null
 let systemMedia: MediaQueryList | null = null
+let lastEmittedPlace = ''
+let mountedForKey = ''
 
 const onSystemThemeChange = (event: MediaQueryListEvent) => {
   systemPrefersDark.value = event.matches
+}
+
+/** Stable fingerprint so parent re-renders with a fresh array do not remount the map. */
+function coordinatesKey(coords: LonLat[]): string {
+  if (coords.length < 2) return String(coords.length)
+  const first = coords[0]
+  const mid = coords[Math.floor(coords.length / 2)]
+  const last = coords[coords.length - 1]
+  return `${coords.length}:${first[0]},${first[1]}:${mid[0]},${mid[1]}:${last[0]},${last[1]}`
+}
+
+function mapInstanceKey(): string {
+  return [
+    coordinatesKey(props.coordinates),
+    props.showBasemap ? '1' : '0',
+    props.interactive ? '1' : '0',
+    mapTheme.value,
+  ].join('|')
 }
 
 function destroyMap() {
@@ -57,8 +82,21 @@ function destroyMap() {
   map = null
 }
 
+function emitPlaceNameOnce() {
+  if (!map || !props.showBasemap) return
+  const name = resolvePlaceNameFromMap(map, props.coordinates)
+  if (!name || name === lastEmittedPlace) return
+  lastEmittedPlace = name
+  emit('placeName', name)
+}
+
 function mountMap() {
   if (!containerRef.value || props.coordinates.length < 2) return
+
+  const nextKey = mapInstanceKey()
+  if (map && mountedForKey === nextKey) return
+  mountedForKey = nextKey
+  lastEmittedPlace = ''
 
   ensurePmtilesProtocol()
   destroyMap()
@@ -90,6 +128,11 @@ function mountMap() {
     fitRoute(map, props.coordinates, props.interactive ? 40 : 24)
   })
 
+  // idle can fire often while panning/loading; only emit when we find a new name.
+  map.on('idle', () => {
+    emitPlaceNameOnce()
+  })
+
   resizeObserver = new ResizeObserver(() => {
     map?.resize()
   })
@@ -109,13 +152,9 @@ onBeforeUnmount(() => {
   destroyMap()
 })
 
-watch(
-  () => [props.coordinates, props.showBasemap, props.interactive, mapTheme.value] as const,
-  () => {
-    mountMap()
-  },
-  { deep: true },
-)
+watch(mapInstanceKey, () => {
+  mountMap()
+})
 </script>
 
 <template>
