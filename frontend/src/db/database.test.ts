@@ -78,7 +78,13 @@ describe('local database and backups', () => {
       date: '2026-09-01',
       createdAt: new Date().toISOString(),
     })
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'pragmatist', mapDetailsConsent: 'unset' })
+    await workoutDb.saveAppSettings({
+      theme: 'dark',
+      locale: 'de',
+      connectors: [],
+      coachStyle: 'pragmatist',
+      mapDetailsConsent: 'unset',
+    })
 
     const backup = await exportBackup()
     expect(backup.currentPlan?.plan?.days).toHaveLength(1)
@@ -106,7 +112,13 @@ describe('local database and backups', () => {
     await workoutDb.put(sample)
     await workoutDb.saveConfig(config)
     await workoutDb.savePlan(samplePlan)
-    await workoutDb.saveAppSettings({ theme: 'light', locale: 'en', connectors: [], coachStyle: 'mentor', mapDetailsConsent: 'allowed' })
+    await workoutDb.saveAppSettings({
+      theme: 'light',
+      locale: 'en',
+      connectors: [],
+      coachStyle: 'mentor',
+      mapDetailsConsent: 'allowed',
+    })
     await workoutDb.clearAllUserData()
     expect(await workoutDb.list()).toEqual([])
     expect(await workoutDb.getConfig()).toBeUndefined()
@@ -138,10 +150,7 @@ describe('local database and backups', () => {
 
   it('batches putMany with a single revision bump', async () => {
     const before = await workoutDb.getWorkoutRevision()
-    await workoutDb.putMany([
-      sample,
-      { ...sample, id: 'db-2', name: 'Zweiter Lauf' },
-    ])
+    await workoutDb.putMany([sample, { ...sample, id: 'db-2', name: 'Zweiter Lauf' }])
     expect(await workoutDb.getWorkoutRevision()).toBe(before + 1)
     expect(await workoutDb.list()).toHaveLength(2)
   })
@@ -175,7 +184,13 @@ describe('local database and backups', () => {
 
   it('does not bump analysis revision for app-only settings', async () => {
     const before = await workoutDb.getWorkoutRevision()
-    await workoutDb.saveAppSettings({ theme: 'dark', locale: 'de', connectors: [], coachStyle: 'performance', mapDetailsConsent: 'denied' })
+    await workoutDb.saveAppSettings({
+      theme: 'dark',
+      locale: 'de',
+      connectors: [],
+      coachStyle: 'performance',
+      mapDetailsConsent: 'denied',
+    })
     expect(await workoutDb.getWorkoutRevision()).toBe(before)
   })
 
@@ -183,7 +198,13 @@ describe('local database and backups', () => {
     expect(await workoutDb.getMapContextStats()).toEqual({ areaCount: 0, approxBytes: 0 })
     await workoutDb.saveMapContext('map:4:54.3600,10.5200,54.3800,10.5400', {
       waterways: [],
-      waterAreas: [[[10.53, 54.37], [10.54, 54.38], [10.53, 54.37]]],
+      waterAreas: [
+        [
+          [10.53, 54.37],
+          [10.54, 54.38],
+          [10.53, 54.37],
+        ],
+      ],
       highways: [],
       coastlines: [],
       residential: [],

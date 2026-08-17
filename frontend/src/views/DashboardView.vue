@@ -29,12 +29,8 @@ import {
   type WeeklyTrendEntry,
 } from '../utils/dashboardUi'
 import WorkoutMap from '../components/WorkoutMap.vue'
-import {
-  hasMapTilesUrl,
-  type LonLat,
-  routeCoordinatesFromRecords,
-  routeHasBasemapCoverage,
-} from '../services/mapTiles'
+import PageHeader from '../components/PageHeader.vue'
+import { hasMapTilesUrl, type LonLat, routeCoordinatesFromRecords, routeHasBasemapCoverage } from '../services/mapTiles'
 
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -46,18 +42,14 @@ const { summaries } = storeToRefs(workouts)
 const { plan, completedPlanDates } = storeToRefs(planStore)
 const { connectors } = storeToRefs(settings)
 const { analysis } = storeToRefs(analysisStore)
-const { notification, connectorLoading } = storeToRefs(ui)
+const { connectorLoading } = storeToRefs(ui)
 
 const { t, locale } = useI18n()
 const showWorkoutDebug = import.meta.env.DEV && localStorage.getItem('lauftrainer-debug') === '1'
 const DEFAULT_ACTIVITY_FIT = 6
-const sortedActivities = computed(() =>
-  [...summaries.value].sort((a, b) => b.date.localeCompare(a.date)),
-)
+const sortedActivities = computed(() => [...summaries.value].sort((a, b) => b.date.localeCompare(a.date)))
 const activityFit = ref(DEFAULT_ACTIVITY_FIT)
-const recentActivities = computed(() =>
-  sortedActivities.value.slice(0, Math.max(1, activityFit.value)),
-)
+const recentActivities = computed(() => sortedActivities.value.slice(0, Math.max(1, activityFit.value)))
 const activitiesCardRef = ref<HTMLElement | null>(null)
 const activitiesListRef = ref<HTMLElement | null>(null)
 const trendCardRef = ref<HTMLElement | null>(null)
@@ -307,17 +299,6 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
 </script>
 
 <template>
-  <Transition name="toast">
-    <div
-      v-if="notification.message"
-      class="toast"
-      :class="`toast-${notification.type}`"
-      :role="notification.type === 'error' ? 'alert' : 'status'"
-    >
-      <span>{{ notification.message }}</span>
-      <button type="button" aria-label="Meldung schließen" @click="ui.dismissNotification()">×</button>
-    </div>
-  </Transition>
   <div
     v-if="mapConsentOpen"
     class="modal-backdrop"
@@ -367,6 +348,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
       </div>
     </div>
   </div>
+  <PageHeader :label="t.dashboard" :meta="t.dashboardIntro" />
   <div class="dashboard-flow" :class="{ 'has-plan': hasPlan }">
     <section v-if="summaries.length" class="stats dashboard-stats">
       <article class="card">
@@ -439,7 +421,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
       <article
         class="plan-day"
         :class="{ completed: isPlanDayCompleted(todayWorkout) }"
-        style="border: 0; padding: 0; margin: 0; box-shadow: none;"
+        style="border: 0; padding: 0; margin: 0; box-shadow: none"
       >
         <label class="plan-check">
           <input
@@ -454,8 +436,12 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
         </label>
         <p>{{ planDescription(todayWorkout) }}</p>
       </article>
-      <div class="empty-actions" style="margin-top: 14px; display: flex; gap: 8px;">
-        <RouterLink class="button secondary" to="/training" style="font-size: 0.78rem; padding: 6px 12px; min-height: auto;">
+      <div class="empty-actions" style="margin-top: 14px; display: flex; gap: 8px">
+        <RouterLink
+          class="button secondary"
+          to="/training"
+          style="font-size: 0.78rem; padding: 6px 12px; min-height: auto"
+        >
           {{ t.trainingNav }} →
         </RouterLink>
       </div>
@@ -470,61 +456,177 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
             :key="workout.id"
             class="activity-row"
             :class="{ 'is-expanded': expandedActivityId === workout.id }"
-            style="flex-direction: column; align-items: stretch; cursor: pointer; padding: 10px 0;"
+            style="flex-direction: column; align-items: stretch; cursor: pointer; padding: 10px 0"
             @click="toggleActivityExpand(workout.id)"
           >
-            <div style="display: flex; align-items: stretch; gap: 12px; width: 100%;">
+            <div style="display: flex; align-items: stretch; gap: 12px; width: 100%">
               <span class="activity-accent" :class="`accent-${sportKind(workout.sport)}`" aria-hidden="true"></span>
-              <div style="flex: 1; min-width: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <strong style="color: var(--text); font-weight: 550; font-size: 0.85rem;">{{ formatSport(workout.sport) }} · {{ formatActivityDate(workout.date, locale) }}</strong>
-                  <span style="font-size: 0.72rem; color: var(--muted); padding-right: 4px;">{{ expandedActivityId === workout.id ? '▲' : '▼' }}</span>
+              <div style="flex: 1; min-width: 0">
+                <div style="display: flex; justify-content: space-between; align-items: center">
+                  <strong style="color: var(--text); font-weight: 550; font-size: 0.85rem"
+                    >{{ formatSport(workout.sport) }} · {{ formatActivityDate(workout.date, locale) }}</strong
+                  >
+                  <span style="font-size: 0.72rem; color: var(--muted); padding-right: 4px">{{
+                    expandedActivityId === workout.id ? '▲' : '▼'
+                  }}</span>
                 </div>
-                <span style="display: block; margin-top: 3px; color: var(--muted); font-size: 0.78rem;">{{ activityMeta(workout) }}</span>
+                <span style="display: block; margin-top: 3px; color: var(--muted); font-size: 0.78rem">{{
+                  activityMeta(workout)
+                }}</span>
               </div>
             </div>
 
             <!-- Details slide-down view -->
             <div
               v-if="expandedActivityId === workout.id"
-              style="margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; cursor: default;"
+              style="
+                margin-top: 12px;
+                padding: 12px;
+                border-radius: 8px;
+                background: var(--surface-raised);
+                border: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                cursor: default;
+              "
               @click.stop
             >
               <!-- Details stats, then full-width route map -->
-              <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 14px">
                 <!-- Details stats grid -->
-                <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 0.8rem; color: var(--text);">
-                  <div v-if="workout.distanceKm" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">{{ t.totalDistance }}</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ formatWorkoutDistance(workout.distanceKm) }}</strong>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 10px;
+                    font-size: 0.8rem;
+                    color: var(--text);
+                  "
+                >
+                  <div v-if="workout.distanceKm" style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >{{ t.totalDistance }}</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
+                      formatWorkoutDistance(workout.distanceKm)
+                    }}</strong>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">{{ t.trainingTime }}</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ formatWorkoutDuration(workout.durationSeconds) }}</strong>
+                  <div style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >{{ t.trainingTime }}</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
+                      formatWorkoutDuration(workout.durationSeconds)
+                    }}</strong>
                   </div>
-                  <div v-if="workout.averagePaceSecondsPerKm" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Pace (Ø)</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ formatPace(workout.averagePaceSecondsPerKm) }}</strong>
+                  <div v-if="workout.averagePaceSecondsPerKm" style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Pace (Ø)</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
+                      formatPace(workout.averagePaceSecondsPerKm)
+                    }}</strong>
                   </div>
-                  <div v-if="workout.averageHeartRate" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Puls (Ø)</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ Math.round(workout.averageHeartRate) }} bpm</strong>
+                  <div v-if="workout.averageHeartRate" style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Puls (Ø)</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
+                      >{{ Math.round(workout.averageHeartRate) }} bpm</strong
+                    >
                   </div>
-                  <div v-if="workout.calories" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Kalorien</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ workout.calories }} kcal</strong>
+                  <div v-if="workout.calories" style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Kalorien</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
+                      >{{ workout.calories }} kcal</strong
+                    >
                   </div>
-                  <div v-if="workout.elevationGainM || workout.ascentM" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Höhenmeter</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ Math.round(workout.elevationGainM || workout.ascentM || 0) }} hm ↑</strong>
+                  <div
+                    v-if="workout.elevationGainM || workout.ascentM"
+                    style="display: flex; flex-direction: column; gap: 1px"
+                  >
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Höhenmeter</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
+                      >{{ Math.round(workout.elevationGainM || workout.ascentM || 0) }} hm ↑</strong
+                    >
                   </div>
-                  <div v-if="workout.averagePowerW" style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Leistung (Ø)</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text);">{{ Math.round(workout.averagePowerW) }} W</strong>
+                  <div v-if="workout.averagePowerW" style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Leistung (Ø)</span
+                    >
+                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
+                      >{{ Math.round(workout.averagePowerW) }} W</strong
+                    >
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 1px;">
-                    <span style="color: var(--muted); font-size: 0.72rem; font-weight: 550; text-transform: uppercase; letter-spacing: 0.3px;">Quelle / Typ</span>
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text); text-transform: uppercase;">{{ workout.source }}</strong>
+                  <div style="display: flex; flex-direction: column; gap: 1px">
+                    <span
+                      style="
+                        color: var(--muted);
+                        font-size: 0.72rem;
+                        font-weight: 550;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                      "
+                      >Quelle / Typ</span
+                    >
+                    <strong
+                      style="font-size: 1.05rem; font-weight: 600; color: var(--text); text-transform: uppercase"
+                      >{{ workout.source }}</strong
+                    >
                   </div>
                 </div>
 
@@ -535,7 +637,9 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                     :style="{ textTransform: mapPlaceNames[workout.id] ? 'none' : 'uppercase' }"
                     >{{ mapPlaceLabel(workout.id) }}</span
                   >
-                  <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{ mapDetailsHint(workout.id) }}</span>
+                  <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{
+                    mapDetailsHint(workout.id)
+                  }}</span>
                   <button
                     type="button"
                     class="map-zoom-trigger"
@@ -554,18 +658,46 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               </div>
 
               <!-- RPE Rating -->
-              <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 0.76rem; font-weight: 550; color: var(--muted);">{{ t.rpe }}</span>
-                  <span v-if="workout.sessionRpe" style="font-size: 0.76rem; font-weight: 600; color: var(--accent);">{{ workout.sessionRpe }}/10</span>
+              <div
+                style="
+                  border-top: 1px solid var(--border);
+                  padding-top: 10px;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 6px;
+                "
+              >
+                <div style="display: flex; justify-content: space-between; align-items: center">
+                  <span style="font-size: 0.76rem; font-weight: 550; color: var(--muted)">{{ t.rpe }}</span>
+                  <span v-if="workout.sessionRpe" style="font-size: 0.76rem; font-weight: 600; color: var(--accent)"
+                    >{{ workout.sessionRpe }}/10</span
+                  >
                 </div>
-                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 4px; flex-wrap: wrap">
                   <button
                     v-for="rpe in 10"
                     :key="rpe"
                     type="button"
-                    style="flex: 1; min-width: 24px; height: 28px; font-size: 0.74rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: center;"
-                    :style="workout.sessionRpe === rpe ? 'background: var(--accent); color: white; border-color: var(--accent); font-weight: bold;' : ''"
+                    style="
+                      flex: 1;
+                      min-width: 24px;
+                      height: 28px;
+                      font-size: 0.74rem;
+                      border-radius: 6px;
+                      border: 1px solid var(--border);
+                      background: var(--surface);
+                      color: var(--text);
+                      cursor: pointer;
+                      transition: all 0.15s ease;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                    :style="
+                      workout.sessionRpe === rpe
+                        ? 'background: var(--accent); color: white; border-color: var(--accent); font-weight: bold;'
+                        : ''
+                    "
                     @click="updateWorkoutRpe(workout, rpe)"
                   >
                     {{ rpe }}
@@ -574,9 +706,22 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               </div>
 
               <!-- Debug details inline -->
-              <details v-if="showWorkoutDebug" class="workout-debug" style="margin-top: 4px;">
-                <summary style="font-size: 0.74rem; color: var(--muted);">{{ t.debugDetails }}</summary>
-                <code style="display: block; font-size: 0.72rem; line-height: 1.4; padding: 6px; background: var(--surface); border-radius: 4px; margin-top: 4px; overflow-x: auto; color: var(--text);">{{ JSON.stringify(workoutDebug(workout), null, 2) }}</code>
+              <details v-if="showWorkoutDebug" class="workout-debug" style="margin-top: 4px">
+                <summary style="font-size: 0.74rem; color: var(--muted)">{{ t.debugDetails }}</summary>
+                <code
+                  style="
+                    display: block;
+                    font-size: 0.72rem;
+                    line-height: 1.4;
+                    padding: 6px;
+                    background: var(--surface);
+                    border-radius: 4px;
+                    margin-top: 4px;
+                    overflow-x: auto;
+                    color: var(--text);
+                  "
+                  >{{ JSON.stringify(workoutDebug(workout), null, 2) }}</code
+                >
               </details>
             </div>
           </li>
@@ -595,7 +740,9 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
             </div>
             <div class="weeks trend-weeks">
               <div v-for="week in trendWeeks" :key="week.weekStart" :class="{ current: week.isCurrentWeek }">
-                <strong>{{ week.isCurrentWeek ? t.thisWeek : t.weekFrom(formatWeekStartShort(week.weekStart, locale)) }}</strong>
+                <strong>{{
+                  week.isCurrentWeek ? t.thisWeek : t.weekFrom(formatWeekStartShort(week.weekStart, locale))
+                }}</strong>
                 <span>{{ weekRowMeta(week) }}</span>
                 <i :style="{ width: `${week.sharePercent}%` }"></i>
               </div>

@@ -4,19 +4,23 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { type Locale, useI18n } from '../i18n'
 import UiSelect from '../components/UiSelect.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { TRAINING_SPORT_CATEGORIES } from '../types/workout'
-import type { CoachStyle, ConnectorId, MapDetailsConsent, ThemePreference, TrainingGoal, GoalType } from '../types/settings'
+import type {
+  CoachStyle,
+  ConnectorId,
+  MapDetailsConsent,
+  ThemePreference,
+  TrainingGoal,
+  GoalType,
+} from '../types/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
 import { clearLocalData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
-import {
-  defaultClearDataSelection,
-  hasClearDataSelection,
-  type ClearDataSelection,
-} from '../db/database'
+import { defaultClearDataSelection, hasClearDataSelection, type ClearDataSelection } from '../db/database'
 import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
 import {
   canonicalizeTrainingSport,
@@ -43,15 +47,33 @@ const workoutFileInput = ref<HTMLInputElement | null>(null)
 const backupFileInput = ref<HTMLInputElement | null>(null)
 const editingGoalId = ref<string | null>(null)
 const goalType = ref<GoalType>('personal')
-const goalForm = ref({ title: '', date: '', sport: 'Running', distanceKm: undefined as number | undefined, targetTime: '', targetPace: '', priority: 'B' as 'A' | 'B' | 'C', notes: '' })
+const goalForm = ref({
+  title: '',
+  date: '',
+  sport: 'Running',
+  distanceKm: undefined as number | undefined,
+  targetTime: '',
+  targetPace: '',
+  priority: 'B' as 'A' | 'B' | 'C',
+  notes: '',
+})
 const goalError = ref('')
 const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
-const weekdayLabels = computed(() => ({ monday: t.value.monday, tuesday: t.value.tuesday, wednesday: t.value.wednesday, thursday: t.value.thursday, friday: t.value.friday, saturday: t.value.saturday, sunday: t.value.sunday }))
+const weekdayLabels = computed(() => ({
+  monday: t.value.monday,
+  tuesday: t.value.tuesday,
+  wednesday: t.value.wednesday,
+  thursday: t.value.thursday,
+  friday: t.value.friday,
+  saturday: t.value.saturday,
+  sunday: t.value.sunday,
+}))
 const sortedGoals = computed(() => [...goals.value].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999')))
 const workoutDateRange = computed(() => {
   const dates = summaries.value.map((workout) => workout.date.slice(0, 10)).sort()
   if (!dates.length) return t.value.noLocalWorkouts
-  const format = (date: string) => new Intl.DateTimeFormat(locale.value, { month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00`))
+  const format = (date: string) =>
+    new Intl.DateTimeFormat(locale.value, { month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00`))
   return `${format(dates[0])} – ${format(dates[dates.length - 1])}`
 })
 const localDataSize = computed(() => {
@@ -92,13 +114,7 @@ const customSportInput = ref('')
 const sportLabel = (sport: string) => {
   if (isKnownTrainingSport(sport)) {
     const key = canonicalizeTrainingSport(sport).toLowerCase() as
-      | 'running'
-      | 'cycling'
-      | 'swimming'
-      | 'hiking'
-      | 'cardio'
-      | 'strength'
-      | 'mobility'
+      'running' | 'cycling' | 'swimming' | 'hiking' | 'cardio' | 'strength' | 'mobility'
     return t.value[key]
   }
   return sport
@@ -115,7 +131,9 @@ const extraSportOptions = computed(() => {
     .map((sport) => ({
       value: sport,
       label: sportLabel(sport),
-      source: workoutSports.value.some((item) => item.toLowerCase() === sport.toLowerCase()) ? ('workout' as const) : ('custom' as const),
+      source: workoutSports.value.some((item) => item.toLowerCase() === sport.toLowerCase())
+        ? ('workout' as const)
+        : ('custom' as const),
     }))
 })
 const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
@@ -234,7 +252,16 @@ function addCustomSport() {
 }
 
 function resetGoalForm() {
-  goalForm.value = { title: '', date: '', sport: 'Running', distanceKm: undefined, targetTime: '', targetPace: '', priority: 'B', notes: '' }
+  goalForm.value = {
+    title: '',
+    date: '',
+    sport: 'Running',
+    distanceKm: undefined,
+    targetTime: '',
+    targetPace: '',
+    priority: 'B',
+    notes: '',
+  }
   goalType.value = 'personal'
   goalError.value = ''
   editingGoalId.value = null
@@ -243,7 +270,16 @@ function resetGoalForm() {
 function editGoal(goal: TrainingGoal) {
   editingGoalId.value = goal.id
   goalType.value = goal.type
-  goalForm.value = { title: goal.title, date: goal.date || '', sport: goal.sport || 'Running', distanceKm: goal.distanceKm, targetTime: goal.targetTime || '', targetPace: goal.targetPace || '', priority: goal.priority || 'B', notes: goal.notes || '' }
+  goalForm.value = {
+    title: goal.title,
+    date: goal.date || '',
+    sport: goal.sport || 'Running',
+    distanceKm: goal.distanceKm,
+    targetTime: goal.targetTime || '',
+    targetPace: goal.targetPace || '',
+    priority: goal.priority || 'B',
+    notes: goal.notes || '',
+  }
   goalError.value = ''
   showGoalForm.value = true
 }
@@ -281,9 +317,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
 }
 </script>
 <template>
-  <div class="page-heading">
-    <h1>{{ t.settingsTitle }}</h1>
-  </div>
+  <PageHeader :label="t.settingsNav" :meta="t.settingsIntro" />
   <section class="card settings-section">
     <p class="eyebrow">{{ t.appearance }}</p>
     <div class="form-grid">
@@ -344,11 +378,11 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       </label>
       <label
         >{{ t.performanceNotes
-        }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea
-      ></label>
+        }}<textarea v-model="config.performanceNotes" rows="3" @change="saveConfigAndRefresh"></textarea>
+      </label>
       <label
-        >{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea
-      ></label>
+        >{{ t.limitations }}<textarea v-model="config.limitations" rows="3" @change="saveConfigAndRefresh"></textarea>
+      </label>
     </div>
   </section>
   <section class="card settings-section">
@@ -410,8 +444,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
               :checked="isSportSelected(option.value)"
               type="checkbox"
               @change="toggleAvailableSport(option.value)"
-            />{{ option.label
-            }}<span v-if="option.source === 'workout'" class="muted"> · {{ t.fromWorkouts }}</span>
+            />{{ option.label }}<span v-if="option.source === 'workout'" class="muted"> · {{ t.fromWorkouts }}</span>
           </label>
         </div>
       </div>
@@ -481,17 +514,43 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
     </div>
     <form v-if="showGoalForm" class="goal-form" @submit.prevent="submitGoal">
       <div class="goal-type-switch">
-        <button class="button" :class="goalType === 'personal' ? 'primary' : 'secondary'" type="button" @click="goalType = 'personal'">{{ t.personalGoal }}</button>
-        <button class="button" :class="goalType === 'race' ? 'primary' : 'secondary'" type="button" @click="goalType = 'race'">{{ t.race }}</button>
+        <button
+          class="button"
+          :class="goalType === 'personal' ? 'primary' : 'secondary'"
+          type="button"
+          @click="goalType = 'personal'"
+        >
+          {{ t.personalGoal }}
+        </button>
+        <button
+          class="button"
+          :class="goalType === 'race' ? 'primary' : 'secondary'"
+          type="button"
+          @click="goalType = 'race'"
+        >
+          {{ t.race }}
+        </button>
       </div>
       <div class="form-grid">
         <label>{{ t.goalTitle }} *<input v-model="goalForm.title" required /></label>
         <label>{{ t.goalDate }}<input v-model="goalForm.date" :required="goalType === 'race'" type="date" /></label>
         <label>{{ t.goalSport }}<input v-model="goalForm.sport" /></label>
-        <label>{{ t.goalDistance }}<input v-model.number="goalForm.distanceKm" min="0" step="0.1" type="number" /></label>
+        <label
+          >{{ t.goalDistance }}<input v-model.number="goalForm.distanceKm" min="0" step="0.1" type="number"
+        /></label>
         <label>{{ t.targetTime }}<input v-model="goalForm.targetTime" placeholder="z. B. 1:45:00" /></label>
         <label>{{ t.targetPace }}<input v-model="goalForm.targetPace" placeholder="z. B. 5:00 min/km" /></label>
-        <label v-if="goalType === 'race'">{{ t.priority }}<UiSelect v-model="goalForm.priority" :ariaLabel="t.priority" :options="[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }]" /></label>
+        <label v-if="goalType === 'race'"
+          >{{ t.priority
+          }}<UiSelect
+            v-model="goalForm.priority"
+            :ariaLabel="t.priority"
+            :options="[
+              { label: 'A', value: 'A' },
+              { label: 'B', value: 'B' },
+              { label: 'C', value: 'C' },
+            ]"
+        /></label>
         <label>{{ t.goalNotes }}<input v-model="goalForm.notes" /></label>
       </div>
       <p v-if="goalError" class="form-error">{{ goalError }}</p>
@@ -502,14 +561,52 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
     </form>
     <div v-if="sortedGoals.length" class="goal-list">
       <article v-for="goal in sortedGoals" :key="goal.id" class="goal-row">
-        <button class="text-button" type="button" :aria-label="t.editGoal" @click="editGoal(goal)">{{ t.editGoal }}</button>
+        <button class="text-button" type="button" :aria-label="t.editGoal" @click="editGoal(goal)">
+          {{ t.editGoal }}
+        </button>
         <span v-if="goal.targetTime || goal.targetPace || goal.priority" class="goal-target">
-          <template v-if="goal.priority">{{ goal.priority }}</template><template v-if="goal.targetTime"> · {{ goal.targetTime }}</template><template v-if="goal.targetPace"> · {{ goal.targetPace }}</template>
+          <template v-if="goal.priority">{{ goal.priority }}</template
+          ><template v-if="goal.targetTime"> · {{ goal.targetTime }}</template
+          ><template v-if="goal.targetPace"> · {{ goal.targetPace }}</template>
         </span>
-        <div class="goal-date">{{ goal.date ? new Date(`${goal.date}T12:00:00`).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' }}</div>
-        <div class="goal-copy"><strong>{{ goal.title }}</strong><span>{{ goal.type === 'race' ? t.race : t.personalGoal }}<template v-if="goal.sport"> · {{ goal.sport }}</template><template v-if="goal.distanceKm"> · {{ goal.distanceKm }} km</template><template v-if="goal.target"> · {{ goal.target }}</template></span></div>
-        <button class="icon-button danger" type="button" :aria-label="t.deleteGoal" :title="t.deleteGoal" @click="settings.deleteGoal(goal.id)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        <div class="goal-date">
+          {{
+            goal.date
+              ? new Date(`${goal.date}T12:00:00`).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '—'
+          }}
+        </div>
+        <div class="goal-copy">
+          <strong>{{ goal.title }}</strong
+          ><span
+            >{{ goal.type === 'race' ? t.race : t.personalGoal
+            }}<template v-if="goal.sport"> · {{ goal.sport }}</template
+            ><template v-if="goal.distanceKm"> · {{ goal.distanceKm }} km</template
+            ><template v-if="goal.target"> · {{ goal.target }}</template></span
+          >
+        </div>
+        <button
+          class="icon-button danger"
+          type="button"
+          :aria-label="t.deleteGoal"
+          :title="t.deleteGoal"
+          @click="settings.deleteGoal(goal.id)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+          </svg>
         </button>
       </article>
     </div>
@@ -540,7 +637,12 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
           >
             {{ t.connectConnector }}
           </button>
-          <button v-else class="button secondary connector-action" type="button" @click="settings.removeConnector(connector.id)">
+          <button
+            v-else
+            class="button secondary connector-action"
+            type="button"
+            @click="settings.removeConnector(connector.id)"
+          >
             {{ t.disconnectConnector }}
           </button>
           <label class="switch"
@@ -548,9 +650,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
               :checked="connector.active"
               type="checkbox"
               @change="setConnectorActive(connector.id, ($event.target as HTMLInputElement).checked)"
-            /><span>{{
-              connector.active ? t.connectorActive : t.connectorInactive
-            }}</span></label
+            /><span>{{ connector.active ? t.connectorActive : t.connectorInactive }}</span></label
           >
         </div>
       </article>
@@ -593,12 +693,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
       <button class="button secondary data-action" type="button" @click="openWorkoutFilePicker">
         {{ t.importFiles }}
       </button>
-      <button
-        v-if="!showDeletePanel"
-        class="button data-action danger-action"
-        type="button"
-        @click="openDeletePanel"
-      >
+      <button v-if="!showDeletePanel" class="button data-action danger-action" type="button" @click="openDeletePanel">
         {{ t.deleteData }}
       </button>
     </div>

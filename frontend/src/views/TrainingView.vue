@@ -6,11 +6,8 @@ import type { TrainingPlanDay } from '../types/workout'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useUiStore } from '../stores/ui'
-import {
-  canCreatePlan,
-  createPlanButtonMode,
-  isTrainingPlanLocalMode,
-} from '../utils/dashboardUi'
+import { canCreatePlan, createPlanButtonMode, isTrainingPlanLocalMode } from '../utils/dashboardUi'
+import PageHeader from '../components/PageHeader.vue'
 
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -18,14 +15,14 @@ const ui = useUiStore()
 
 const { summaries } = storeToRefs(workouts)
 const { plan, completedPlanDates } = storeToRefs(planStore)
-const { notification, credits, loading, consent } = storeToRefs(ui)
+const { credits, loading, consent } = storeToRefs(ui)
 
 const { t, locale } = useI18n()
 const localMode = isTrainingPlanLocalMode()
 
 const planMinutes = computed(() => plan.value.days.reduce((sum, day) => sum + day.total_duration_minutes, 0))
-const completedCount = computed(() =>
-  plan.value.days.filter((day) => day.date && completedPlanDates.value.includes(day.date)).length,
+const completedCount = computed(
+  () => plan.value.days.filter((day) => day.date && completedPlanDates.value.includes(day.date)).length,
 )
 const hasPlan = computed(() => plan.value.days.length > 0)
 const buttonMode = computed(() => createPlanButtonMode({ hasPlan: hasPlan.value }))
@@ -116,17 +113,7 @@ async function submitPlan() {
 </script>
 
 <template>
-  <Transition name="toast">
-    <div
-      v-if="notification.message"
-      class="toast"
-      :class="`toast-${notification.type}`"
-      :role="notification.type === 'error' ? 'alert' : 'status'"
-    >
-      <span>{{ notification.message }}</span>
-      <button type="button" aria-label="Meldung schließen" @click="ui.dismissNotification()">×</button>
-    </div>
-  </Transition>
+  <PageHeader :label="t.trainingNav" :meta="t.trainingIntro" />
 
   <div class="dashboard-flow" :class="{ 'has-plan': hasPlan }">
     <!-- Full week plan -->
@@ -160,11 +147,7 @@ async function submitPlan() {
         :class="{ completed: isPlanDayCompleted(day) }"
       >
         <label class="plan-check">
-          <input
-            :checked="isPlanDayCompleted(day)"
-            type="checkbox"
-            @change="planStore.togglePlanDate(day.date)"
-          />
+          <input :checked="isPlanDayCompleted(day)" type="checkbox" @change="planStore.togglePlanDate(day.date)" />
           <span>
             <strong class="plan-day-name">{{ planDayLabel(day) }}</strong>
             <small>{{ day.target_focus }}</small>
@@ -203,11 +186,7 @@ async function submitPlan() {
       <p>{{ t.aiDescription }}</p>
       <p class="muted ai-disclaimer">{{ t.aiDisclaimer }}</p>
       <label class="consent">
-        <input
-          :checked="consent"
-          type="checkbox"
-          @change="ui.consent = ($event.target as HTMLInputElement).checked"
-        />
+        <input :checked="consent" type="checkbox" @change="ui.consent = ($event.target as HTMLInputElement).checked" />
         {{ t.consent }}
       </label>
       <div v-if="consent" class="plan-notes">

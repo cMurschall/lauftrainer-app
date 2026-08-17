@@ -54,7 +54,7 @@ export function weeklySportSeries(weeks: WeeklySportsWeek[], metric: WeeklyChart
   const used = new Set<string>([TOTAL_COLOR])
   return activeWeeklySports(weeks, metric).map((sport) => {
     const preferred = PREFERRED_COLORS[sport]
-    const color = used.has(preferred) ? (FALLBACK_COLORS.find((item) => !used.has(item)) || preferred) : preferred
+    const color = used.has(preferred) ? FALLBACK_COLORS.find((item) => !used.has(item)) || preferred : preferred
     used.add(color)
     return { sport, values: weeks.map((week) => sportValue(week, sport, metric)), color }
   })

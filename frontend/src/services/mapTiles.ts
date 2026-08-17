@@ -72,12 +72,7 @@ export function routeHasBasemapCoverage(coords: LonLat[]): boolean {
   }
   const lng = sumLng / coords.length
   const lat = sumLat / coords.length
-  return (
-    lng >= GERMANY_BBOX.west &&
-    lng <= GERMANY_BBOX.east &&
-    lat >= GERMANY_BBOX.south &&
-    lat <= GERMANY_BBOX.north
-  )
+  return lng >= GERMANY_BBOX.west && lng <= GERMANY_BBOX.east && lat >= GERMANY_BBOX.south && lat <= GERMANY_BBOX.north
 }
 
 const ROUTE_SOURCE = 'workout-route'
@@ -268,8 +263,7 @@ function haversineKm(a: LonLat, b: LonLat): number {
   const dLng = toRad(b[0] - a[0])
   const lat1 = toRad(a[1])
   const lat2 = toRad(b[1])
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
   return 6371 * 2 * Math.asin(Math.sqrt(h))
 }
 
@@ -344,9 +338,7 @@ export function buildMapStyle(options: { showBasemap: boolean; theme?: MapTheme 
   const stockName = theme === 'dark' ? 'dark' : 'light'
   const flavor = useOverpassFeel ? lauftrainerOverpassFlavor(theme) : namedFlavor(stockName)
   const baseLayers = layers('protomaps', flavor, useOverpassFeel ? undefined : { lang: 'de' })
-  const styledLayers = useOverpassFeel
-    ? insertResidentialLayer(baseLayers, theme)
-    : baseLayers
+  const styledLayers = useOverpassFeel ? insertResidentialLayer(baseLayers, theme) : baseLayers
 
   return {
     version: 8,
@@ -423,10 +415,7 @@ export function upsertRouteLayer(map: MapLibreMap, coords: LonLat[]): void {
 
 export function fitRoute(map: MapLibreMap, coords: LonLat[], padding = 28): void {
   if (coords.length < 2) return
-  const bounds = coords.reduce(
-    (box, coord) => box.extend(coord),
-    new LngLatBounds(coords[0], coords[0]),
-  )
+  const bounds = coords.reduce((box, coord) => box.extend(coord), new LngLatBounds(coords[0], coords[0]))
   map.fitBounds(bounds, { padding, duration: 0, maxZoom: 14 })
 }
 

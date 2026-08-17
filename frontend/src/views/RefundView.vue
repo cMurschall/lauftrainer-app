@@ -8,9 +8,8 @@
     <section>
       <h2>1. Gegenstand</h2>
       <p>
-        Diese Richtlinie gilt für den Kauf digitaler Credits in LaufTrainer. Die Zahlungsabwicklung
-        erfolgt über Paddle. Anbieter der App ist Christian Murschall, Ostpreußenweg 2,
-        24257 Hohenfelde, Deutschland. Kontakt:
+        Diese Richtlinie gilt für den Kauf digitaler Credits in LaufTrainer. Die Zahlungsabwicklung erfolgt über Paddle.
+        Anbieter der App ist Christian Murschall, Ostpreußenweg 2, 24257 Hohenfelde, Deutschland. Kontakt:
         <a href="mailto:christian.murschall@googlemail.com">christian.murschall@googlemail.com</a>.
       </p>
     </section>
@@ -18,11 +17,11 @@
     <section>
       <h2>2. Digitale Inhalte</h2>
       <p>
-        Credits sind digitale Inhalte zur Nutzung von KI-Trainingsplänen. Mit dem Kauf und der
-        Bereitstellung der Credits im Wallet beginnt die Nutzung digitaler Leistungen. Soweit du
-        ausdrücklich zustimmst und wir mit der Ausführung vor Ablauf einer gesetzlichen
-        Widerrufsfrist beginnen, kann dein Widerrufsrecht für bereits gelieferte bzw. freigeschaltete
-        digitale Inhalte erlöschen — nach Maßgabe der anwendbaren Verbraucherschutzvorschriften.
+        Credits sind digitale Inhalte zur Nutzung von KI-Trainingsplänen. Mit dem Kauf und der Bereitstellung der
+        Credits im Wallet beginnt die Nutzung digitaler Leistungen. Soweit du ausdrücklich zustimmst und wir mit der
+        Ausführung vor Ablauf einer gesetzlichen Widerrufsfrist beginnen, kann dein Widerrufsrecht für bereits
+        gelieferte bzw. freigeschaltete digitale Inhalte erlöschen — nach Maßgabe der anwendbaren
+        Verbraucherschutzvorschriften.
       </p>
     </section>
 
@@ -36,8 +35,8 @@
         <li>gesetzliche Widerrufs- oder Erstattungsrechte greifen.</li>
       </ul>
       <p>
-        Bereits vollständig verbrauchte Credits werden in der Regel nicht erstattet, es sei denn,
-        gesetzliche Ansprüche oder ein von uns zu vertretender Mangel sprechen dafür.
+        Bereits vollständig verbrauchte Credits werden in der Regel nicht erstattet, es sei denn, gesetzliche Ansprüche
+        oder ein von uns zu vertretender Mangel sprechen dafür.
       </p>
     </section>
 
@@ -46,9 +45,8 @@
       <p>
         Schreibe an
         <a href="mailto:christian.murschall@googlemail.com">christian.murschall@googlemail.com</a>
-        und nenne bitte Kaufdatum, ungefähren Betrag, verwendetes Gerät/Browser sowie — falls
-        vorhanden — die Paddle-Transaktions-ID oder die Bestätigungsmail. Wir antworten in der
-        Regel innerhalb von wenigen Werktagen.
+        und nenne bitte Kaufdatum, ungefähren Betrag, verwendetes Gerät/Browser sowie — falls vorhanden — die
+        Paddle-Transaktions-ID oder die Bestätigungsmail. Wir antworten in der Regel innerhalb von wenigen Werktagen.
       </p>
       <p>
         Du kannst dich bei Fragen zur Zahlung auch an den Support von Paddle wenden:
@@ -59,17 +57,17 @@
     <section>
       <h2>5. Erstattung und Wallet</h2>
       <p>
-        Erstattungen erfolgen auf dem ursprünglichen Zahlungsweg über Paddle. Wurde eine Erstattung
-        gewährt, können die zugehörigen Credits im betroffenen Wallet storniert oder angepasst
-        werden. Credits sind gerätegebunden und nicht zwischen Geräten übertragbar.
+        Erstattungen erfolgen auf dem ursprünglichen Zahlungsweg über Paddle. Wurde eine Erstattung gewährt, können die
+        zugehörigen Credits im betroffenen Wallet storniert oder angepasst werden. Credits sind gerätegebunden und nicht
+        zwischen Geräten übertragbar.
       </p>
     </section>
 
     <section>
       <h2>6. Verbraucherrechte</h2>
       <p>
-        Gesetzliche Rechte, insbesondere aus Verbraucherschutz und Gewährleistung, bleiben
-        unberührt. Ergänzende Informationen zu Zahlungen findest du bei Paddle unter
+        Gesetzliche Rechte, insbesondere aus Verbraucherschutz und Gewährleistung, bleiben unberührt. Ergänzende
+        Informationen zu Zahlungen findest du bei Paddle unter
         <a href="https://www.paddle.com/legal/checkout-buyer-terms" target="_blank" rel="noreferrer"
           >Checkout Buyer Terms</a
         >.

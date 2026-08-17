@@ -84,19 +84,35 @@ export function calculateSportMetrics(workouts: Workout[]): SportMetrics[] {
   const map = new Map<SportCategory, SportMetrics>()
   for (const workout of workouts) {
     const sport = normalizeSport(workout.sport) as SportCategory
-    const item = map.get(sport) || { sport, workoutCount: 0, durationMinutes: 0, distanceKm: 0, calories: 0, elevationGainM: 0 }
+    const item = map.get(sport) || {
+      sport,
+      workoutCount: 0,
+      durationMinutes: 0,
+      distanceKm: 0,
+      calories: 0,
+      elevationGainM: 0,
+    }
     item.workoutCount += 1
     item.durationMinutes += Math.max(0, workout.durationSeconds || 0) / 60
     item.distanceKm += workout.distanceKm || 0
     item.calories += workout.calories || 0
     item.elevationGainM += workout.elevationGainM ?? workout.ascentM ?? 0
-    if (Number.isFinite(workout.averageHeartRate)) item.averageHeartRate = ((item.averageHeartRate || 0) * (item.workoutCount - 1) + workout.averageHeartRate!) / item.workoutCount
-    if (Number.isFinite(workout.averageSpeedKmh)) item.averageSpeedKmh = ((item.averageSpeedKmh || 0) * (item.workoutCount - 1) + workout.averageSpeedKmh!) / item.workoutCount
-    if (Number.isFinite(workout.averagePowerW)) item.averagePowerW = ((item.averagePowerW || 0) * (item.workoutCount - 1) + workout.averagePowerW!) / item.workoutCount
+    if (Number.isFinite(workout.averageHeartRate))
+      item.averageHeartRate =
+        ((item.averageHeartRate || 0) * (item.workoutCount - 1) + workout.averageHeartRate!) / item.workoutCount
+    if (Number.isFinite(workout.averageSpeedKmh))
+      item.averageSpeedKmh =
+        ((item.averageSpeedKmh || 0) * (item.workoutCount - 1) + workout.averageSpeedKmh!) / item.workoutCount
+    if (Number.isFinite(workout.averagePowerW))
+      item.averagePowerW =
+        ((item.averagePowerW || 0) * (item.workoutCount - 1) + workout.averagePowerW!) / item.workoutCount
     item.swimmingDistanceM = (item.swimmingDistanceM || 0) + (workout.swimmingDistanceM || 0) || undefined
     item.swimmingLaps = (item.swimmingLaps || 0) + (workout.swimmingLaps || 0) || undefined
     item.swimmingStrokes = (item.swimmingStrokes || 0) + (workout.swimmingStrokes || 0) || undefined
-    if (workout.averagePaceSecondsPerKm !== undefined) item.averagePaceSecondsPerKm = ((item.averagePaceSecondsPerKm || 0) * (item.workoutCount - 1) + workout.averagePaceSecondsPerKm) / item.workoutCount
+    if (workout.averagePaceSecondsPerKm !== undefined)
+      item.averagePaceSecondsPerKm =
+        ((item.averagePaceSecondsPerKm || 0) * (item.workoutCount - 1) + workout.averagePaceSecondsPerKm) /
+        item.workoutCount
     map.set(sport, item)
   }
   return [...map.values()].sort((a, b) => a.sport.localeCompare(b.sport))
@@ -104,8 +120,17 @@ export function calculateSportMetrics(workouts: Workout[]): SportMetrics[] {
 
 export function calculateTriathlonGroups(workouts: Workout[]) {
   const groups = new Map<string, Workout[]>()
-  for (const workout of workouts) if (workout.multisportGroupId) groups.set(workout.multisportGroupId, [...(groups.get(workout.multisportGroupId) || []), workout])
-  return [...groups].map(([id, items]) => ({ id, workouts: items.sort((a, b) => (a.multisportOrder || 99) - (b.multisportOrder || 99)).map((item) => item.id), disciplines: items.map((item) => ({ sport: item.multisportDiscipline || normalizeSport(item.sport), order: item.multisportOrder })) }))
+  for (const workout of workouts)
+    if (workout.multisportGroupId)
+      groups.set(workout.multisportGroupId, [...(groups.get(workout.multisportGroupId) || []), workout])
+  return [...groups].map(([id, items]) => ({
+    id,
+    workouts: items.sort((a, b) => (a.multisportOrder || 99) - (b.multisportOrder || 99)).map((item) => item.id),
+    disciplines: items.map((item) => ({
+      sport: item.multisportDiscipline || normalizeSport(item.sport),
+      order: item.multisportOrder,
+    })),
+  }))
 }
 
 export function normalizeSport(value: string): string {

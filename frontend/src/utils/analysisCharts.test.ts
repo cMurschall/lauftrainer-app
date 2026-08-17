@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { activeWeeklySports, showsWeeklyTotal, weeklySportSeries } from './analysisCharts'
 
 const week = (sports: Record<string, { minutes: number; distanceKm: number }>) => ({
-  sports: Object.fromEntries(
-    Object.entries(sports).map(([sport, value]) => [sport, { ...value, workoutCount: 1 }]),
-  ),
+  sports: Object.fromEntries(Object.entries(sports).map(([sport, value]) => [sport, { ...value, workoutCount: 1 }])),
 })
 
 describe('weekly chart series', () => {

@@ -6,6 +6,7 @@ import { type AnalysisResult, toDateKey } from '../analysis/analysisEngine'
 import type { Workout } from '../types/workout'
 import MiniChart from '../components/MiniChart.vue'
 import ChartHelp from '../components/ChartHelp.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { formatChartDate, formatRelativeChartDate, formatWorkoutDate } from '../utils/formatters'
 import { useWorkoutStore } from '../stores/workouts'
 import { useAnalysisStore } from '../stores/analysis'
@@ -53,9 +54,7 @@ const historySpanDays = computed(() =>
   latest.value && earliest.value ? (latest.value - earliest.value) / 86400000 : 0,
 )
 const useRelativeChartLabels = computed(() => range.value === 0 && historySpanDays.value > 365)
-const referenceDateKey = computed(() =>
-  latest.value ? new Date(latest.value).toISOString().slice(0, 10) : '',
-)
+const referenceDateKey = computed(() => (latest.value ? new Date(latest.value).toISOString().slice(0, 10) : ''))
 const chartLocale = computed(() => (locale.value === 'de' ? 'de-DE' : 'en-US'))
 const cutoff = computed(() =>
   range.value === 0 || !latest.value ? '' : new Date(latest.value - range.value * 86400000).toISOString().slice(0, 10),
@@ -167,9 +166,7 @@ const polarizationSeries = computed(() => [
 function chartLabels(items: Array<{ weekStart?: string; date?: string }>) {
   const loc = chartLocale.value
   if (useRelativeChartLabels.value && referenceDateKey.value) {
-    return items.map((x) =>
-      formatRelativeChartDate(x.weekStart || x.date || '', referenceDateKey.value, loc),
-    )
+    return items.map((x) => formatRelativeChartDate(x.weekStart || x.date || '', referenceDateKey.value, loc))
   }
   return items.map((x) => formatChartDate(x.weekStart || x.date || '', loc))
 }
@@ -208,31 +205,28 @@ async function saveRpe(workout: Workout, value: string) {
       {{ calculationError }}
       <button class="button secondary" @click="analysisStore.refreshAnalysis()">{{ t.retryAnalysis }}</button>
     </div>
-    <div class="page-heading">
-      <div>
-        <p class="eyebrow">{{ t.analysisNav }}</p>
-        <h1>{{ t.analysisTitle }}</h1>
-        <p class="analysis-intro">{{ t.analysisIntro }}</p>
-      </div>
-      <div class="range-switch">
-        <button
-          v-for="item in [
-            { value: 30, label: t.range30 },
-            { value: 90, label: t.range90 },
-            { value: 365, label: t.range365 },
-            { value: 0, label: t.rangeAll },
-          ]"
-          :key="item.value"
-          :aria-pressed="range === item.value"
-          :class="range === item.value ? 'primary' : 'secondary'"
-          class="button"
-          type="button"
-          @click="range = item.value"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-    </div>
+    <PageHeader :label="t.analysisNav" :meta="t.analysisIntro">
+      <template #actions>
+        <div class="range-switch">
+          <button
+            v-for="item in [
+              { value: 30, label: t.range30 },
+              { value: 90, label: t.range90 },
+              { value: 365, label: t.range365 },
+              { value: 0, label: t.rangeAll },
+            ]"
+            :key="item.value"
+            :aria-pressed="range === item.value"
+            :class="range === item.value ? 'primary' : 'secondary'"
+            class="button"
+            type="button"
+            @click="range = item.value"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </template>
+    </PageHeader>
     <section class="stats analysis-stats">
       <article class="card">
         <span>{{ t.ctl }}</span>
@@ -423,11 +417,7 @@ async function saveRpe(workout: Workout, value: string) {
         <p v-if="hrZonesEmptyMessage === 'needHrStream'">{{ t.needHrStream }}</p>
         <p v-else-if="hrZonesEmptyMessage === 'noData'">{{ t.noData }}</p>
         <p v-else>{{ t.noHr }}</p>
-        <RouterLink
-          v-if="hrZonesEmptyMessage === 'needHrStream'"
-          class="button secondary"
-          to="/settings#connectors"
-        >
+        <RouterLink v-if="hrZonesEmptyMessage === 'needHrStream'" class="button secondary" to="/settings#connectors">
           {{ t.importFiles }}
         </RouterLink>
       </div>

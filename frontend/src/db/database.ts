@@ -1,5 +1,12 @@
 import type { AnalysisResult } from '../analysis/analysisEngine'
-import type { AnalysisSummary, MapContext, TrainingPlan, TrainingPlanHistoryEntry, UserConfig, Workout } from '../types/workout'
+import type {
+  AnalysisSummary,
+  MapContext,
+  TrainingPlan,
+  TrainingPlanHistoryEntry,
+  UserConfig,
+  Workout,
+} from '../types/workout'
 import type { AppSettings, TrainingGoal } from '../types/settings'
 import { mergeWorkouts, workoutIdentity } from '../services/workoutIdentity'
 import { diagnosticLog } from '../services/logger'
@@ -13,7 +20,15 @@ const DB_NAME = 'lauftrainer-local'
  * access silently degrades. Version 8 adds `mapContext`.
  */
 const DB_VERSION = 8
-const USER_DATA_STORES = ['workouts', 'settings', 'plans', 'planHistory', 'goals', 'analysisCache', 'mapContext'] as const
+const USER_DATA_STORES = [
+  'workouts',
+  'settings',
+  'plans',
+  'planHistory',
+  'goals',
+  'analysisCache',
+  'mapContext',
+] as const
 
 type StoredPlan = {
   id: 'current'
@@ -181,7 +196,9 @@ export const workoutDb = {
   listSummaries: async (): Promise<WorkoutSummary[]> => (await workoutDb.list()).map(toWorkoutSummary),
 
   put: async (workout: Workout) => {
-    const result = await transaction<IDBValidKey>('workouts', 'readwrite', (store) => store.put(normalizeWorkout(workout)))
+    const result = await transaction<IDBValidKey>('workouts', 'readwrite', (store) =>
+      store.put(normalizeWorkout(workout)),
+    )
     await workoutDb.bumpWorkoutRevision()
     return result
   },

@@ -188,7 +188,17 @@ describe('analysis engine', () => {
       config,
     )
     expect(Object.keys(result).sort()).toEqual(
-      ['efficiency', 'foster', 'fosterRpe', 'hrZones', 'load', 'polarization', 'sports', 'triathlonGroups', 'weekly'].sort(),
+      [
+        'efficiency',
+        'foster',
+        'fosterRpe',
+        'hrZones',
+        'load',
+        'polarization',
+        'sports',
+        'triathlonGroups',
+        'weekly',
+      ].sort(),
     )
     expect(result.load.length).toBeGreaterThan(0)
     expect(result.weekly.length).toBeGreaterThan(0)

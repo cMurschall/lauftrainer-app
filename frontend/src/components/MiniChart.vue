@@ -151,14 +151,14 @@ function formatChartValue(value: number | null, unit = props.yUnit): string {
   return Number(value.toFixed(digits)).toString()
 }
 
-const hasRightAxis = computed(
-  () => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'),
-)
+const hasRightAxis = computed(() => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'))
 
 const isMixed = computed(() => props.series.some((item) => (item.type || props.type) !== props.type))
 
 const chartValues = computed(() =>
-  props.series.flatMap((item) => item.values).filter((value): value is number => value !== null && Number.isFinite(value)),
+  props.series
+    .flatMap((item) => item.values)
+    .filter((value): value is number => value !== null && Number.isFinite(value)),
 )
 const chartMax = computed(() => (chartValues.value.length ? Math.max(...chartValues.value) : 0))
 const chartMin = computed(() => (chartValues.value.length ? Math.min(...chartValues.value) : 0))
@@ -222,13 +222,7 @@ const data = computed(() => ({
       label: item.name,
       data: item.values,
       borderColor: color,
-      backgroundColor: isBar
-        ? color
-        : item.fill
-          ? typeof item.fill === 'number'
-            ? color
-            : color
-          : color,
+      backgroundColor: isBar ? color : item.fill ? (typeof item.fill === 'number' ? color : color) : color,
       pointRadius: item.pointRadius ?? (isBar ? 0 : 0),
       pointHoverRadius: 4,
       borderWidth: isBar ? 0 : (item.borderWidth ?? 2),

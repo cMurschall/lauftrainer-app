@@ -17,10 +17,7 @@ describe('trainingSports', () => {
   it('maps workout sports into selectable options', () => {
     expect(trainingSportFromWorkoutSport('run')).toBe('Running')
     expect(trainingSportFromWorkoutSport('Climbing')).toBe('Climbing')
-    expect(sportsFromWorkouts([{ sport: 'Running' }, { sport: 'Ski' }, { sport: 'run' }])).toEqual([
-      'Running',
-      'Ski',
-    ])
+    expect(sportsFromWorkouts([{ sport: 'Running' }, { sport: 'Ski' }, { sport: 'run' }])).toEqual(['Running', 'Ski'])
   })
 
   it('builds plan whitelist with custom labels intact', () => {

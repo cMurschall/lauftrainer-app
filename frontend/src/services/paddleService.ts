@@ -10,7 +10,12 @@ export interface Tier {
 }
 
 export const tiers: Tier[] = [
-  { name: 'Starter', description: '10 Credits für die persönliche Trainingsplanung.', features: ['10 KI-Trainingspläne', 'Lokale Trainingsanalyse', 'Einmaliger Kauf, kein Abo'], priceId: import.meta.env.VITE_PADDLE_STARTER_PRICE },
+  {
+    name: 'Starter',
+    description: '10 Credits für die persönliche Trainingsplanung.',
+    features: ['10 KI-Trainingspläne', 'Lokale Trainingsanalyse', 'Einmaliger Kauf, kein Abo'],
+    priceId: import.meta.env.VITE_PADDLE_STARTER_PRICE,
+  },
 ]
 
 const environment = import.meta.env.VITE_PADDLE_ENVIRONMENT as 'sandbox' | 'production' | undefined
@@ -41,13 +46,16 @@ async function getPaddle() {
 export async function detectCountry() {
   const response = await fetch(`${API_URL}/billing/region`)
   if (!response.ok) return undefined
-  const data = await response.json() as { country?: string | null }
+  const data = (await response.json()) as { country?: string | null }
   return data.country || undefined
 }
 
 export async function previewTier(tier: Tier, country?: string): Promise<PricePreviewResponse> {
   const paddle = await getPaddle()
-  return paddle.PricePreview({ items: [{ priceId: tier.priceId, quantity: 1 }], ...(country ? { address: { countryCode: country } } : {}) })
+  return paddle.PricePreview({
+    items: [{ priceId: tier.priceId, quantity: 1 }],
+    ...(country ? { address: { countryCode: country } } : {}),
+  })
 }
 
 export async function openTierCheckout(tier: Tier, email?: string) {

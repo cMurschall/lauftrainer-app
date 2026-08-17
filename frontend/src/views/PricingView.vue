@@ -22,7 +22,12 @@ async function loadPrices() {
   try {
     const detectedCountry = await detectCountry().catch(() => undefined)
     const results = await Promise.all(tiers.map((tier) => previewTier(tier, detectedCountry)))
-    prices.value = Object.fromEntries(results.map((result, index) => [tiers[index].name, result.data.details.lineItems[0]?.formattedTotals.total || '']))
+    prices.value = Object.fromEntries(
+      results.map((result, index) => [
+        tiers[index].name,
+        result.data.details.lineItems[0]?.formattedTotals.total || '',
+      ]),
+    )
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t.value.pricesLoadFailed
   } finally {

@@ -12,7 +12,10 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
       heartRates: number[]
       calories: number
       elevationGainM: number
-      sports: Record<string, { workoutCount: number; durationMinutes: number; distanceKm: number; trainingLoad: number }>
+      sports: Record<
+        string,
+        { workoutCount: number; durationMinutes: number; distanceKm: number; trainingLoad: number }
+      >
     }
   >()
   const zoneMinutes: Record<string, number> = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 }
@@ -25,7 +28,16 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
     const distanceKm = Number.isFinite(workout.distanceKm) ? Math.max(0, workout.distanceKm || 0) : 0
     const week = isoWeekStart(workout.date)
     if (!week) continue
-    const current = weeks.get(week) || { workoutCount: 0, distanceKm: 0, durationMinutes: 0, load: 0, heartRates: [], calories: 0, elevationGainM: 0, sports: {} }
+    const current = weeks.get(week) || {
+      workoutCount: 0,
+      distanceKm: 0,
+      durationMinutes: 0,
+      load: 0,
+      heartRates: [],
+      calories: 0,
+      elevationGainM: 0,
+      sports: {},
+    }
     current.workoutCount += 1
     current.distanceKm += distanceKm
     current.durationMinutes += durationMinutes
@@ -33,7 +45,12 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
     current.calories += workout.calories || 0
     current.elevationGainM += workout.elevationGainM ?? workout.ascentM ?? 0
     const sport = normalizeSport(workout.sport)
-    const sportMetrics = current.sports[sport] || { workoutCount: 0, durationMinutes: 0, distanceKm: 0, trainingLoad: 0 }
+    const sportMetrics = current.sports[sport] || {
+      workoutCount: 0,
+      durationMinutes: 0,
+      distanceKm: 0,
+      trainingLoad: 0,
+    }
     sportMetrics.workoutCount += 1
     sportMetrics.durationMinutes += durationMinutes
     sportMetrics.distanceKm += distanceKm

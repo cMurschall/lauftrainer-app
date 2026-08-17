@@ -16,7 +16,10 @@ export const defaultUserConfig = (): UserConfig => ({
   limitations: '',
 })
 
-export function normalizeUserConfig(stored: Partial<UserConfig> | Record<string, unknown> | undefined, defaults = defaultUserConfig()): UserConfig {
+export function normalizeUserConfig(
+  stored: Partial<UserConfig> | Record<string, unknown> | undefined,
+  defaults = defaultUserConfig(),
+): UserConfig {
   const source = (stored || {}) as Partial<UserConfig> & Record<string, unknown>
   const preferredTrainingDays = Array.isArray(source.preferredTrainingDays)
     ? source.preferredTrainingDays.map(String).filter(Boolean)
@@ -26,11 +29,15 @@ export function normalizeUserConfig(stored: Partial<UserConfig> | Record<string,
   )
 
   return {
-    trainingFocus: typeof source.trainingFocus === 'string' && source.trainingFocus ? source.trainingFocus : defaults.trainingFocus,
+    trainingFocus:
+      typeof source.trainingFocus === 'string' && source.trainingFocus ? source.trainingFocus : defaults.trainingFocus,
     preferredTrainingDays: preferredTrainingDays.length ? preferredTrainingDays : [...defaults.preferredTrainingDays],
     hrZones: { ...defaults.hrZones, ...(source.hrZones || {}) },
     thresholds: { ...defaults.thresholds, ...(source.thresholds || {}) },
-    primarySports: Array.isArray(source.primarySports) && source.primarySports.length ? source.primarySports : defaults.primarySports,
+    primarySports:
+      Array.isArray(source.primarySports) && source.primarySports.length
+        ? source.primarySports
+        : defaults.primarySports,
     availableSports: availableSports.length ? availableSports : [...(defaults.availableSports || ['Running'])],
     trainingGoal:
       typeof source.trainingGoal === 'string' && source.trainingGoal

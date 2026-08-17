@@ -8,8 +8,10 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISSED_KEY = 'lauftrainer-pwa-install-dismissed'
 
 function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches ||
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  )
 }
 
 function isIosSafari(): boolean {

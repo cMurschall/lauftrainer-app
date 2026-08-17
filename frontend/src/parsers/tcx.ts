@@ -28,7 +28,12 @@ export function parseTcx(text: string, fileName: string): Workout {
   const heartRates = records.map((record) => record.heartRateBpm).filter((rate): rate is number => rate !== undefined)
   const elevationGainM = records.reduce((sum, record, index) => {
     const previous = index > 0 ? records[index - 1]?.altitudeM : undefined
-    return sum + (record.altitudeM !== undefined && previous !== undefined && record.altitudeM > previous ? record.altitudeM - previous : 0)
+    return (
+      sum +
+      (record.altitudeM !== undefined && previous !== undefined && record.altitudeM > previous
+        ? record.altitudeM - previous
+        : 0)
+    )
   }, 0)
   return {
     id: `tcx-${fileName}-${date}`,

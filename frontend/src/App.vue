@@ -37,7 +37,12 @@ const buildLabel = computed(() =>
     minute: '2-digit',
   }),
 )
-const { visible: pwaInstallVisible, ios: pwaInstallIos, install: installPwa, dismiss: dismissPwaInstall } = usePwaInstall()
+const {
+  visible: pwaInstallVisible,
+  ios: pwaInstallIos,
+  install: installPwa,
+  dismiss: dismissPwaInstall,
+} = usePwaInstall()
 
 useTheme(theme)
 
@@ -59,7 +64,12 @@ async function checkBackend() {
 
 onMounted(async () => {
   ui.credits = cachedBalance()
-  if (!frontendLocalMode) void getBalance().then((value) => { ui.credits = value }).catch(() => undefined)
+  if (!frontendLocalMode)
+    void getBalance()
+      .then((value) => {
+        ui.credits = value
+      })
+      .catch(() => undefined)
   diagnosticLog('theme.startup', {
     defaultPreference: settings.theme,
     localStoragePreference: localStorage.getItem('lauftrainer-theme'),
@@ -88,6 +98,17 @@ onMounted(async () => {
         @install="installPwa"
         @dismiss="dismissPwaInstall"
       />
+      <Transition name="toast">
+        <div
+          v-if="ui.notification.message"
+          class="toast"
+          :class="`toast-${ui.notification.type}`"
+          :role="ui.notification.type === 'error' ? 'alert' : 'status'"
+        >
+          <span>{{ ui.notification.message }}</span>
+          <button type="button" :aria-label="t.dismissNotification" @click="ui.dismissNotification()">×</button>
+        </div>
+      </Transition>
       <RouterView />
       <footer class="diagnostics-footer">
         <details>

@@ -70,7 +70,7 @@ describe('DashboardView UX', () => {
     expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
   })
 
-  it('shows today\'s workout widget when today has a planned workout', async () => {
+  it("shows today's workout widget when today has a planned workout", async () => {
     const wrapper = await mountDashboard()
     const workouts = useWorkoutStore()
     const planStore = usePlanStore()

@@ -20,10 +20,7 @@ function finiteNumber(value: unknown): number | undefined {
  * - `route` / `locations`: [{ latitude, longitude, time? }, ...]
  * - parallel arrays on a route object: { latitude: number[], longitude: number[] }
  */
-export function recordsFromPolarRoute(
-  raw: Record<string, unknown>,
-  workoutDurationSeconds: number,
-): ActivityRecord[] {
+export function recordsFromPolarRoute(raw: Record<string, unknown>, workoutDurationSeconds: number): ActivityRecord[] {
   const routeCandidate = raw.route ?? raw.locations ?? raw.Route ?? raw.Locations
 
   if (Array.isArray(routeCandidate) && routeCandidate.length >= 2) {
@@ -36,11 +33,7 @@ export function recordsFromPolarRoute(
       if (latitude === undefined || longitude === undefined) continue
       const fromTime = durationSeconds(point.time ?? point.duration ?? point.elapsed)
       const elapsedSeconds =
-        fromTime > 0
-          ? fromTime
-          : last === 0
-            ? 0
-            : Math.round((Math.max(0, workoutDurationSeconds) * index) / last)
+        fromTime > 0 ? fromTime : last === 0 ? 0 : Math.round((Math.max(0, workoutDurationSeconds) * index) / last)
       points.push({ elapsedSeconds, latitude, longitude })
     }
     return points.length >= 2 ? points : []

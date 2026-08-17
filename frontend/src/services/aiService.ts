@@ -81,11 +81,16 @@ export async function requestTrainingPlan(
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const latestLoad = analysis?.load.at(-1)
   const planStartDate = options.planStartDate || localDateKey()
-  const coachStyle = options.coachStyle === 'mentor' || options.coachStyle === 'performance' ? options.coachStyle : 'pragmatist'
+  const coachStyle =
+    options.coachStyle === 'mentor' || options.coachStyle === 'performance' ? options.coachStyle : 'pragmatist'
   const planNotes = options.planNotes?.trim() || undefined
   const response = await fetch(`${API_URL}/training-plan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Wallet-Token': walletToken(), 'X-Idempotency-Key': idempotencyKey() },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Wallet-Token': walletToken(),
+      'X-Idempotency-Key': idempotencyKey(),
+    },
     body: JSON.stringify({
       locale,
       plan_start_date: planStartDate,
@@ -117,7 +122,14 @@ export async function requestTrainingPlan(
       })),
       metrics: {
         latest_load: latestLoad
-          ? { date: latestLoad.date, ctl: round(latestLoad.ctl), atl: round(latestLoad.atl), tsb: round(latestLoad.tsb), acwr: round(latestLoad.acwr, 2), risk: latestLoad.risk }
+          ? {
+              date: latestLoad.date,
+              ctl: round(latestLoad.ctl),
+              atl: round(latestLoad.atl),
+              tsb: round(latestLoad.tsb),
+              acwr: round(latestLoad.acwr, 2),
+              risk: latestLoad.risk,
+            }
           : null,
         weekly: (analysis?.weekly || []).slice(-12).map((week) => ({
           week_start: week.weekStart,
@@ -155,10 +167,11 @@ export async function requestTrainingPlan(
     }),
   })
   if (!response.ok) {
-    const detail = await response.json().catch(() => null) as { detail?: string } | null
+    const detail = (await response.json().catch(() => null)) as { detail?: string } | null
     throw new Error(detail?.detail || `KI-Backend antwortete mit ${response.status}.`)
   }
   const result = (await response.json()) as TrainingPlanResponse
-  if (!result.plan || !result.plan.week_summary || !Array.isArray(result.plan.days)) throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
+  if (!result.plan || !result.plan.week_summary || !Array.isArray(result.plan.days))
+    throw new Error('Das KI-Ergebnis hat kein gültiges Planformat.')
   return result
 }

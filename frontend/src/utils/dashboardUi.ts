@@ -16,10 +16,7 @@ export function canCreatePlan(input: {
 
 export type ConnectorBannerKind = 'sync' | 'empty' | 'localData'
 
-export function connectorBannerKind(input: {
-  hasWorkouts: boolean
-  hasActiveConnected: boolean
-}): ConnectorBannerKind {
+export function connectorBannerKind(input: { hasWorkouts: boolean; hasActiveConnected: boolean }): ConnectorBannerKind {
   if (input.hasActiveConnected) return 'sync'
   if (input.hasWorkouts) return 'localData'
   return 'empty'
@@ -86,10 +83,7 @@ export function weeklyTrend(input: {
   const hasCurrent = input.weekly.some((week) => week.weekStart === input.currentWeekStart)
   const weeks = hasCurrent
     ? input.weekly
-    : [
-        ...input.weekly,
-        { weekStart: input.currentWeekStart, workoutCount: 0, distanceKm: 0, durationMinutes: 0 },
-      ]
+    : [...input.weekly, { weekStart: input.currentWeekStart, workoutCount: 0, distanceKm: 0, durationMinutes: 0 }]
   const recent = weeks.slice(-(input.limit ?? 6))
   const peakMinutes = Math.max(...recent.map((week) => safeNumber(week.durationMinutes)), 0)
   return recent
@@ -113,9 +107,7 @@ export function averageWeeklyMinutes(input: {
   currentWeekStart: string
   weeks?: number
 }): number {
-  const completed = input.weekly
-    .filter((week) => week.weekStart !== input.currentWeekStart)
-    .slice(-(input.weeks ?? 4))
+  const completed = input.weekly.filter((week) => week.weekStart !== input.currentWeekStart).slice(-(input.weeks ?? 4))
   if (!completed.length) return 0
   const total = completed.reduce((sum, week) => sum + safeNumber(week.durationMinutes), 0)
   return Math.round(total / completed.length)

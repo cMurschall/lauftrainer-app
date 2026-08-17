@@ -13,7 +13,11 @@ import { useWorkoutStore } from './workouts'
 import { useSettingsStore } from './settings'
 import { useAnalysisStore } from './analysis'
 
-const emptyPlan = (): TrainingPlan => ({ start_date: '', week_summary: { focus_title: '', goal_description: '' }, days: [] })
+const emptyPlan = (): TrainingPlan => ({
+  start_date: '',
+  week_summary: { focus_title: '', goal_description: '' },
+  days: [],
+})
 const frontendLocalMode = () => ['mock', 'local'].includes(import.meta.env.VITE_TRAINING_PLAN_MODE)
 
 export const usePlanStore = defineStore('plan', () => {
@@ -112,7 +116,10 @@ export const usePlanStore = defineStore('plan', () => {
         days: persistedPlan?.plan?.days.map((day) => day.date || day.day) || [],
       })
       if (!frontendLocalMode()) ui.credits = await getBalance()
-      ui.notify(result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved, 'success')
+      ui.notify(
+        result.debug ? 'Demo-Plan geladen: Gemini-Key ist noch nicht konfiguriert.' : t.value.planSaved,
+        'success',
+      )
     } catch (error) {
       diagnosticLog('plan.create.error', {
         planRequestId,

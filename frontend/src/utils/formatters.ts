@@ -34,11 +34,7 @@ function parseChartDate(value: string): Date | undefined {
   return Number.isFinite(date.getTime()) ? date : undefined
 }
 
-export function formatChartDate(
-  value: string,
-  locale = 'de-DE',
-  options?: { includeYear?: boolean },
-): string {
+export function formatChartDate(value: string, locale = 'de-DE', options?: { includeYear?: boolean }): string {
   const date = parseChartDate(value)
   if (!date) return '–'
   const day = String(date.getUTCDate()).padStart(2, '0')
@@ -66,11 +62,7 @@ export function formatRelativeChartDate(value: string, reference: string, locale
     return de ? `−${months} Mon` : `−${months}mo`
   }
   const years = Math.round((days / 365.25) * 2) / 2
-  const text = Number.isInteger(years)
-    ? String(years)
-    : de
-      ? years.toFixed(1).replace('.', ',')
-      : years.toFixed(1)
+  const text = Number.isInteger(years) ? String(years) : de ? years.toFixed(1).replace('.', ',') : years.toFixed(1)
   return de ? `−${text} J` : `−${text}y`
 }
 

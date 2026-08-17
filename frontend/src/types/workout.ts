@@ -20,9 +20,26 @@ export interface MapContext {
   placeName?: string
   streetsPending?: boolean
 }
-export const SPORT_CATEGORIES = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Climbing', 'Triathlon', 'Other'] as const
+export const SPORT_CATEGORIES = [
+  'Running',
+  'Cycling',
+  'Swimming',
+  'Hiking',
+  'Walking',
+  'Climbing',
+  'Triathlon',
+  'Other',
+] as const
 export type SportCategory = (typeof SPORT_CATEGORIES)[number]
-export const TRAINING_SPORT_CATEGORIES = ['Cycling', 'Running', 'Hiking', 'Swimming', 'Cardio', 'Strength', 'Mobility'] as const
+export const TRAINING_SPORT_CATEGORIES = [
+  'Cycling',
+  'Running',
+  'Hiking',
+  'Swimming',
+  'Cardio',
+  'Strength',
+  'Mobility',
+] as const
 export type TrainingSportCategory = (typeof TRAINING_SPORT_CATEGORIES)[number]
 export type MultisportDiscipline = 'Swimming' | 'Cycling' | 'Running'
 
@@ -69,7 +86,9 @@ export interface WeeklyAnalysis {
   averageHeartRate?: number
   calories?: number
   elevationGainM?: number
-  sports: Partial<Record<SportCategory, { workoutCount: number; durationMinutes: number; distanceKm: number; trainingLoad: number }>>
+  sports: Partial<
+    Record<SportCategory, { workoutCount: number; durationMinutes: number; distanceKm: number; trainingLoad: number }>
+  >
 }
 
 export interface AnalysisSummary {
@@ -103,7 +122,8 @@ export interface TrainingPlanStep {
 }
 
 export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
-export type TrainingPlanSport = 'running' | 'cycling' | 'swimming' | 'hiking' | 'cardio' | 'rowing' | 'strength' | 'mobility' | 'other'
+export type TrainingPlanSport =
+  'running' | 'cycling' | 'swimming' | 'hiking' | 'cardio' | 'rowing' | 'strength' | 'mobility' | 'other'
 export type TrainingSessionType = 'training' | 'rest'
 export type CoachStyle = 'mentor' | 'pragmatist' | 'performance'
 

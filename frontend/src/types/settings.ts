@@ -46,7 +46,10 @@ export const MAP_DETAILS_CONSENT_KEY = 'lauftrainer-map-details-consent'
 export const defaultAppSettings: AppSettings = {
   theme: 'system',
   locale: 'de',
-  connectors: [{ id: 'polar', name: 'Polar', active: true, connected: false }, { id: 'strava', name: 'Strava', active: true, connected: false }],
+  connectors: [
+    { id: 'polar', name: 'Polar', active: true, connected: false },
+    { id: 'strava', name: 'Strava', active: true, connected: false },
+  ],
   coachStyle: 'pragmatist',
   mapDetailsConsent: 'unset',
 }

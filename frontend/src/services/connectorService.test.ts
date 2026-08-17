@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  captureConnectorSession,
-  connectorStatus,
-  disconnectConnector,
-} from './connectorService'
+import { captureConnectorSession, connectorStatus, disconnectConnector } from './connectorService'
 
 describe('connectorService', () => {
   beforeEach(() => {
@@ -17,7 +13,11 @@ describe('connectorService', () => {
   })
 
   it('captures connector_session from the URL into localStorage', () => {
-    window.history.replaceState({}, '', '/?connector=strava&connector_session=dddddddd-dddd-4ddd-8ddd-dddddddddddd&keep=1')
+    window.history.replaceState(
+      {},
+      '',
+      '/?connector=strava&connector_session=dddddddd-dddd-4ddd-8ddd-dddddddddddd&keep=1',
+    )
     captureConnectorSession()
     expect(JSON.parse(localStorage.getItem('lauftrainer-connector-sessions') || '{}')).toEqual({
       strava: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -32,9 +32,12 @@ describe('connectorService', () => {
       expect(JSON.parse(headers.get('X-Connector-Sessions') || '{}')).toEqual({
         polar: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
       })
-      return new Response(JSON.stringify({ connectors: [{ id: 'polar', name: 'Polar', connected: true, active: true }] }), {
-        status: 200,
-      })
+      return new Response(
+        JSON.stringify({ connectors: [{ id: 'polar', name: 'Polar', connected: true, active: true }] }),
+        {
+          status: 200,
+        },
+      )
     })
     vi.stubGlobal('fetch', fetchMock)
     const status = await connectorStatus()

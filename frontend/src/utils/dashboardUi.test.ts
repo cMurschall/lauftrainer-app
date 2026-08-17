@@ -25,24 +25,12 @@ describe('dashboardUi helpers', () => {
   })
 
   it('gates create plan on consent, workouts, loading and credits', () => {
-    expect(
-      canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 0, localMode: true }),
-    ).toBe(true)
-    expect(
-      canCreatePlan({ consent: false, workoutCount: 2, loading: false, credits: 5, localMode: false }),
-    ).toBe(false)
-    expect(
-      canCreatePlan({ consent: true, workoutCount: 0, loading: false, credits: 5, localMode: false }),
-    ).toBe(false)
-    expect(
-      canCreatePlan({ consent: true, workoutCount: 2, loading: true, credits: 5, localMode: false }),
-    ).toBe(false)
-    expect(
-      canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 0, localMode: false }),
-    ).toBe(false)
-    expect(
-      canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 1, localMode: false }),
-    ).toBe(true)
+    expect(canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 0, localMode: true })).toBe(true)
+    expect(canCreatePlan({ consent: false, workoutCount: 2, loading: false, credits: 5, localMode: false })).toBe(false)
+    expect(canCreatePlan({ consent: true, workoutCount: 0, loading: false, credits: 5, localMode: false })).toBe(false)
+    expect(canCreatePlan({ consent: true, workoutCount: 2, loading: true, credits: 5, localMode: false })).toBe(false)
+    expect(canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 0, localMode: false })).toBe(false)
+    expect(canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 1, localMode: false })).toBe(true)
   })
 
   it('classifies connector banners', () => {

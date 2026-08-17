@@ -26,11 +26,9 @@ export function useTheme(theme: Ref<ThemePreference>) {
     if (theme.value === 'system') apply('system-media-query-change')
   }
 
-  watch(
-    theme,
-    (value, previous) => apply(`preference-change:${previous ?? '(initial)'}->${value}`),
-    { immediate: true },
-  )
+  watch(theme, (value, previous) => apply(`preference-change:${previous ?? '(initial)'}->${value}`), {
+    immediate: true,
+  })
   onMounted(() => media.addEventListener('change', handleSystemChange))
   onUnmounted(() => media.removeEventListener('change', handleSystemChange))
 }
