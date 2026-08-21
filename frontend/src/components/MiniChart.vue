@@ -99,6 +99,8 @@ const props = withDefaults(
     stacked?: boolean
     dynamicY?: boolean
     includeZero?: boolean
+    /** Keep axis floor at 0 (HR/pace never go negative). */
+    nonNegative?: boolean
     maxTicksLimit?: number
     referenceLines?: MiniChartReferenceLine[]
     bands?: MiniChartBand[]
@@ -110,6 +112,7 @@ const props = withDefaults(
     stacked: false,
     dynamicY: false,
     includeZero: false,
+    nonNegative: false,
     maxTicksLimit: 6,
     referenceLines: () => [],
     bands: () => [],
@@ -151,31 +154,46 @@ function formatChartValue(value: number | null, unit = props.yUnit): string {
   return Number(value.toFixed(digits)).toString()
 }
 
-const hasRightAxis = computed(() => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'))
+function axisRange(values: number[]): { min?: number; max?: number } {
+  if (!props.dynamicY) return { min: props.includeZero || !values.length ? 0 : undefined, max: props.yUnit === '%' ? 100 : undefined }
+  if (!values.length) return { min: props.nonNegative ? 0 : undefined, max: undefined }
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const pad = Math.max((hi - lo) * 0.1, 0.001)
+  let min = lo - pad
+  let max = hi + pad
+  if (props.includeZero) {
+    min = Math.min(min, 0)
+    max = Math.max(max, 0)
+  }
+  if (props.nonNegative) min = Math.max(0, min)
+  return { min, max }
+}
+
+const hasRightAxis = computed(
+  () => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'),
+)
 
 const isMixed = computed(() => props.series.some((item) => (item.type || props.type) !== props.type))
 
-const chartValues = computed(() =>
+const leftValues = computed(() =>
   props.series
+    .filter((item) => item.axis !== 'right')
     .flatMap((item) => item.values)
     .filter((value): value is number => value !== null && Number.isFinite(value)),
 )
-const chartMax = computed(() => (chartValues.value.length ? Math.max(...chartValues.value) : 0))
-const chartMin = computed(() => (chartValues.value.length ? Math.min(...chartValues.value) : 0))
-const chartPadding = computed(() => Math.max((chartMax.value - chartMin.value) * 0.1, 0.001))
+const rightValues = computed(() =>
+  props.series
+    .filter((item) => item.axis === 'right')
+    .flatMap((item) => item.values)
+    .filter((value): value is number => value !== null && Number.isFinite(value)),
+)
 
-const yMin = computed(() => {
-  if (!props.dynamicY) return 0
-  let min = chartMin.value - chartPadding.value
-  if (props.includeZero) min = Math.min(min, 0)
-  return min
-})
-const yMax = computed(() => {
-  if (!props.dynamicY) return props.yUnit === '%' ? 100 : undefined
-  let max = chartMax.value + chartPadding.value
-  if (props.includeZero) max = Math.max(max, 0)
-  return max
-})
+const leftRange = computed(() => axisRange(leftValues.value))
+const rightRange = computed(() => axisRange(rightValues.value))
+
+const showLeftAxis = computed(() => props.series.some((item) => item.axis !== 'right'))
+const showRightAxis = computed(() => hasRightAxis.value && props.series.some((item) => item.axis === 'right'))
 
 const overlaysPlugin = computed<Plugin>(() => ({
   id: 'miniChartOverlays',
@@ -237,6 +255,17 @@ const data = computed(() => ({
   }),
 }))
 
+const axisTitle = (text: string) =>
+  text
+    ? {
+        display: true,
+        text,
+        color: resolveColor('var(--muted)'),
+        font: { size: 10, weight: 550 as const },
+        padding: { top: 0, bottom: 2 },
+      }
+    : { display: false }
+
 const options = computed<ChartOptions>(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -256,7 +285,9 @@ const options = computed<ChartOptions>(() => ({
         label: (context) => {
           const axisId = (context.dataset as { yAxisID?: string }).yAxisID
           const unit = axisId === 'yRight' ? props.rightYUnit || props.yUnit : props.yUnit
-          return `${context.dataset.label || ''}: ${formatChartValue(context.parsed.y, unit)} ${unit || ''}`.trim()
+          return `${context.dataset.label || ''}: ${formatChartValue(context.parsed.y, unit)}${
+            unit ? ` ${unit}` : ''
+          }`.trim()
         },
       },
     },
@@ -274,32 +305,34 @@ const options = computed<ChartOptions>(() => ({
       },
     },
     y: {
+      display: showLeftAxis.value,
       stacked: props.stacked,
       beginAtZero: !props.dynamicY,
-      min: props.dynamicY ? yMin.value : 0,
-      max: props.dynamicY ? yMax.value : props.yUnit === '%' ? 100 : undefined,
+      min: props.dynamicY ? leftRange.value.min : props.nonNegative ? 0 : undefined,
+      max: props.dynamicY ? leftRange.value.max : props.yUnit === '%' ? 100 : undefined,
       ...(props.stacked && props.yUnit === '%' ? { grace: '5%' } : {}),
       grid: { color: resolveColor('var(--border)') },
+      title: axisTitle(props.yUnit),
       ticks: {
         color: resolveColor('var(--muted)'),
         maxTicksLimit: props.maxTicksLimit,
-        callback: (value) =>
-          `${formatChartValue(typeof value === 'number' ? value : Number(value))} ${props.yUnit}`.trim(),
+        callback: (value) => formatChartValue(typeof value === 'number' ? value : Number(value), props.yUnit),
       },
     },
-    ...(hasRightAxis.value
+    ...(showRightAxis.value
       ? {
           yRight: {
             position: 'right' as const,
-            beginAtZero: true,
+            beginAtZero: !props.dynamicY,
+            min: props.dynamicY ? rightRange.value.min : props.nonNegative ? 0 : 0,
+            max: props.dynamicY ? rightRange.value.max : undefined,
             grid: { drawOnChartArea: false },
+            title: axisTitle(props.rightYUnit || ''),
             ticks: {
               color: resolveColor('var(--muted)'),
               maxTicksLimit: props.maxTicksLimit,
               callback: (value: string | number) =>
-                `${formatChartValue(typeof value === 'number' ? value : Number(value), props.rightYUnit)} ${
-                  props.rightYUnit || ''
-                }`.trim(),
+                formatChartValue(typeof value === 'number' ? value : Number(value), props.rightYUnit),
             },
           },
         }
@@ -315,7 +348,7 @@ const options = computed<ChartOptions>(() => ({
         :data="data"
         :options="options"
         :plugins="[overlaysPlugin]"
-        :key="`${type}-${isMixed}-${hasRightAxis}-${labels.length}`"
+        :key="`${type}-${isMixed}-${showRightAxis}-${showLeftAxis}-${labels.length}-${yUnit}-${rightYUnit}`"
       />
     </div>
   </div>
