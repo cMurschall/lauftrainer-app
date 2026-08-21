@@ -34,6 +34,7 @@ import PageHeader from '../components/PageHeader.vue'
 import {
   hasMapTilesUrl,
   type LonLat,
+  preferredRouteColorMode,
   type RouteColorMode,
   type RoutePoint,
   routeHasBasemapCoverage,
@@ -298,9 +299,26 @@ const expandedStreamStats = computed(() => {
   return workoutStreamStats(id)
 })
 
+const expandedStreamChartMode = computed<RouteColorMode>(() => {
+  const id = expandedActivityId.value
+  if (!id) return 'solid'
+  return mapColorMode(id) ?? preferredRouteColorMode(workoutRoutePoints(id))
+})
+
 const expandedStreamChartSeries = computed(() => {
   const stats = expandedStreamStats.value
-  return stats ? streamChartSeries(stats) : []
+  return stats ? streamChartSeries(stats, expandedStreamChartMode.value) : []
+})
+
+const expandedStreamChartUnits = computed(() => {
+  const series = expandedStreamChartSeries.value
+  const hasLeftHr = series.some((item) => item.axis !== 'right' && item.name === t.value.mapColorHr)
+  const hasLeftPace = series.some((item) => item.axis !== 'right' && item.name === t.value.mapColorPace)
+  const hasRightPace = series.some((item) => item.axis === 'right')
+  return {
+    yUnit: hasLeftHr ? 'bpm' : hasLeftPace ? 'min/km' : '',
+    rightYUnit: hasRightPace ? 'min/km' : '',
+  }
 })
 
 function displayPaceSeconds(workout: (typeof summaries.value)[number]): number | undefined {
@@ -314,11 +332,20 @@ function formatDecoupling(value: number): string {
   return `${sign}${rounded.toFixed(1)} %`
 }
 
-function streamChartSeries(stats: WorkoutStreamStats) {
-  const series = []
+function streamChartSeries(stats: WorkoutStreamStats, mode: RouteColorMode = 'solid') {
   const hasHr = stats.chartHeartRate.some((value) => value !== null)
   const hasPace = stats.chartPaceMinPerKm.some((value) => value !== null)
-  if (hasHr) {
+  const showHr = hasHr && (mode === 'solid' || mode === 'hr')
+  const showPace = hasPace && (mode === 'solid' || mode === 'pace')
+  const series: Array<{
+    name: string
+    values: Array<number | null>
+    color: string
+    axis?: 'right'
+    pointRadius: number
+    borderWidth: number
+  }> = []
+  if (showHr) {
     series.push({
       name: t.value.mapColorHr,
       values: stats.chartHeartRate,
@@ -327,12 +354,12 @@ function streamChartSeries(stats: WorkoutStreamStats) {
       borderWidth: 1.5,
     })
   }
-  if (hasPace) {
+  if (showPace) {
     series.push({
       name: t.value.mapColorPace,
       values: stats.chartPaceMinPerKm,
       color: 'var(--chart-blue)',
-      axis: 'right' as const,
+      ...(showHr ? { axis: 'right' as const } : {}),
       pointRadius: 0,
       borderWidth: 1.5,
     })
@@ -685,12 +712,11 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                   <div class="activity-detail-chart-wrap">
                     <MiniChart
                       :dynamic-y="true"
+                      :non-negative="true"
                       :labels="expandedStreamStats!.chartLabels"
                       :series="expandedStreamChartSeries"
-                      :y-unit="expandedStreamStats!.chartHeartRate.some((v) => v !== null) ? 'bpm' : 'min/km'"
-                      :right-y-unit="
-                        expandedStreamStats!.chartPaceMinPerKm.some((v) => v !== null) ? 'min/km' : ''
-                      "
+                      :y-unit="expandedStreamChartUnits.yUnit"
+                      :right-y-unit="expandedStreamChartUnits.rightYUnit"
                       :max-ticks-limit="6"
                     />
                   </div>
