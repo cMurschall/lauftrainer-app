@@ -1958,17 +1958,28 @@
   }
 
   .map-zoom-trigger {
+    position: relative;
     display: block;
     width: 100%;
     aspect-ratio: 16 / 9;
     padding: 0;
     border: 0;
     background: none;
-    cursor: zoom-in;
     min-height: 160px;
     max-height: 280px;
     overflow: hidden;
     border-radius: 4px;
+  }
+
+  .map-enlarge-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
   }
 
   .modal-card textarea {

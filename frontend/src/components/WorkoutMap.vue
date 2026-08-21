@@ -3,24 +3,32 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useSettingsStore } from '../stores/settings'
+import { useI18n } from '../i18n'
 import {
   buildMapStyle,
   ensurePmtilesProtocol,
   fitRoute,
-  type LonLat,
+  formatRouteLegendValue,
   type MapTheme,
   MapLibreMap,
+  preferredRouteColorMode,
   resolvePlaceNameFromMap,
+  routeColorCapabilities,
+  routeMetricRange,
+  type RouteColorMode,
+  type RoutePoint,
   upsertRouteLayer,
 } from '../services/mapTiles'
 
 const props = withDefaults(
   defineProps<{
-    coordinates: LonLat[]
+    points: RoutePoint[]
     /** When false, only the GPS route is drawn (no tile fetches). */
     showBasemap?: boolean
     /** Modal: allow pan/zoom. Preview: static camera. */
     interactive?: boolean
+    /** Override auto mode (hr → pace → solid). */
+    colorMode?: RouteColorMode
   }>(),
   {
     showBasemap: false,
@@ -30,8 +38,10 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   placeName: [name: string]
+  'update:colorMode': [mode: RouteColorMode]
 }>()
 
+const { t } = useI18n()
 const settings = useSettingsStore()
 const { theme } = storeToRefs(settings)
 const systemPrefersDark = ref(
@@ -42,6 +52,31 @@ const mapTheme = computed<MapTheme>(() => {
   const dark = theme.value === 'dark' || (theme.value === 'system' && systemPrefersDark.value)
   return dark ? 'dark' : 'light'
 })
+
+const capabilities = computed(() => routeColorCapabilities(props.points))
+const resolvedColorMode = computed<RouteColorMode>(() => {
+  const requested = props.colorMode ?? preferredRouteColorMode(props.points)
+  if (requested === 'hr' && !capabilities.value.hr) return preferredRouteColorMode(props.points)
+  if (requested === 'pace' && !capabilities.value.pace) return preferredRouteColorMode(props.points)
+  return requested
+})
+
+const legendRange = computed(() => routeMetricRange(props.points, resolvedColorMode.value))
+const legendLow = computed(() => {
+  if (!legendRange.value || resolvedColorMode.value === 'solid') return ''
+  return formatRouteLegendValue(legendRange.value.min, resolvedColorMode.value)
+})
+const legendHigh = computed(() => {
+  if (!legendRange.value || resolvedColorMode.value === 'solid') return ''
+  return formatRouteLegendValue(legendRange.value.max, resolvedColorMode.value)
+})
+const legendUnit = computed(() => {
+  if (resolvedColorMode.value === 'hr') return 'bpm'
+  if (resolvedColorMode.value === 'pace') return '/km'
+  return ''
+})
+
+const showModeToggle = computed(() => capabilities.value.hr || capabilities.value.pace)
 
 /** Tiny custom credit in the card preview; MapLibre control only in the enlarged modal. */
 const showPreviewAttribution = computed(() => props.showBasemap && !props.interactive)
@@ -58,17 +93,17 @@ const onSystemThemeChange = (event: MediaQueryListEvent) => {
 }
 
 /** Stable fingerprint so parent re-renders with a fresh array do not remount the map. */
-function coordinatesKey(coords: LonLat[]): string {
-  if (coords.length < 2) return String(coords.length)
-  const first = coords[0]
-  const mid = coords[Math.floor(coords.length / 2)]
-  const last = coords[coords.length - 1]
-  return `${coords.length}:${first[0]},${first[1]}:${mid[0]},${mid[1]}:${last[0]},${last[1]}`
+function pointsKey(points: RoutePoint[]): string {
+  if (points.length < 2) return String(points.length)
+  const first = points[0]
+  const mid = points[Math.floor(points.length / 2)]
+  const last = points[points.length - 1]
+  return `${points.length}:${first.longitude},${first.latitude}:${mid.longitude},${mid.latitude}:${last.longitude},${last.latitude}`
 }
 
 function mapInstanceKey(): string {
   return [
-    coordinatesKey(props.coordinates),
+    pointsKey(props.points),
     props.showBasemap ? '1' : '0',
     props.interactive ? '1' : '0',
     mapTheme.value,
@@ -84,17 +119,26 @@ function destroyMap() {
 
 function emitPlaceNameOnce() {
   if (!map || !props.showBasemap) return
-  const name = resolvePlaceNameFromMap(map, props.coordinates)
+  const coordinates = props.points.map((point) => [point.longitude, point.latitude] as [number, number])
+  const name = resolvePlaceNameFromMap(map, coordinates)
   if (!name || name === lastEmittedPlace) return
   lastEmittedPlace = name
   emit('placeName', name)
 }
 
+function paintRoute() {
+  if (!map) return
+  upsertRouteLayer(map, props.points, resolvedColorMode.value)
+}
+
 function mountMap() {
-  if (!containerRef.value || props.coordinates.length < 2) return
+  if (!containerRef.value || props.points.length < 2) return
 
   const nextKey = mapInstanceKey()
-  if (map && mountedForKey === nextKey) return
+  if (map && mountedForKey === nextKey) {
+    paintRoute()
+    return
+  }
   mountedForKey = nextKey
   lastEmittedPlace = ''
 
@@ -104,7 +148,6 @@ function mountMap() {
   map = new MapLibreMap({
     container: containerRef.value,
     style: buildMapStyle({ showBasemap: props.showBasemap, theme: mapTheme.value }),
-    // Preview uses a custom micro-credit; modal keeps MapLibre's compact control.
     attributionControl: props.showBasemap && props.interactive ? { compact: true } : false,
     interactive: props.interactive,
     dragRotate: false,
@@ -124,11 +167,11 @@ function mountMap() {
   map.on('load', () => {
     if (!map) return
     map.resize()
-    upsertRouteLayer(map, props.coordinates)
-    fitRoute(map, props.coordinates, props.interactive ? 40 : 24)
+    paintRoute()
+    const coordinates = props.points.map((point) => [point.longitude, point.latitude] as [number, number])
+    fitRoute(map, coordinates, props.interactive ? 40 : 24)
   })
 
-  // idle can fire often while panning/loading; only emit when we find a new name.
   map.on('idle', () => {
     emitPlaceNameOnce()
   })
@@ -137,6 +180,10 @@ function mountMap() {
     map?.resize()
   })
   resizeObserver.observe(containerRef.value)
+}
+
+function setColorMode(mode: RouteColorMode) {
+  emit('update:colorMode', mode)
 }
 
 onMounted(() => {
@@ -155,11 +202,50 @@ onBeforeUnmount(() => {
 watch(mapInstanceKey, () => {
   mountMap()
 })
+
+watch(resolvedColorMode, () => {
+  paintRoute()
+})
 </script>
 
 <template>
   <div class="workout-map-shell" :class="mapTheme === 'dark' ? 'is-dark' : 'is-light'">
     <div ref="containerRef" class="workout-map" role="img" aria-label="Route map" />
+    <div v-if="showModeToggle" class="map-color-controls" @click.stop>
+      <div class="map-color-modes" role="group" :aria-label="t.mapColorMode">
+        <button
+          type="button"
+          class="map-color-mode"
+          :class="{ active: resolvedColorMode === 'solid' }"
+          @click="setColorMode('solid')"
+        >
+          {{ t.mapColorSolid }}
+        </button>
+        <button
+          v-if="capabilities.hr"
+          type="button"
+          class="map-color-mode"
+          :class="{ active: resolvedColorMode === 'hr' }"
+          @click="setColorMode('hr')"
+        >
+          {{ t.mapColorHr }}
+        </button>
+        <button
+          v-if="capabilities.pace"
+          type="button"
+          class="map-color-mode"
+          :class="{ active: resolvedColorMode === 'pace' }"
+          @click="setColorMode('pace')"
+        >
+          {{ t.mapColorPace }}
+        </button>
+      </div>
+      <div v-if="legendRange && resolvedColorMode !== 'solid'" class="map-color-legend">
+        <span>{{ legendLow }}</span>
+        <span class="map-color-legend-bar" aria-hidden="true" />
+        <span>{{ legendHigh }}{{ legendUnit ? ` ${legendUnit}` : '' }}</span>
+      </div>
+    </div>
     <a
       v-if="showPreviewAttribution"
       class="map-attrib-preview"
@@ -201,6 +287,84 @@ watch(mapInstanceKey, () => {
 
 .workout-map :deep(.maplibregl-canvas) {
   outline: none;
+}
+
+.map-color-controls {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: calc(100% - 48px);
+  pointer-events: auto;
+}
+
+.map-color-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.workout-map-shell.is-light .map-color-modes {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.map-color-mode {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: transparent;
+  color: #8b949e;
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.workout-map-shell.is-light .map-color-mode {
+  color: #64748b;
+}
+
+.map-color-mode.active {
+  background: rgba(16, 185, 129, 0.18);
+  color: #a3e635;
+}
+
+.workout-map-shell.is-light .map-color-mode.active {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.map-color-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8b949e;
+  font-size: 0.62rem;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+}
+
+.workout-map-shell.is-light .map-color-legend {
+  color: #64748b;
+}
+
+.map-color-legend-bar {
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #34d399, #a3e635, #fb923c, #f43f5e);
 }
 
 .map-attrib-preview {

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   GERMANY_BBOX,
+  colorForNormalized,
+  coloredRouteGeoJson,
   hasMapTilesUrl,
   lauftrainerOverpassFlavor,
+  preferredRouteColorMode,
   routeCoordinatesFromRecords,
   routeHasBasemapCoverage,
+  routePointsFromRecords,
 } from './mapTiles'
 
 describe('routeCoordinatesFromRecords', () => {
@@ -26,6 +30,38 @@ describe('routeCoordinatesFromRecords', () => {
   it('returns an empty list without GPS', () => {
     expect(routeCoordinatesFromRecords([{ latitude: undefined }])).toEqual([])
     expect(routeCoordinatesFromRecords(undefined)).toEqual([])
+  })
+})
+
+describe('routePointsFromRecords', () => {
+  it('keeps HR and speed alongside GPS', () => {
+    expect(
+      routePointsFromRecords([
+        { latitude: 54.3, longitude: 10.1, heartRateBpm: 140, speedKmh: 12 },
+        { latitude: 54.4, longitude: 10.2 },
+      ]),
+    ).toEqual([
+      { longitude: 10.1, latitude: 54.3, heartRateBpm: 140, speedKmh: 12 },
+      { longitude: 10.2, latitude: 54.4 },
+    ])
+  })
+
+  it('prefers HR coloring when streams exist', () => {
+    const points = routePointsFromRecords([
+      { latitude: 54.3, longitude: 10.1, heartRateBpm: 140, speedKmh: 11 },
+      { latitude: 54.31, longitude: 10.11, heartRateBpm: 160, speedKmh: 13 },
+    ])
+    expect(preferredRouteColorMode(points)).toBe('hr')
+    const geo = coloredRouteGeoJson(points, 'hr')
+    expect(geo.features).toHaveLength(1)
+    expect(String((geo.features[0].properties as { color: string }).color)).toMatch(/^#/)
+  })
+})
+
+describe('colorForNormalized', () => {
+  it('returns endpoint colors at 0 and 1', () => {
+    expect(colorForNormalized(0)).toBe('#38bdf8')
+    expect(colorForNormalized(1)).toBe('#f43f5e')
   })
 })
 

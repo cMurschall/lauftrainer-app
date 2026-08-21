@@ -30,7 +30,14 @@ import {
 } from '../utils/dashboardUi'
 import WorkoutMap from '../components/WorkoutMap.vue'
 import PageHeader from '../components/PageHeader.vue'
-import { hasMapTilesUrl, type LonLat, routeCoordinatesFromRecords, routeHasBasemapCoverage } from '../services/mapTiles'
+import {
+  hasMapTilesUrl,
+  type LonLat,
+  type RouteColorMode,
+  type RoutePoint,
+  routeHasBasemapCoverage,
+  routePointsFromRecords,
+} from '../services/mapTiles'
 
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -234,12 +241,26 @@ async function resolveMapDetailsConsent(allowed: boolean) {
 }
 
 function workoutRouteCoordinates(workoutId: string): LonLat[] {
+  return workoutRoutePoints(workoutId).map((point) => [point.longitude, point.latitude])
+}
+
+function workoutRoutePoints(workoutId: string): RoutePoint[] {
   const workoutObj = workouts.workouts.find((w) => w.id === workoutId)
-  return routeCoordinatesFromRecords(workoutObj?.records)
+  return routePointsFromRecords(workoutObj?.records)
+}
+
+const mapColorModeById = ref<Record<string, RouteColorMode>>({})
+
+function mapColorMode(workoutId: string): RouteColorMode | undefined {
+  return mapColorModeById.value[workoutId]
+}
+
+function setMapColorMode(workoutId: string, mode: RouteColorMode) {
+  mapColorModeById.value = { ...mapColorModeById.value, [workoutId]: mode }
 }
 
 function hasRouteMap(workoutId: string): boolean {
-  return workoutRouteCoordinates(workoutId).length >= 2
+  return workoutRoutePoints(workoutId).length >= 2
 }
 
 /** Visible in the PWA: what stream fields this workout actually stores. */
@@ -308,10 +329,9 @@ function formatPace(secondsPerKm: number | undefined): string {
 
 async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number], rpe: number) {
   const workoutObj = workouts.workouts.find((w) => w.id === workoutSummary.id)
-  if (workoutObj) {
-    workoutObj.sessionRpe = rpe
-    await workouts.saveWorkout(workoutObj)
-  }
+  if (!workoutObj) return
+  await workouts.saveWorkout({ ...workoutObj, sessionRpe: rpe })
+  analysisStore.scheduleAnalysisRefresh()
 }
 </script>
 
@@ -357,10 +377,12 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
       </div>
       <div class="map-modal-canvas">
         <WorkoutMap
-          :coordinates="workoutRouteCoordinates(enlargedWorkout.id)"
+          :points="workoutRoutePoints(enlargedWorkout.id)"
           :show-basemap="showBasemapFor(enlargedWorkout.id)"
+          :color-mode="mapColorMode(enlargedWorkout.id)"
           interactive
           @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
+          @update:color-mode="(mode) => setMapColorMode(enlargedWorkout.id, mode)"
         />
       </div>
     </div>
@@ -657,19 +679,22 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                   <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{
                     mapDetailsHint(workout.id)
                   }}</span>
-                  <button
-                    type="button"
-                    class="map-zoom-trigger"
-                    :aria-label="t.mapEnlarge"
-                    :title="t.mapEnlarge"
-                    @click.stop="enlargedMapId = workout.id"
-                  >
+                  <div class="map-zoom-trigger">
                     <WorkoutMap
-                      :coordinates="workoutRouteCoordinates(workout.id)"
+                      :points="workoutRoutePoints(workout.id)"
                       :show-basemap="showBasemapFor(workout.id)"
+                      :color-mode="mapColorMode(workout.id)"
                       @place-name="(name) => onMapPlaceName(workout.id, name)"
+                      @update:color-mode="(mode) => setMapColorMode(workout.id, mode)"
                     />
-                  </button>
+                    <button
+                      type="button"
+                      class="map-enlarge-hit"
+                      :aria-label="t.mapEnlarge"
+                      :title="t.mapEnlarge"
+                      @click.stop="enlargedMapId = workout.id"
+                    />
+                  </div>
                   <p v-if="workoutTrackDataLabel(workout.id)" class="activity-route-map-data muted">
                     {{ workoutTrackDataLabel(workout.id) }}
                   </p>

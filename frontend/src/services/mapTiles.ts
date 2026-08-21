@@ -46,19 +46,61 @@ export function ensurePmtilesProtocol(): void {
 
 export type LonLat = [number, number]
 
+export type RouteColorMode = 'solid' | 'hr' | 'pace'
+
+export type RoutePoint = {
+  longitude: number
+  latitude: number
+  heartRateBpm?: number
+  speedKmh?: number
+}
+
 /** Lon/lat pairs from workout records (skips points without GPS). */
 export function routeCoordinatesFromRecords(
   records: Array<{ latitude?: number; longitude?: number }> | undefined,
 ): LonLat[] {
+  return routePointsFromRecords(records).map((point) => [point.longitude, point.latitude])
+}
+
+/** GPS points plus optional HR/speed for colored route overlays. */
+export function routePointsFromRecords(
+  records: Array<{
+    latitude?: number
+    longitude?: number
+    heartRateBpm?: number
+    speedKmh?: number
+  }> | undefined,
+): RoutePoint[] {
   if (!records?.length) return []
-  const coords: LonLat[] = []
+  const points: RoutePoint[] = []
   for (const record of records) {
     const latitude = Number(record.latitude)
     const longitude = Number(record.longitude)
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue
-    coords.push([longitude, latitude])
+    const heartRateBpm = Number(record.heartRateBpm)
+    const speedKmh = Number(record.speedKmh)
+    points.push({
+      longitude,
+      latitude,
+      ...(Number.isFinite(heartRateBpm) ? { heartRateBpm } : {}),
+      ...(Number.isFinite(speedKmh) ? { speedKmh } : {}),
+    })
   }
-  return coords
+  return points
+}
+
+export function routeColorCapabilities(points: RoutePoint[]): { hr: boolean; pace: boolean } {
+  return {
+    hr: points.some((point) => point.heartRateBpm !== undefined),
+    pace: points.some((point) => point.speedKmh !== undefined),
+  }
+}
+
+export function preferredRouteColorMode(points: RoutePoint[]): RouteColorMode {
+  const caps = routeColorCapabilities(points)
+  if (caps.hr) return 'hr'
+  if (caps.pace) return 'pace'
+  return 'solid'
 }
 
 /** True when the route centroid falls inside the Germany PMTiles extract. */
@@ -78,6 +120,66 @@ export function routeHasBasemapCoverage(coords: LonLat[]): boolean {
 const ROUTE_SOURCE = 'workout-route'
 const ROUTE_LAYER = 'workout-route-line'
 const ROUTE_COLOR = '#fb923c'
+/** Low → high effort / intensity along the track. */
+const METRIC_COLOR_STOPS = ['#38bdf8', '#34d399', '#a3e635', '#fb923c', '#f43f5e'] as const
+
+function hexToRgb(hex: string): [number, number, number] {
+  const value = hex.replace('#', '')
+  return [
+    Number.parseInt(value.slice(0, 2), 16),
+    Number.parseInt(value.slice(2, 4), 16),
+    Number.parseInt(value.slice(4, 6), 16),
+  ]
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const to = (channel: number) => Math.round(channel).toString(16).padStart(2, '0')
+  return `#${to(r)}${to(g)}${to(b)}`
+}
+
+export function colorForNormalized(t: number, stops: readonly string[] = METRIC_COLOR_STOPS): string {
+  const clamped = Math.min(1, Math.max(0, t))
+  if (stops.length === 0) return ROUTE_COLOR
+  if (stops.length === 1) return stops[0]
+  const scaled = clamped * (stops.length - 1)
+  const index = Math.min(stops.length - 2, Math.floor(scaled))
+  const local = scaled - index
+  const [r1, g1, b1] = hexToRgb(stops[index])
+  const [r2, g2, b2] = hexToRgb(stops[index + 1])
+  return rgbToHex(r1 + (r2 - r1) * local, g1 + (g2 - g1) * local, b1 + (b2 - b1) * local)
+}
+
+function metricAt(point: RoutePoint, mode: RouteColorMode): number | undefined {
+  if (mode === 'hr') return point.heartRateBpm
+  if (mode === 'pace') return point.speedKmh
+  return undefined
+}
+
+export function routeMetricRange(
+  points: RoutePoint[],
+  mode: RouteColorMode,
+): { min: number; max: number } | undefined {
+  if (mode === 'solid') return undefined
+  let min = Number.POSITIVE_INFINITY
+  let max = Number.NEGATIVE_INFINITY
+  for (const point of points) {
+    const value = metricAt(point, mode)
+    if (value === undefined) continue
+    min = Math.min(min, value)
+    max = Math.max(max, value)
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return undefined
+  if (max - min < 1e-6) {
+    const pad = mode === 'hr' ? 5 : 0.5
+    return { min: min - pad, max: max + pad }
+  }
+  return { min, max }
+}
+
+function colorForMetric(value: number | undefined, range: { min: number; max: number } | undefined): string {
+  if (value === undefined || !range) return ROUTE_COLOR
+  return colorForNormalized((value - range.min) / (range.max - range.min))
+}
 
 export type MapTheme = 'light' | 'dark'
 
@@ -379,7 +481,7 @@ export function routeGeoJson(coords: LonLat[]): FeatureCollection {
     features: [
       {
         type: 'Feature',
-        properties: {},
+        properties: { color: ROUTE_COLOR },
         geometry: {
           type: 'LineString',
           coordinates: coords,
@@ -389,34 +491,88 @@ export function routeGeoJson(coords: LonLat[]): FeatureCollection {
   }
 }
 
-export function upsertRouteLayer(map: MapLibreMap, coords: LonLat[]): void {
-  const data = routeGeoJson(coords)
-  const existing = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined
-  if (existing) {
-    existing.setData(data)
-  } else {
-    map.addSource(ROUTE_SOURCE, { type: 'geojson', data })
-    map.addLayer({
-      id: ROUTE_LAYER,
-      type: 'line',
-      source: ROUTE_SOURCE,
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round',
-      },
-      paint: {
-        'line-color': ROUTE_COLOR,
-        'line-width': 3,
-        'line-opacity': 0.95,
+/** One colored segment per consecutive GPS pair (MapLibre `line-color: get color`). */
+export function coloredRouteGeoJson(points: RoutePoint[], mode: RouteColorMode): FeatureCollection {
+  if (points.length < 2) {
+    return { type: 'FeatureCollection', features: [] }
+  }
+  const caps = routeColorCapabilities(points)
+  const effectiveMode =
+    mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
+  if (effectiveMode === 'solid') {
+    return routeGeoJson(points.map((point) => [point.longitude, point.latitude]))
+  }
+  const range = routeMetricRange(points, effectiveMode)
+  const features: FeatureCollection['features'] = []
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index]
+    const b = points[index + 1]
+    const valueA = metricAt(a, effectiveMode)
+    const valueB = metricAt(b, effectiveMode)
+    const value =
+      valueA !== undefined && valueB !== undefined ? (valueA + valueB) / 2 : (valueA ?? valueB)
+    features.push({
+      type: 'Feature',
+      properties: { color: colorForMetric(value, range) },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [a.longitude, a.latitude],
+          [b.longitude, b.latitude],
+        ],
       },
     })
   }
+  return { type: 'FeatureCollection', features }
+}
+
+export function upsertRouteLayer(
+  map: MapLibreMap,
+  points: RoutePoint[],
+  mode: RouteColorMode = 'solid',
+): void {
+  const data = coloredRouteGeoJson(points, mode)
+  const existing = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined
+  if (existing) {
+    existing.setData(data)
+    if (map.getLayer(ROUTE_LAYER)) {
+      map.setPaintProperty(ROUTE_LAYER, 'line-color', ['get', 'color'])
+    }
+    return
+  }
+  map.addSource(ROUTE_SOURCE, { type: 'geojson', data })
+  map.addLayer({
+    id: ROUTE_LAYER,
+    type: 'line',
+    source: ROUTE_SOURCE,
+    layout: {
+      'line-join': 'round',
+      'line-cap': 'round',
+    },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': 3.5,
+      'line-opacity': 0.95,
+    },
+  })
 }
 
 export function fitRoute(map: MapLibreMap, coords: LonLat[], padding = 28): void {
   if (coords.length < 2) return
   const bounds = coords.reduce((box, coord) => box.extend(coord), new LngLatBounds(coords[0], coords[0]))
   map.fitBounds(bounds, { padding, duration: 0, maxZoom: 14 })
+}
+
+export function formatRouteLegendValue(value: number, mode: RouteColorMode): string {
+  if (mode === 'hr') return `${Math.round(value)}`
+  if (mode === 'pace') {
+    if (value <= 0) return '–'
+    const minPerKm = 60 / value
+    const minutes = Math.floor(minPerKm)
+    const seconds = Math.round((minPerKm - minutes) * 60)
+    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`
+  }
+  return String(value)
 }
 
 export { MapLibreMap }
