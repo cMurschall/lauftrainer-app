@@ -266,6 +266,20 @@ const axisTitle = (text: string) =>
       }
     : { display: false }
 
+/** Hide Y scales when every dataset on that axis is legend-toggled off. */
+function syncAxisVisibilityFromLegend(chart: ChartJS) {
+  let leftVisible = false
+  let rightVisible = false
+  chart.data.datasets.forEach((dataset, index) => {
+    if (!chart.isDatasetVisible(index)) return
+    if ((dataset as { yAxisID?: string }).yAxisID === 'yRight') rightVisible = true
+    else leftVisible = true
+  })
+  const scales = chart.options.scales
+  if (scales?.y) scales.y.display = leftVisible
+  if (scales?.yRight) scales.yRight.display = rightVisible
+}
+
 const options = computed<ChartOptions>(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -274,6 +288,14 @@ const options = computed<ChartOptions>(() => ({
     legend: {
       position: 'bottom',
       labels: { color: resolveColor('var(--muted)'), usePointStyle: true, boxWidth: 8, padding: 14 },
+      onClick(_event, legendItem, legend) {
+        const chart = legend.chart
+        const index = legendItem.datasetIndex
+        if (index == null) return
+        chart.setDatasetVisibility(index, !chart.isDatasetVisible(index))
+        syncAxisVisibilityFromLegend(chart)
+        chart.update()
+      },
     },
     tooltip: {
       callbacks: {
@@ -322,6 +344,7 @@ const options = computed<ChartOptions>(() => ({
     ...(showRightAxis.value
       ? {
           yRight: {
+            display: true,
             position: 'right' as const,
             beginAtZero: !props.dynamicY,
             min: props.dynamicY ? rightRange.value.min : props.nonNegative ? 0 : 0,

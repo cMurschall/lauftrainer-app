@@ -121,6 +121,9 @@ export function routeHasBasemapCoverage(coords: LonLat[]): boolean {
 
 const ROUTE_SOURCE = 'workout-route'
 const ROUTE_LAYER = 'workout-route-line'
+const ROUTE_PEAK_SOURCE = 'workout-route-peaks'
+const ROUTE_PEAK_CIRCLE = 'workout-route-peaks-circle'
+const ROUTE_PEAK_LABEL = 'workout-route-peaks-label'
 const ROUTE_COLOR = '#fb923c'
 /** Low → high effort / intensity along the track. */
 const METRIC_COLOR_STOPS = ['#38bdf8', '#34d399', '#a3e635', '#fb923c', '#f43f5e'] as const
@@ -593,12 +596,137 @@ export function coloredRouteGeoJson(points: RoutePoint[], _mode: RouteColorMode 
   return routeGeoJson(points.map((point) => [point.longitude, point.latitude]))
 }
 
+export type RoutePeakMarker = {
+  longitude: number
+  latitude: number
+  kind: 'hr' | 'pace'
+  /** Raw metric: bpm or speed km/h. */
+  value: number
+  label: string
+}
+
+/** Peak HR and/or fastest pace on the GPS track (raw samples only, no interpolation). */
+export function routePeakMarkers(points: RoutePoint[], mode: RouteColorMode): RoutePeakMarker[] {
+  const caps = routeColorCapabilities(points)
+  const wantHr = mode === 'hr' || (mode === 'solid' && caps.hr)
+  const wantPace = mode === 'pace' || (mode === 'solid' && caps.pace)
+  const markers: RoutePeakMarker[] = []
+
+  if (wantHr) {
+    let best: RoutePoint | undefined
+    let bestHr = -Infinity
+    for (const point of points) {
+      if (point.heartRateBpm === undefined) continue
+      if (point.heartRateBpm > bestHr) {
+        bestHr = point.heartRateBpm
+        best = point
+      }
+    }
+    if (best && Number.isFinite(bestHr)) {
+      markers.push({
+        longitude: best.longitude,
+        latitude: best.latitude,
+        kind: 'hr',
+        value: bestHr,
+        label: `${Math.round(bestHr)} bpm`,
+      })
+    }
+  }
+
+  if (wantPace) {
+    let best: RoutePoint | undefined
+    let bestSpeed = -Infinity
+    for (const point of points) {
+      if (point.speedKmh === undefined || point.speedKmh <= 0.2) continue
+      if (point.speedKmh > bestSpeed) {
+        bestSpeed = point.speedKmh
+        best = point
+      }
+    }
+    if (best && Number.isFinite(bestSpeed)) {
+      markers.push({
+        longitude: best.longitude,
+        latitude: best.latitude,
+        kind: 'pace',
+        value: bestSpeed,
+        label: `${formatRouteLegendValue(bestSpeed, 'pace')}/km`,
+      })
+    }
+  }
+
+  return markers
+}
+
+function peaksGeoJson(markers: RoutePeakMarker[]): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: markers.map((marker) => ({
+      type: 'Feature',
+      properties: {
+        kind: marker.kind,
+        label: marker.label,
+        color: marker.kind === 'hr' ? '#f43f5e' : '#38bdf8',
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [marker.longitude, marker.latitude],
+      },
+    })),
+  }
+}
+
+function clearRoutePeakLayers(map: MapLibreMap): void {
+  if (map.getLayer(ROUTE_PEAK_LABEL)) map.removeLayer(ROUTE_PEAK_LABEL)
+  if (map.getLayer(ROUTE_PEAK_CIRCLE)) map.removeLayer(ROUTE_PEAK_CIRCLE)
+  if (map.getSource(ROUTE_PEAK_SOURCE)) map.removeSource(ROUTE_PEAK_SOURCE)
+}
+
+function upsertRoutePeakLayers(map: MapLibreMap, points: RoutePoint[], mode: RouteColorMode): void {
+  clearRoutePeakLayers(map)
+  const markers = routePeakMarkers(points, mode)
+  if (!markers.length) return
+
+  map.addSource(ROUTE_PEAK_SOURCE, { type: 'geojson', data: peaksGeoJson(markers) })
+  map.addLayer({
+    id: ROUTE_PEAK_CIRCLE,
+    type: 'circle',
+    source: ROUTE_PEAK_SOURCE,
+    paint: {
+      'circle-radius': 5.5,
+      'circle-color': ['get', 'color'],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff',
+      'circle-opacity': 0.95,
+    },
+  })
+  map.addLayer({
+    id: ROUTE_PEAK_LABEL,
+    type: 'symbol',
+    source: ROUTE_PEAK_SOURCE,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-size': 10,
+      'text-font': ['Noto Sans Regular'],
+      'text-offset': [0, -1.35],
+      'text-anchor': 'bottom',
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: {
+      'text-color': '#F0F6FC',
+      'text-halo-color': 'rgba(13, 17, 23, 0.85)',
+      'text-halo-width': 1.4,
+    },
+  })
+}
+
 export function upsertRouteLayer(
   map: MapLibreMap,
   points: RoutePoint[],
   mode: RouteColorMode = 'solid',
 ): void {
   const data = coloredRouteGeoJson(points, mode)
+  clearRoutePeakLayers(map)
   // Recreate so lineMetrics is always enabled (required for line-gradient).
   if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER)
   if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE)
@@ -618,6 +746,7 @@ export function upsertRouteLayer(
       'line-gradient': ['interpolate', ['linear'], ['line-progress'], ...routeLineGradientStops(points, mode)],
     },
   })
+  upsertRoutePeakLayers(map, points, mode)
 }
 
 export function fitRoute(map: MapLibreMap, coords: LonLat[], padding = 28): void {

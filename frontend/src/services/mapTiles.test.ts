@@ -76,6 +76,39 @@ describe('routeLineGradientStops', () => {
   })
 })
 
+describe('routePeakMarkers', () => {
+  it('marks max HR and fastest pace for solid mode', async () => {
+    const { routePeakMarkers } = await import('./mapTiles')
+    const markers = routePeakMarkers(
+      [
+        { longitude: 10, latitude: 54, heartRateBpm: 120, speedKmh: 10 },
+        { longitude: 10.01, latitude: 54.01, heartRateBpm: 180, speedKmh: 11 },
+        { longitude: 10.02, latitude: 54.02, heartRateBpm: 140, speedKmh: 14 },
+      ],
+      'solid',
+    )
+    expect(markers).toHaveLength(2)
+    const hr = markers.find((marker) => marker.kind === 'hr')
+    const pace = markers.find((marker) => marker.kind === 'pace')
+    expect(hr?.latitude).toBe(54.01)
+    expect(hr?.label).toContain('180')
+    expect(pace?.latitude).toBe(54.02)
+  })
+
+  it('only marks HR peak in hr mode', async () => {
+    const { routePeakMarkers } = await import('./mapTiles')
+    const markers = routePeakMarkers(
+      [
+        { longitude: 10, latitude: 54, heartRateBpm: 120, speedKmh: 10 },
+        { longitude: 10.01, latitude: 54.01, heartRateBpm: 170, speedKmh: 15 },
+      ],
+      'hr',
+    )
+    expect(markers).toHaveLength(1)
+    expect(markers[0].kind).toBe('hr')
+  })
+})
+
 describe('colorForNormalized', () => {
   it('returns endpoint colors at 0 and 1', () => {
     expect(colorForNormalized(0)).toBe('#38bdf8')
