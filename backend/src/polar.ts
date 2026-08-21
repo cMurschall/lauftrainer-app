@@ -1,5 +1,8 @@
 import type { Env } from './types'
 import { json } from './http'
+import { mapPool } from './mapPool'
+import type { ActivityRecord } from './activityRecord'
+import { finiteNumber } from './activityRecord'
 
 function redirectUri(request: Request, env: Env) {
   return env.POLAR_REDIRECT_URI || `${new URL(request.url).origin}/api/polar/callback`
@@ -61,7 +64,10 @@ export async function callback(request: Request, env: Env): Promise<Response> {
   )
 }
 
-async function token(request: Request, env: Env): Promise<{ access_token: string; x_user_id?: string } | undefined> {
+async function token(
+  request: Request,
+  env: Env,
+): Promise<{ access_token: string; x_user_id?: string } | undefined> {
   let sessionId = request.headers.get('X-Polar-Session')
   try {
     const map = JSON.parse(request.headers.get('X-Connector-Sessions') || '{}') as Record<string, string>
@@ -91,27 +97,108 @@ function seconds(value: unknown) {
   return match ? Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0) : 0
 }
 
-function number(value: unknown) {
-  const result = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(result) ? result : undefined
+type PolarSampleSeries = { rateSeconds: number; values: Array<number | undefined> }
+
+/** Polar AccessLink sample-type keys → ActivityRecord fields. */
+const POLAR_SAMPLE_TYPES: Record<string, keyof Pick<ActivityRecord, 'heartRateBpm' | 'speedKmh' | 'altitudeM' | 'powerW' | 'distanceM'>> = {
+  '0': 'heartRateBpm',
+  '1': 'speedKmh',
+  '3': 'altitudeM',
+  '4': 'powerW',
+  '10': 'distanceM',
 }
 
-export function recordsFromPolarRoute(item: Record<string, unknown>, workoutDurationSeconds: number) {
+function parsePolarSampleSeries(samples: unknown): Partial<Record<keyof ActivityRecord, PolarSampleSeries>> {
+  if (!Array.isArray(samples)) return {}
+  const out: Partial<Record<keyof ActivityRecord, PolarSampleSeries>> = {}
+  for (const entry of samples) {
+    if (!entry || typeof entry !== 'object') continue
+    const item = entry as Record<string, unknown>
+    const typeKey = String(item['sample-type'] ?? item.sample_type ?? '')
+    const field = POLAR_SAMPLE_TYPES[typeKey]
+    if (!field) continue
+    const rateSeconds = finiteNumber(item['recording-rate'] ?? item.recording_rate) || 1
+    const raw = typeof item.data === 'string' ? item.data : ''
+    if (!raw) continue
+    const values = raw.split(',').map((part) => {
+      const trimmed = part.trim()
+      if (!trimmed || trimmed.toLowerCase() === 'null') return undefined
+      return finiteNumber(trimmed)
+    })
+    if (values.length === 0) continue
+    out[field] = { rateSeconds, values }
+  }
+  return out
+}
+
+function sampleValueAt(series: PolarSampleSeries | undefined, elapsedSeconds: number): number | undefined {
+  if (!series || series.values.length === 0) return undefined
+  const index = Math.min(
+    series.values.length - 1,
+    Math.max(0, Math.round(elapsedSeconds / Math.max(0.001, series.rateSeconds))),
+  )
+  return series.values[index]
+}
+
+export function recordsFromPolarRoute(item: Record<string, unknown>, workoutDurationSeconds: number): ActivityRecord[] {
   const routeCandidate = item.route ?? item.locations
-  if (!Array.isArray(routeCandidate) || routeCandidate.length < 2) return []
+  const series = parsePolarSampleSeries(item.samples)
+  if (!Array.isArray(routeCandidate) || routeCandidate.length < 2) {
+    // Indoor / no GPS: still emit metric timeline when samples exist.
+    const primary = series.heartRateBpm || series.speedKmh || series.powerW || series.distanceM
+    if (!primary) return []
+    const records: ActivityRecord[] = []
+    for (let index = 0; index < primary.values.length; index += 1) {
+      const elapsedSeconds = Math.round(index * primary.rateSeconds)
+      const heartRateBpm = sampleValueAt(series.heartRateBpm, elapsedSeconds)
+      const speedKmh = sampleValueAt(series.speedKmh, elapsedSeconds)
+      const altitudeM = sampleValueAt(series.altitudeM, elapsedSeconds)
+      const powerW = sampleValueAt(series.powerW, elapsedSeconds)
+      const distanceM = sampleValueAt(series.distanceM, elapsedSeconds)
+      if (
+        heartRateBpm === undefined &&
+        speedKmh === undefined &&
+        powerW === undefined &&
+        distanceM === undefined
+      ) {
+        continue
+      }
+      records.push({
+        elapsedSeconds,
+        ...(heartRateBpm !== undefined ? { heartRateBpm } : {}),
+        ...(speedKmh !== undefined ? { speedKmh } : {}),
+        ...(altitudeM !== undefined ? { altitudeM } : {}),
+        ...(powerW !== undefined ? { powerW } : {}),
+        ...(distanceM !== undefined ? { distanceM } : {}),
+      })
+    }
+    return records
+  }
+
   const last = routeCandidate.length - 1
-  const points: Array<{ elapsedSeconds: number; latitude: number; longitude: number }> = []
+  const points: ActivityRecord[] = []
   for (let index = 0; index < routeCandidate.length; index += 1) {
     const point = routeCandidate[index] as Record<string, unknown>
-    const latitude = number(point.latitude ?? point.lat)
-    const longitude = number(point.longitude ?? point.lon ?? point.lng)
+    const latitude = finiteNumber(point.latitude ?? point.lat)
+    const longitude = finiteNumber(point.longitude ?? point.lon ?? point.lng)
     if (latitude === undefined || longitude === undefined) continue
     const fromTime = seconds(point.time ?? point.duration)
+    const elapsedSeconds =
+      fromTime > 0 ? fromTime : last === 0 ? 0 : Math.round((Math.max(0, workoutDurationSeconds) * index) / last)
+    const heartRateBpm = sampleValueAt(series.heartRateBpm, elapsedSeconds)
+    const speedKmh = sampleValueAt(series.speedKmh, elapsedSeconds)
+    const altitudeM = sampleValueAt(series.altitudeM, elapsedSeconds) ?? finiteNumber(point.altitude)
+    const powerW = sampleValueAt(series.powerW, elapsedSeconds)
+    const distanceM = sampleValueAt(series.distanceM, elapsedSeconds)
     points.push({
-      elapsedSeconds:
-        fromTime > 0 ? fromTime : last === 0 ? 0 : Math.round((Math.max(0, workoutDurationSeconds) * index) / last),
+      elapsedSeconds,
       latitude,
       longitude,
+      ...(heartRateBpm !== undefined ? { heartRateBpm } : {}),
+      ...(speedKmh !== undefined ? { speedKmh } : {}),
+      ...(altitudeM !== undefined ? { altitudeM } : {}),
+      ...(powerW !== undefined ? { powerW } : {}),
+      ...(distanceM !== undefined ? { distanceM } : {}),
     })
   }
   return points.length >= 2 ? points : []
@@ -123,21 +210,26 @@ function exerciseHasRouteFlag(item: Record<string, unknown>): boolean | undefine
   return undefined
 }
 
-function shouldFetchRouteDetail(item: Record<string, unknown>, recordsLen: number): boolean {
-  if (recordsLen >= 2) return false
+function hasUsableSamples(item: Record<string, unknown>): boolean {
+  return Array.isArray(item.samples) && item.samples.length > 0
+}
+
+function shouldFetchExerciseDetail(item: Record<string, unknown>, recordsLen: number): boolean {
   const flag = exerciseHasRouteFlag(item)
-  if (flag === false) return false
-  if (flag === true) return true
+  const needsRoute = recordsLen < 2 && flag !== false
+  const needsSamples = !hasUsableSamples(item)
+  if (!needsRoute && !needsSamples) return false
+  if (flag === true || needsSamples) return true
   const sport = String(item.sport || '').toUpperCase()
   return /RUN|RIDE|CYCL|HIKE|WALK|TRAIL|ROWING|SKI/i.test(sport)
 }
 
-async function fetchExerciseRoute(
+async function fetchExerciseDetail(
   exerciseId: string,
   headers: HeadersInit,
 ): Promise<Record<string, unknown> | undefined> {
   const response = await fetch(
-    `https://www.polaraccesslink.com/v3/exercises/${encodeURIComponent(exerciseId)}?route=true`,
+    `https://www.polaraccesslink.com/v3/exercises/${encodeURIComponent(exerciseId)}?route=true&samples=true`,
     { headers },
   )
   if (!response.ok) return undefined
@@ -148,26 +240,10 @@ async function fetchExerciseRoute(
   }
 }
 
-/** Simple pool so Polar rate limits are less likely during sync. */
-async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let next = 0
-  async function run() {
-    while (next < items.length) {
-      const index = next
-      next += 1
-      results[index] = await worker(items[index])
-    }
-  }
-  const runners = Array.from({ length: Math.min(concurrency, items.length) }, () => run())
-  await Promise.all(runners)
-  return results
-}
-
 function mapExercise(item: Record<string, unknown>, index: number) {
   const date = String(item['start-time'] || item.start_time || item.startTime || item.date || new Date().toISOString())
-  const distance = number(item.distance)
-  const ascent = number(
+  const distance = finiteNumber(item.distance)
+  const ascent = finiteNumber(
     item.ascent ?? item.climbing ?? item.elevation ?? item['total-ascent'] ?? item.total_ascent ?? item.altitude,
   )
   const elevationGainM = ascent !== undefined && ascent > 0 ? ascent : undefined
@@ -181,10 +257,10 @@ function mapExercise(item: Record<string, unknown>, index: number) {
     date,
     durationSeconds,
     distanceKm: distance !== undefined && distance > 100 ? distance / 1000 : distance,
-    averageHeartRate: number(
+    averageHeartRate: finiteNumber(
       item['average-heart-rate'] ?? item.average_heart_rate ?? item.averageHeartRate ?? heart?.average,
     ),
-    calories: number(item.calories),
+    calories: finiteNumber(item.calories),
     ascentM: elevationGainM,
     elevationGainM,
     records: recordsFromPolarRoute(item, durationSeconds),
@@ -212,8 +288,7 @@ export async function sync(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  // List may omit route points even with route=true; we enrich per exercise below.
-  const response = await fetch('https://www.polaraccesslink.com/v3/exercises?route=true', { headers })
+  const response = await fetch('https://www.polaraccesslink.com/v3/exercises?route=true&samples=true', { headers })
   if (response.status === 204) return json({ workouts: [], count: 0 }, 200, request, env)
   if (!response.ok) {
     return json({ detail: `Polar-Trainings konnten nicht geladen werden (${response.status}).` }, 502, request, env)
@@ -224,17 +299,17 @@ export async function sync(request: Request, env: Env): Promise<Response> {
   const enriched = await mapPool(exercises, 3, async (exercise) => {
     const item = exercise as Record<string, unknown>
     const durationSeconds = seconds(item.duration ?? item['duration-seconds'])
-    const existingRoute = recordsFromPolarRoute(item, durationSeconds)
+    const existingRecords = recordsFromPolarRoute(item, durationSeconds)
     const exerciseId = String(item.id || item['exercise-id'] || '')
-    if (!exerciseId || !shouldFetchRouteDetail(item, existingRoute.length)) return item
+    if (!exerciseId || !shouldFetchExerciseDetail(item, existingRecords.length)) return item
 
-    const detail = await fetchExerciseRoute(exerciseId, headers)
+    const detail = await fetchExerciseDetail(exerciseId, headers)
     if (!detail) return item
     return {
       ...item,
       ...detail,
-      // Prefer detail route when present.
       route: detail.route ?? detail.locations ?? item.route,
+      samples: detail.samples ?? item.samples,
     }
   })
 

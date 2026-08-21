@@ -84,6 +84,23 @@ describe('strava oauth and sync', () => {
           { status: 200 },
         )
       }
+      if (url.includes('/activities/99/streams')) {
+        return new Response(
+          JSON.stringify({
+            time: { data: [0, 1800, 3600] },
+            latlng: {
+              data: [
+                [37.77, -122.42],
+                [37.78, -122.43],
+                [37.79, -122.44],
+              ],
+            },
+            heartrate: { data: [120, 140, 150] },
+            velocity_smooth: { data: [8, 9, 8.5] },
+          }),
+          { status: 200 },
+        )
+      }
       return new Response('unexpected', { status: 500 })
     }) as typeof fetch
 
@@ -107,7 +124,7 @@ describe('strava oauth and sync', () => {
         sport: string
         distanceKm: number
         durationSeconds: number
-        records: Array<{ latitude: number; longitude: number; elapsedSeconds: number }>
+        records: Array<{ latitude?: number; longitude?: number; elapsedSeconds: number; heartRateBpm?: number }>
       }>
       count: number
     }
@@ -117,8 +134,52 @@ describe('strava oauth and sync', () => {
     assert.equal(payload.workouts[0].durationSeconds, 3600)
     assert.equal(payload.workouts[0].records.length, 3)
     assert.equal(payload.workouts[0].records[0].elapsedSeconds, 0)
+    assert.equal(payload.workouts[0].records[1].heartRateBpm, 140)
     assert.equal(payload.workouts[0].records[2].elapsedSeconds, 3600)
     assert.ok(Number.isFinite(payload.workouts[0].records[0].latitude))
     assert.ok(Number.isFinite(payload.workouts[0].records[0].longitude))
+  })
+
+  it('falls back to summary polyline when streams are unavailable', async () => {
+    const kv = new MemoryKV()
+    const session = '44444444-4444-4444-8444-444444444444'
+    await kv.put(
+      `strava-session:${session}`,
+      JSON.stringify({
+        access_token: 'strava-token',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    )
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/athlete/activities')) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 42,
+              sport_type: 'Run',
+              start_date: '2026-08-11T08:00:00Z',
+              moving_time: 120,
+              distance: 500,
+              map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
+            },
+          ]),
+          { status: 200 },
+        )
+      }
+      if (url.includes('/streams')) return new Response('missing', { status: 404 })
+      return new Response('unexpected', { status: 500 })
+    }) as typeof fetch
+
+    const sync = await strava.sync(
+      new Request('http://worker.test/api/connectors/strava/sync', {
+        headers: { 'X-Connector-Sessions': JSON.stringify({ strava: session }) },
+      }),
+      env(kv),
+    )
+    assert.equal(sync.status, 200)
+    const payload = (await sync.json()) as { workouts: Array<{ records: unknown[] }> }
+    assert.equal(payload.workouts[0].records.length, 3)
   })
 })

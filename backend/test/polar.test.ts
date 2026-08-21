@@ -83,8 +83,12 @@ describe('polar oauth and sync', () => {
             distance: 7200,
             has_route: true,
             route: [
-              { latitude: 52.52, longitude: 13.405 },
-              { latitude: 52.521, longitude: 13.406 },
+              { latitude: 52.52, longitude: 13.405, time: 'PT0S' },
+              { latitude: 52.521, longitude: 13.406, time: 'PT5S' },
+            ],
+            samples: [
+              { 'recording-rate': 5, 'sample-type': '0', data: '140,145' },
+              { 'recording-rate': 5, 'sample-type': '1', data: '10,11' },
             ],
           }),
           { status: 200 },
@@ -134,10 +138,12 @@ describe('polar oauth and sync', () => {
     const records = payload.workouts[0].records as Array<Record<string, unknown>>
     assert.equal(records.length, 2)
     assert.equal(records[0].latitude, 52.52)
+    assert.equal(records[0].heartRateBpm, 140)
     assert.equal(records[1].longitude, 13.406)
+    assert.equal(records[1].speedKmh, 11)
   })
 
-  it('maps route points from list payload without a second request', async () => {
+  it('maps route+samples from list payload without a second request', async () => {
     const kv = new MemoryKV()
     const session = '33333333-3333-4333-8333-333333333333'
     await kv.put(`polar-session:${session}`, JSON.stringify({ access_token: 'tok' }))
@@ -162,6 +168,7 @@ describe('polar oauth and sync', () => {
                 { lat: 48.1, lon: 11.5 },
                 { lat: 48.11, lon: 11.51 },
               ],
+              samples: [{ 'recording-rate': 1, 'sample-type': '0', data: '130,131' }],
             },
           ]),
           { status: 200 },
@@ -178,7 +185,10 @@ describe('polar oauth and sync', () => {
     )
     assert.equal(ok.status, 200)
     assert.equal(detailCalls, 0)
-    const payload = (await ok.json()) as { workouts: Array<{ records: unknown[] }> }
+    const payload = (await ok.json()) as {
+      workouts: Array<{ records: Array<{ heartRateBpm?: number }> }>
+    }
     assert.equal(payload.workouts[0].records.length, 2)
+    assert.equal(payload.workouts[0].records[0].heartRateBpm, 130)
   })
 })

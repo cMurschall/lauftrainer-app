@@ -242,6 +242,23 @@ function hasRouteMap(workoutId: string): boolean {
   return workoutRouteCoordinates(workoutId).length >= 2
 }
 
+/** Visible in the PWA: what stream fields this workout actually stores. */
+function workoutTrackDataLabel(workoutId: string): string {
+  const records = workouts.workouts.find((workout) => workout.id === workoutId)?.records || []
+  if (!records.length) return ''
+  const gpsCount = records.filter(
+    (record) => Number.isFinite(record.latitude) && Number.isFinite(record.longitude),
+  ).length
+  const hasHr = records.some((record) => Number.isFinite(record.heartRateBpm))
+  const hasPace = records.some((record) => Number.isFinite(record.speedKmh))
+  const parts: string[] = []
+  if (gpsCount >= 2) parts.push(t.value.trackDataGps(gpsCount))
+  else parts.push(t.value.trackDataMetricsOnly)
+  if (hasHr) parts.push(t.value.trackDataHr)
+  if (hasPace) parts.push(t.value.trackDataPace)
+  return parts.join(' · ')
+}
+
 function showBasemapFor(workoutId: string): boolean {
   if (settings.mapDetailsConsent !== 'allowed') return false
   if (!hasMapTilesUrl()) return false
@@ -653,8 +670,13 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                       @place-name="(name) => onMapPlaceName(workout.id, name)"
                     />
                   </button>
+                  <p v-if="workoutTrackDataLabel(workout.id)" class="activity-route-map-data muted">
+                    {{ workoutTrackDataLabel(workout.id) }}
+                  </p>
                 </div>
-                <p v-else class="activity-route-map-missing muted">{{ t.mapNoGpsTrack }}</p>
+                <p v-else class="activity-route-map-missing muted">
+                  {{ workoutTrackDataLabel(workout.id) || t.mapNoGpsTrack }}
+                </p>
               </div>
 
               <!-- RPE Rating -->

@@ -1,8 +1,13 @@
 import type { Env } from './types'
 import { json } from './http'
 import { recordsFromPolyline } from './polyline'
+import { mapPool } from './mapPool'
+import { recordsFromStravaStreams, streamRecordsAreRicher } from './stravaStreams'
+import type { ActivityRecord } from './activityRecord'
 
 type StravaToken = { access_token: string; refresh_token?: string; expires_at?: number; scope?: string }
+
+const STREAM_KEYS = 'time,latlng,distance,altitude,velocity_smooth,heartrate,watts'
 
 function redirectUri(request: Request, env: Env) {
   return env.STRAVA_REDIRECT_URI || `${new URL(request.url).origin}/api/connectors/strava/callback`
@@ -132,7 +137,7 @@ function activityPolyline(activity: Record<string, unknown>): string | undefined
   return typeof summary === 'string' && summary.length > 0 ? summary : undefined
 }
 
-function workout(activity: Record<string, unknown>) {
+function workoutFromActivity(activity: Record<string, unknown>, records: ActivityRecord[]) {
   const distance = number(activity.distance)
   const durationSeconds = number(activity.moving_time) ?? number(activity.elapsed_time) ?? 0
   const rawSport = String(activity.sport_type || activity.type || 'RUN')
@@ -148,7 +153,7 @@ function workout(activity: Record<string, unknown>) {
   }
   return {
     id: `strava-${String(activity.id)}`,
-    source: 'strava',
+    source: 'strava' as const,
     name: String(activity.name || 'Strava workout'),
     sport: sportMap[rawSport] || 'Other',
     rawSport,
@@ -164,9 +169,25 @@ function workout(activity: Record<string, unknown>) {
     averagePowerW: number(activity.average_watts),
     maxPowerW: number(activity.max_watts),
     normalizedPowerW: number(activity.weighted_average_watts),
-    // List endpoint includes map.summary_polyline — enough for route + map context without per-activity stream calls.
-    records: recordsFromPolyline(activityPolyline(activity), durationSeconds),
+    records,
     importedAt: new Date().toISOString(),
+  }
+}
+
+async function fetchActivityStreams(
+  activityId: string,
+  accessToken: string,
+): Promise<ActivityRecord[] | undefined> {
+  const response = await fetch(
+    `https://www.strava.com/api/v3/activities/${encodeURIComponent(activityId)}/streams?keys=${STREAM_KEYS}&key_by_type=true`,
+    { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
+  )
+  if (response.status === 429) return undefined
+  if (!response.ok) return []
+  try {
+    return recordsFromStravaStreams(await response.json())
+  } catch {
+    return []
   }
 }
 
@@ -193,5 +214,24 @@ export async function sync(request: Request, env: Env): Promise<Response> {
     activities.push(...(batch as Record<string, unknown>[]))
     if (batch.length < 200) break
   }
-  return json({ workouts: activities.map(workout), count: activities.length }, 200, request, env)
+
+  // Stop stream enrichment after the first rate-limit so remaining activities keep polyline GPS.
+  let streamsRateLimited = false
+  const workouts = await mapPool(activities, 3, async (activity) => {
+    const durationSeconds = number(activity.moving_time) ?? number(activity.elapsed_time) ?? 0
+    const fallback = recordsFromPolyline(activityPolyline(activity), durationSeconds)
+    const activityId = String(activity.id || '')
+    if (!activityId || streamsRateLimited) {
+      return workoutFromActivity(activity, fallback)
+    }
+    const streamRecords = await fetchActivityStreams(activityId, access.access_token)
+    if (streamRecords === undefined) {
+      streamsRateLimited = true
+      return workoutFromActivity(activity, fallback)
+    }
+    const records = streamRecordsAreRicher(streamRecords, fallback) ? streamRecords : fallback
+    return workoutFromActivity(activity, records)
+  })
+
+  return json({ workouts, count: workouts.length }, 200, request, env)
 }
