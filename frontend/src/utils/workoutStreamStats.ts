@@ -16,6 +16,8 @@ export type WorkoutStreamStats = {
   chartElapsedSeconds: number[]
   chartHeartRate: Array<number | null>
   chartPaceMinPerKm: Array<number | null>
+  /** Lon/lat for each chart sample (nearest GPS record); null if track has no GPS. */
+  chartCoordinates: Array<[number, number] | null>
 }
 
 const STEADINESS_BAND = 0.08
@@ -110,6 +112,40 @@ function minuteLabel(elapsedSeconds: number): string {
   return `${minutes}'`
 }
 
+function recordHasGps(record: ActivityRecord | undefined): record is ActivityRecord & {
+  latitude: number
+  longitude: number
+} {
+  return (
+    Boolean(record) &&
+    finite(record!.latitude) &&
+    finite(record!.longitude) &&
+    Math.abs(record!.latitude!) <= 90 &&
+    Math.abs(record!.longitude!) <= 180
+  )
+}
+
+/** Nearest GPS sample for a chart downsample index (walk outward). */
+export function nearestChartCoordinate(
+  records: ActivityRecord[],
+  index: number,
+): [number, number] | null {
+  if (!records.length) return null
+  const clamped = Math.min(Math.max(0, index), records.length - 1)
+  for (let distance = 0; distance < records.length; distance += 1) {
+    const left = clamped - distance
+    if (left >= 0 && recordHasGps(records[left])) {
+      return [records[left].longitude, records[left].latitude]
+    }
+    if (distance === 0) continue
+    const right = clamped + distance
+    if (right < records.length && recordHasGps(records[right])) {
+      return [records[right].longitude, records[right].latitude]
+    }
+  }
+  return null
+}
+
 export function resolveDisplayPaceSeconds(
   workout: Pick<Workout, 'averagePaceSecondsPerKm' | 'averageSpeedKmh' | 'distanceKm' | 'durationSeconds'>,
   streamPaceAvg?: number,
@@ -165,6 +201,7 @@ export function computeWorkoutStreamStats(
   const chartElapsedSeconds: number[] = []
   const chartHeartRate: Array<number | null> = []
   const chartPaceMinPerKm: Array<number | null> = []
+  const chartCoordinates: Array<[number, number] | null> = []
 
   for (const index of indices) {
     const record = records[index]
@@ -174,6 +211,7 @@ export function computeWorkoutStreamStats(
     chartHeartRate.push(finite(record?.heartRateBpm) ? record.heartRateBpm! : null)
     const paceSec = finite(record?.speedKmh) ? paceSecondsFromSpeedKmh(record.speedKmh!) : undefined
     chartPaceMinPerKm.push(paceSec !== undefined ? formatPaceMinutes(paceSec) : null)
+    chartCoordinates.push(nearestChartCoordinate(records, index))
   }
 
   return {
@@ -190,5 +228,6 @@ export function computeWorkoutStreamStats(
     chartElapsedSeconds,
     chartHeartRate,
     chartPaceMinPerKm,
+    chartCoordinates,
   }
 }

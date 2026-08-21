@@ -142,6 +142,18 @@ const tooltipOwner: TooltipOwner = {
 onMounted(() => registerTooltipOwner(tooltipOwner))
 onBeforeUnmount(() => unregisterTooltipOwner(tooltipOwner))
 
+const emit = defineEmits<{
+  hoverIndex: [index: number | null]
+}>()
+
+let lastEmittedHover: number | null | undefined
+
+function emitHoverIndex(index: number | null) {
+  if (index === lastEmittedHover) return
+  lastEmittedHover = index
+  emit('hoverIndex', index)
+}
+
 function resolveColor(value: string): string {
   const match = value.match(/^var\((--[^)]+)\)$/)
   if (!match) return value
@@ -284,6 +296,9 @@ const options = computed<ChartOptions>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   interaction: { mode: 'index', intersect: false },
+  onHover(_event, elements) {
+    emitHoverIndex(elements[0]?.index ?? null)
+  },
   plugins: {
     legend: {
       position: 'bottom',
@@ -364,7 +379,7 @@ const options = computed<ChartOptions>(() => ({
 }))
 </script>
 <template>
-  <div ref="rootEl" class="mini-chart">
+  <div ref="rootEl" class="mini-chart" @mouseleave="emitHoverIndex(null)">
     <div class="mini-chart-canvas">
       <Chart
         :type="type"

@@ -16,7 +16,9 @@ import {
   routeColorCapabilities,
   routeMetricRange,
   type RouteColorMode,
+  type RouteHighlightPoint,
   type RoutePoint,
+  setRouteHighlight,
   upsertRouteLayer,
 } from '../services/mapTiles'
 
@@ -29,10 +31,16 @@ const props = withDefaults(
     interactive?: boolean
     /** Override auto mode (hr → pace → solid). */
     colorMode?: RouteColorMode
+    /** Chart-hover cursor on the track. */
+    highlight?: RouteHighlightPoint | null
+    /** Hide HR/pace color legend + toggles (accordion preview). */
+    colorControls?: boolean
   }>(),
   {
     showBasemap: false,
     interactive: false,
+    highlight: null,
+    colorControls: true,
   },
 )
 
@@ -76,7 +84,9 @@ const legendUnit = computed(() => {
   return ''
 })
 
-const showModeToggle = computed(() => capabilities.value.hr || capabilities.value.pace)
+const showModeToggle = computed(
+  () => props.colorControls && (capabilities.value.hr || capabilities.value.pace),
+)
 
 /** Tiny custom credit in the card preview; MapLibre control only in the enlarged modal. */
 const showPreviewAttribution = computed(() => props.showBasemap && !props.interactive)
@@ -126,6 +136,12 @@ function emitPlaceNameOnce() {
 function paintRoute() {
   if (!map) return
   upsertRouteLayer(map, props.points, resolvedColorMode.value)
+  setRouteHighlight(map, props.highlight ?? null)
+}
+
+function paintHighlight() {
+  if (!map) return
+  setRouteHighlight(map, props.highlight ?? null)
 }
 
 function mountMap() {
@@ -203,6 +219,13 @@ watch(mapInstanceKey, () => {
 watch(resolvedColorMode, () => {
   paintRoute()
 })
+
+watch(
+  () => props.highlight,
+  () => {
+    paintHighlight()
+  },
+)
 </script>
 
 <template>

@@ -86,6 +86,21 @@ describe('computeWorkoutStreamStats', () => {
     expect(stats.chartHeartRate.length).toBeLessThanOrEqual(80)
     expect(stats.chartLabels.length).toBe(stats.chartHeartRate.length)
   })
+
+  it('maps chart samples to nearest GPS coordinates', () => {
+    const stats = computeWorkoutStreamStats({
+      durationSeconds: 120,
+      records: [
+        { elapsedSeconds: 0, heartRateBpm: 120, latitude: 54, longitude: 10 },
+        { elapsedSeconds: 60, heartRateBpm: 140 },
+        { elapsedSeconds: 120, heartRateBpm: 160, latitude: 54.1, longitude: 10.1 },
+      ],
+    })
+    expect(stats.chartCoordinates).toHaveLength(3)
+    expect(stats.chartCoordinates[0]).toEqual([10, 54])
+    expect(stats.chartCoordinates[1]).toEqual([10, 54])
+    expect(stats.chartCoordinates[2]).toEqual([10.1, 54.1])
+  })
 })
 
 describe('computeDecouplingPct', () => {

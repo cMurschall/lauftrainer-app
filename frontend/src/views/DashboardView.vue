@@ -293,25 +293,39 @@ function workoutStreamStats(workoutId: string): WorkoutStreamStats | null {
   return computeWorkoutStreamStats(workoutObj)
 }
 
-const expandedStreamStats = computed(() => {
-  const id = expandedActivityId.value
+const modalStreamStats = computed(() => {
+  const id = enlargedMapId.value
   if (!id) return null
   return workoutStreamStats(id)
 })
 
-const expandedStreamChartMode = computed<RouteColorMode>(() => {
-  const id = expandedActivityId.value
+const modalStreamChartMode = computed<RouteColorMode>(() => {
+  const id = enlargedMapId.value
   if (!id) return 'solid'
   return mapColorMode(id) ?? preferredRouteColorMode(workoutRoutePoints(id))
 })
 
-const expandedStreamChartSeries = computed(() => {
-  const stats = expandedStreamStats.value
-  return stats ? streamChartSeries(stats, expandedStreamChartMode.value) : []
+const modalStreamChartSeries = computed(() => {
+  const stats = modalStreamStats.value
+  return stats ? streamChartSeries(stats, modalStreamChartMode.value) : []
 })
 
-const expandedStreamChartUnits = computed(() => {
-  const series = expandedStreamChartSeries.value
+const streamHoverIndex = ref<number | null>(null)
+
+const streamHoverHighlight = computed(() => {
+  const index = streamHoverIndex.value
+  const coords = modalStreamStats.value?.chartCoordinates
+  if (index == null || !coords?.[index]) return null
+  const [longitude, latitude] = coords[index]
+  return { longitude, latitude }
+})
+
+watch(enlargedMapId, () => {
+  streamHoverIndex.value = null
+})
+
+const modalStreamChartUnits = computed(() => {
+  const series = modalStreamChartSeries.value
   const hasLeftHr = series.some((item) => item.axis !== 'right' && item.name === t.value.mapColorHr)
   const hasLeftPace = series.some((item) => item.axis !== 'right' && item.name === t.value.mapColorPace)
   const hasRightPace = series.some((item) => item.axis === 'right')
@@ -322,7 +336,8 @@ const expandedStreamChartUnits = computed(() => {
 })
 
 function displayPaceSeconds(workout: (typeof summaries.value)[number]): number | undefined {
-  const stats = workout.id === expandedActivityId.value ? expandedStreamStats.value : workoutStreamStats(workout.id)
+  const stats =
+    workout.id === enlargedMapId.value ? modalStreamStats.value : workoutStreamStats(workout.id)
   return resolveDisplayPaceSeconds(workout, stats?.paceAvgSecondsPerKm)
 }
 
@@ -454,7 +469,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
     :aria-label="mapPlaceLabel(enlargedWorkout.id)"
     @click="enlargedMapId = null"
   >
-    <div class="modal-card modal-card-wide" @click.stop>
+    <div class="modal-card modal-card-wide map-detail-modal" @click.stop>
       <div class="map-modal-head">
         <strong>{{ mapPlaceLabel(enlargedWorkout.id) }}</strong>
         <span class="muted"
@@ -462,15 +477,91 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
         >
         <button class="button secondary" type="button" :aria-label="t.mapClose" @click="enlargedMapId = null">×</button>
       </div>
-      <div class="map-modal-canvas">
-        <WorkoutMap
-          :points="workoutRoutePoints(enlargedWorkout.id)"
-          :show-basemap="showBasemapFor(enlargedWorkout.id)"
-          :color-mode="mapColorMode(enlargedWorkout.id)"
-          interactive
-          @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
-          @update:color-mode="(mode) => enlargedWorkout && setMapColorMode(enlargedWorkout.id, mode)"
-        />
+      <div class="map-modal-body">
+        <div class="map-modal-canvas">
+          <WorkoutMap
+            :points="workoutRoutePoints(enlargedWorkout.id)"
+            :show-basemap="showBasemapFor(enlargedWorkout.id)"
+            :color-mode="mapColorMode(enlargedWorkout.id)"
+            :highlight="streamHoverHighlight"
+            interactive
+            @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
+            @update:color-mode="(mode) => enlargedWorkout && setMapColorMode(enlargedWorkout.id, mode)"
+          />
+        </div>
+        <div class="map-modal-details">
+          <div class="activity-detail-grid">
+            <div v-if="enlargedWorkout.distanceKm" class="activity-detail-kpi">
+              <span>{{ t.totalDistance }}</span>
+              <strong>{{ formatWorkoutDistance(enlargedWorkout.distanceKm) }}</strong>
+            </div>
+            <div class="activity-detail-kpi">
+              <span>{{ t.trainingTime }}</span>
+              <strong>{{ formatWorkoutDuration(enlargedWorkout.durationSeconds) }}</strong>
+            </div>
+            <div v-if="displayPaceSeconds(enlargedWorkout)" class="activity-detail-kpi">
+              <span>{{ t.paceAvg }}</span>
+              <strong>{{ formatPace(displayPaceSeconds(enlargedWorkout)) }}</strong>
+            </div>
+            <div v-if="enlargedWorkout.averageHeartRate" class="activity-detail-kpi">
+              <span>Puls (Ø)</span>
+              <strong>{{ Math.round(enlargedWorkout.averageHeartRate) }} bpm</strong>
+            </div>
+            <div
+              v-if="modalStreamStats?.hrMin != null && modalStreamStats?.hrMax != null"
+              class="activity-detail-kpi"
+            >
+              <span>{{ t.hrMinMax }}</span>
+              <strong>{{ modalStreamStats.hrMin }}–{{ modalStreamStats.hrMax }} bpm</strong>
+            </div>
+            <div v-if="enlargedWorkout.calories" class="activity-detail-kpi">
+              <span>Kalorien</span>
+              <strong>{{ enlargedWorkout.calories }} kcal</strong>
+            </div>
+            <div v-if="enlargedWorkout.elevationGainM || enlargedWorkout.ascentM" class="activity-detail-kpi">
+              <span>Höhenmeter</span>
+              <strong>{{ Math.round(enlargedWorkout.elevationGainM || enlargedWorkout.ascentM || 0) }} hm ↑</strong>
+            </div>
+            <div v-if="enlargedWorkout.averagePowerW" class="activity-detail-kpi">
+              <span>Leistung (Ø)</span>
+              <strong>{{ Math.round(enlargedWorkout.averagePowerW) }} W</strong>
+            </div>
+            <div v-if="modalStreamStats?.steadinessPct != null" class="activity-detail-kpi">
+              <span>{{ t.steadiness }}</span>
+              <strong>{{ modalStreamStats.steadinessPct }} %</strong>
+            </div>
+            <div
+              v-if="modalStreamStats?.decouplingPct != null"
+              class="activity-detail-kpi"
+              :title="t.decouplingHint"
+            >
+              <span>{{ t.decoupling }}</span>
+              <strong>{{ formatDecoupling(modalStreamStats.decouplingPct) }}</strong>
+            </div>
+            <div class="activity-detail-kpi">
+              <span>Quelle / Typ</span>
+              <strong class="is-source">{{ enlargedWorkout.source }}</strong>
+            </div>
+          </div>
+          <p v-if="workoutTrackDataLabel(enlargedWorkout.id)" class="activity-route-map-data muted">
+            {{ workoutTrackDataLabel(enlargedWorkout.id) }}
+          </p>
+          <div v-if="modalStreamChartSeries.length" class="activity-detail-charts">
+            <p class="eyebrow">{{ t.streamChart }}</p>
+            <div class="activity-detail-chart-wrap map-modal-chart-wrap">
+              <MiniChart
+                :dynamic-y="true"
+                :non-negative="true"
+                :labels="modalStreamStats!.chartLabels"
+                :series="modalStreamChartSeries"
+                :y-unit="modalStreamChartUnits.yUnit"
+                :right-y-unit="modalStreamChartUnits.rightYUnit"
+                :max-ticks-limit="6"
+                @hover-index="(index) => (streamHoverIndex = index)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -602,7 +693,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               </div>
             </div>
 
-            <!-- Details slide-down view -->
+            <!-- Details slide-down: GPS preview + RPE only -->
             <div
               v-if="expandedActivityId === workout.id"
               style="
@@ -618,110 +709,35 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               "
               @click.stop
             >
-              <!-- Details stats, then full-width route map -->
-              <div class="activity-detail">
-                <div class="activity-detail-grid">
-                  <div v-if="workout.distanceKm" class="activity-detail-kpi">
-                    <span>{{ t.totalDistance }}</span>
-                    <strong>{{ formatWorkoutDistance(workout.distanceKm) }}</strong>
-                  </div>
-                  <div class="activity-detail-kpi">
-                    <span>{{ t.trainingTime }}</span>
-                    <strong>{{ formatWorkoutDuration(workout.durationSeconds) }}</strong>
-                  </div>
-                  <div v-if="displayPaceSeconds(workout)" class="activity-detail-kpi">
-                    <span>{{ t.paceAvg }}</span>
-                    <strong>{{ formatPace(displayPaceSeconds(workout)) }}</strong>
-                  </div>
-                  <div v-if="workout.averageHeartRate" class="activity-detail-kpi">
-                    <span>Puls (Ø)</span>
-                    <strong>{{ Math.round(workout.averageHeartRate) }} bpm</strong>
-                  </div>
-                  <div
-                    v-if="expandedStreamStats?.hrMin != null && expandedStreamStats?.hrMax != null"
-                    class="activity-detail-kpi"
-                  >
-                    <span>{{ t.hrMinMax }}</span>
-                    <strong>{{ expandedStreamStats.hrMin }}–{{ expandedStreamStats.hrMax }} bpm</strong>
-                  </div>
-                  <div v-if="workout.calories" class="activity-detail-kpi">
-                    <span>Kalorien</span>
-                    <strong>{{ workout.calories }} kcal</strong>
-                  </div>
-                  <div v-if="workout.elevationGainM || workout.ascentM" class="activity-detail-kpi">
-                    <span>Höhenmeter</span>
-                    <strong>{{ Math.round(workout.elevationGainM || workout.ascentM || 0) }} hm ↑</strong>
-                  </div>
-                  <div v-if="workout.averagePowerW" class="activity-detail-kpi">
-                    <span>Leistung (Ø)</span>
-                    <strong>{{ Math.round(workout.averagePowerW) }} W</strong>
-                  </div>
-                  <div v-if="expandedStreamStats?.steadinessPct != null" class="activity-detail-kpi">
-                    <span>{{ t.steadiness }}</span>
-                    <strong>{{ expandedStreamStats.steadinessPct }} %</strong>
-                  </div>
-                  <div
-                    v-if="expandedStreamStats?.decouplingPct != null"
-                    class="activity-detail-kpi"
-                    :title="t.decouplingHint"
-                  >
-                    <span>{{ t.decoupling }}</span>
-                    <strong>{{ formatDecoupling(expandedStreamStats.decouplingPct) }}</strong>
-                  </div>
-                  <div class="activity-detail-kpi">
-                    <span>Quelle / Typ</span>
-                    <strong class="is-source">{{ workout.source }}</strong>
-                  </div>
-                </div>
-
-                <div v-if="hasRouteMap(workout.id)" class="activity-route-map">
-                  <span
-                    class="activity-route-map-label"
-                    :style="{ textTransform: mapPlaceNames[workout.id] ? 'none' : 'uppercase' }"
-                    >{{ mapPlaceLabel(workout.id) }}</span
-                  >
-                  <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{
-                    mapDetailsHint(workout.id)
-                  }}</span>
-                  <div class="map-zoom-trigger">
-                    <WorkoutMap
-                      :points="workoutRoutePoints(workout.id)"
-                      :show-basemap="showBasemapFor(workout.id)"
-                      :color-mode="mapColorMode(workout.id)"
-                      @place-name="(name) => onMapPlaceName(workout.id, name)"
-                      @update:color-mode="(mode) => setMapColorMode(workout.id, mode)"
-                    />
-                    <button
-                      type="button"
-                      class="map-enlarge-hit"
-                      :aria-label="t.mapEnlarge"
-                      :title="t.mapEnlarge"
-                      @click.stop="enlargedMapId = workout.id"
-                    />
-                  </div>
-                  <p v-if="workoutTrackDataLabel(workout.id)" class="activity-route-map-data muted">
-                    {{ workoutTrackDataLabel(workout.id) }}
-                  </p>
-                </div>
-                <p v-else class="activity-route-map-missing muted">
-                  {{ workoutTrackDataLabel(workout.id) || t.mapNoGpsTrack }}
-                </p>
-
-                <div v-if="expandedStreamChartSeries.length" class="activity-detail-charts">
-                  <p class="eyebrow">{{ t.streamChart }}</p>
-                  <div class="activity-detail-chart-wrap">
-                    <MiniChart
-                      :dynamic-y="true"
-                      :non-negative="true"
-                      :labels="expandedStreamStats!.chartLabels"
-                      :series="expandedStreamChartSeries"
-                      :y-unit="expandedStreamChartUnits.yUnit"
-                      :right-y-unit="expandedStreamChartUnits.rightYUnit"
-                      :max-ticks-limit="6"
-                    />
-                  </div>
+              <div v-if="hasRouteMap(workout.id)" class="activity-route-map">
+                <span
+                  class="activity-route-map-label"
+                  :style="{ textTransform: mapPlaceNames[workout.id] ? 'none' : 'uppercase' }"
+                  >{{ mapPlaceLabel(workout.id) }}</span
+                >
+                <span v-if="mapDetailsHint(workout.id)" class="activity-route-map-hint">{{
+                  mapDetailsHint(workout.id)
+                }}</span>
+                <div class="map-zoom-trigger">
+                  <WorkoutMap
+                    :points="workoutRoutePoints(workout.id)"
+                    :show-basemap="showBasemapFor(workout.id)"
+                    color-mode="solid"
+                    :color-controls="false"
+                    @place-name="(name) => onMapPlaceName(workout.id, name)"
+                  />
+                  <button
+                    type="button"
+                    class="map-enlarge-hit"
+                    :aria-label="t.mapEnlarge"
+                    :title="t.mapEnlarge"
+                    @click.stop="enlargedMapId = workout.id"
+                  />
                 </div>
               </div>
+              <p v-else class="activity-route-map-missing muted">
+                {{ workoutTrackDataLabel(workout.id) || t.mapNoGpsTrack }}
+              </p>
 
               <!-- RPE Rating -->
               <div
