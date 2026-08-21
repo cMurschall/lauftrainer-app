@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { workoutDb } from '../db/database'
 import type { Workout } from '../types/workout'
 import { importWorkoutFiles } from '../services/importService'
+import { mergeWorkouts } from '../services/workoutIdentity'
 import { toWorkoutSummary, type WorkoutSummary } from '../utils/workoutSummary'
 import { plain } from '../utils/clone'
 import { useUiStore } from './ui'
@@ -31,7 +32,13 @@ export const useWorkoutStore = defineStore('workouts', () => {
 
   async function putMany(items: Workout[]) {
     if (!items.length) return
-    await workoutDb.putMany(items.map((item) => plain(item)))
+    // Merge by id so connector sync keeps local-only fields (e.g. sessionRpe).
+    const existingById = new Map((await workoutDb.list()).map((item) => [item.id, item]))
+    const merged = items.map((item) => {
+      const previous = existingById.get(item.id)
+      return previous ? mergeWorkouts(previous, item) : item
+    })
+    await workoutDb.putMany(merged.map((item) => plain(item)))
     workouts.value = await workoutDb.list()
   }
 
