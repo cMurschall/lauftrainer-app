@@ -382,7 +382,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
           :color-mode="mapColorMode(enlargedWorkout.id)"
           interactive
           @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
-          @update:color-mode="(mode) => setMapColorMode(enlargedWorkout.id, mode)"
+          @update:color-mode="(mode) => enlargedWorkout && setMapColorMode(enlargedWorkout.id, mode)"
         />
       </div>
     </div>
