@@ -14,3 +14,4 @@ backend/.dev.vars
 .wrangler/
 germany.pmtiles
 scripts/pmtiles.exe
+AGENTS.md

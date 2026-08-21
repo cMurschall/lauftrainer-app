@@ -29,6 +29,7 @@ import {
   type WeeklyTrendEntry,
 } from '../utils/dashboardUi'
 import WorkoutMap from '../components/WorkoutMap.vue'
+import MiniChart from '../components/MiniChart.vue'
 import PageHeader from '../components/PageHeader.vue'
 import {
   hasMapTilesUrl,
@@ -38,6 +39,11 @@ import {
   routeHasBasemapCoverage,
   routePointsFromRecords,
 } from '../services/mapTiles'
+import {
+  computeWorkoutStreamStats,
+  resolveDisplayPaceSeconds,
+  type WorkoutStreamStats,
+} from '../utils/workoutStreamStats'
 
 const workouts = useWorkoutStore()
 const planStore = usePlanStore()
@@ -278,6 +284,60 @@ function workoutTrackDataLabel(workoutId: string): string {
   if (hasHr) parts.push(t.value.trackDataHr)
   if (hasPace) parts.push(t.value.trackDataPace)
   return parts.join(' · ')
+}
+
+function workoutStreamStats(workoutId: string): WorkoutStreamStats | null {
+  const workoutObj = workouts.workouts.find((workout) => workout.id === workoutId)
+  if (!workoutObj?.records?.length) return null
+  return computeWorkoutStreamStats(workoutObj)
+}
+
+const expandedStreamStats = computed(() => {
+  const id = expandedActivityId.value
+  if (!id) return null
+  return workoutStreamStats(id)
+})
+
+const expandedStreamChartSeries = computed(() => {
+  const stats = expandedStreamStats.value
+  return stats ? streamChartSeries(stats) : []
+})
+
+function displayPaceSeconds(workout: (typeof summaries.value)[number]): number | undefined {
+  const stats = workout.id === expandedActivityId.value ? expandedStreamStats.value : workoutStreamStats(workout.id)
+  return resolveDisplayPaceSeconds(workout, stats?.paceAvgSecondsPerKm)
+}
+
+function formatDecoupling(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  const sign = rounded > 0 ? '+' : ''
+  return `${sign}${rounded.toFixed(1)} %`
+}
+
+function streamChartSeries(stats: WorkoutStreamStats) {
+  const series = []
+  const hasHr = stats.chartHeartRate.some((value) => value !== null)
+  const hasPace = stats.chartPaceMinPerKm.some((value) => value !== null)
+  if (hasHr) {
+    series.push({
+      name: t.value.mapColorHr,
+      values: stats.chartHeartRate,
+      color: '#f43f5e',
+      pointRadius: 0,
+      borderWidth: 1.5,
+    })
+  }
+  if (hasPace) {
+    series.push({
+      name: t.value.mapColorPace,
+      values: stats.chartPaceMinPerKm,
+      color: 'var(--chart-blue)',
+      axis: 'right' as const,
+      pointRadius: 0,
+      borderWidth: 1.5,
+    })
+  }
+  return series
 }
 
 function showBasemapFor(workoutId: string): boolean {
@@ -532,144 +592,61 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
               @click.stop
             >
               <!-- Details stats, then full-width route map -->
-              <div style="display: flex; flex-direction: column; gap: 14px">
-                <!-- Details stats grid -->
-                <div
-                  style="
-                    display: grid;
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
-                    gap: 10px;
-                    font-size: 0.8rem;
-                    color: var(--text);
-                  "
-                >
-                  <div v-if="workout.distanceKm" style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >{{ t.totalDistance }}</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
-                      formatWorkoutDistance(workout.distanceKm)
-                    }}</strong>
+              <div class="activity-detail">
+                <div class="activity-detail-grid">
+                  <div v-if="workout.distanceKm" class="activity-detail-kpi">
+                    <span>{{ t.totalDistance }}</span>
+                    <strong>{{ formatWorkoutDistance(workout.distanceKm) }}</strong>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >{{ t.trainingTime }}</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
-                      formatWorkoutDuration(workout.durationSeconds)
-                    }}</strong>
+                  <div class="activity-detail-kpi">
+                    <span>{{ t.trainingTime }}</span>
+                    <strong>{{ formatWorkoutDuration(workout.durationSeconds) }}</strong>
                   </div>
-                  <div v-if="workout.averagePaceSecondsPerKm" style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Pace (Ø)</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)">{{
-                      formatPace(workout.averagePaceSecondsPerKm)
-                    }}</strong>
+                  <div v-if="displayPaceSeconds(workout)" class="activity-detail-kpi">
+                    <span>{{ t.paceAvg }}</span>
+                    <strong>{{ formatPace(displayPaceSeconds(workout)) }}</strong>
                   </div>
-                  <div v-if="workout.averageHeartRate" style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Puls (Ø)</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
-                      >{{ Math.round(workout.averageHeartRate) }} bpm</strong
-                    >
-                  </div>
-                  <div v-if="workout.calories" style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Kalorien</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
-                      >{{ workout.calories }} kcal</strong
-                    >
+                  <div v-if="workout.averageHeartRate" class="activity-detail-kpi">
+                    <span>Puls (Ø)</span>
+                    <strong>{{ Math.round(workout.averageHeartRate) }} bpm</strong>
                   </div>
                   <div
-                    v-if="workout.elevationGainM || workout.ascentM"
-                    style="display: flex; flex-direction: column; gap: 1px"
+                    v-if="expandedStreamStats?.hrMin != null && expandedStreamStats?.hrMax != null"
+                    class="activity-detail-kpi"
                   >
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Höhenmeter</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
-                      >{{ Math.round(workout.elevationGainM || workout.ascentM || 0) }} hm ↑</strong
-                    >
+                    <span>{{ t.hrMinMax }}</span>
+                    <strong>{{ expandedStreamStats.hrMin }}–{{ expandedStreamStats.hrMax }} bpm</strong>
                   </div>
-                  <div v-if="workout.averagePowerW" style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Leistung (Ø)</span
-                    >
-                    <strong style="font-size: 1.05rem; font-weight: 600; color: var(--text)"
-                      >{{ Math.round(workout.averagePowerW) }} W</strong
-                    >
+                  <div v-if="workout.calories" class="activity-detail-kpi">
+                    <span>Kalorien</span>
+                    <strong>{{ workout.calories }} kcal</strong>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 1px">
-                    <span
-                      style="
-                        color: var(--muted);
-                        font-size: 0.72rem;
-                        font-weight: 550;
-                        text-transform: uppercase;
-                        letter-spacing: 0.3px;
-                      "
-                      >Quelle / Typ</span
-                    >
-                    <strong
-                      style="font-size: 1.05rem; font-weight: 600; color: var(--text); text-transform: uppercase"
-                      >{{ workout.source }}</strong
-                    >
+                  <div v-if="workout.elevationGainM || workout.ascentM" class="activity-detail-kpi">
+                    <span>Höhenmeter</span>
+                    <strong>{{ Math.round(workout.elevationGainM || workout.ascentM || 0) }} hm ↑</strong>
+                  </div>
+                  <div v-if="workout.averagePowerW" class="activity-detail-kpi">
+                    <span>Leistung (Ø)</span>
+                    <strong>{{ Math.round(workout.averagePowerW) }} W</strong>
+                  </div>
+                  <div v-if="expandedStreamStats?.steadinessPct != null" class="activity-detail-kpi">
+                    <span>{{ t.steadiness }}</span>
+                    <strong>{{ expandedStreamStats.steadinessPct }} %</strong>
+                  </div>
+                  <div
+                    v-if="expandedStreamStats?.decouplingPct != null"
+                    class="activity-detail-kpi"
+                    :title="t.decouplingHint"
+                  >
+                    <span>{{ t.decoupling }}</span>
+                    <strong>{{ formatDecoupling(expandedStreamStats.decouplingPct) }}</strong>
+                  </div>
+                  <div class="activity-detail-kpi">
+                    <span>Quelle / Typ</span>
+                    <strong class="is-source">{{ workout.source }}</strong>
                   </div>
                 </div>
 
-                <!-- Full-width route map under stats -->
                 <div v-if="hasRouteMap(workout.id)" class="activity-route-map">
                   <span
                     class="activity-route-map-label"
@@ -702,6 +679,22 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                 <p v-else class="activity-route-map-missing muted">
                   {{ workoutTrackDataLabel(workout.id) || t.mapNoGpsTrack }}
                 </p>
+
+                <div v-if="expandedStreamChartSeries.length" class="activity-detail-charts">
+                  <p class="eyebrow">{{ t.streamChart }}</p>
+                  <div class="activity-detail-chart-wrap">
+                    <MiniChart
+                      :dynamic-y="true"
+                      :labels="expandedStreamStats!.chartLabels"
+                      :series="expandedStreamChartSeries"
+                      :y-unit="expandedStreamStats!.chartHeartRate.some((v) => v !== null) ? 'bpm' : 'min/km'"
+                      :right-y-unit="
+                        expandedStreamStats!.chartPaceMinPerKm.some((v) => v !== null) ? 'min/km' : ''
+                      "
+                      :max-ticks-limit="6"
+                    />
+                  </div>
+                </div>
               </div>
 
               <!-- RPE Rating -->

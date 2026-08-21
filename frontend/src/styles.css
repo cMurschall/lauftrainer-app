@@ -1957,6 +1957,70 @@
     letter-spacing: 0.2px;
   }
 
+  .activity-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .activity-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  @media (min-width: 520px) {
+    .activity-detail-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .activity-detail-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .activity-detail-kpi span {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 550;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .activity-detail-kpi strong {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .activity-detail-kpi strong.is-source {
+    text-transform: uppercase;
+  }
+
+  .activity-detail-charts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 140px;
+  }
+
+  .activity-detail-charts .eyebrow {
+    margin: 0;
+  }
+
+  .activity-detail-chart-wrap {
+    height: 140px;
+  }
+
+  .activity-detail-chart-wrap .mini-chart,
+  .activity-detail-chart-wrap .mini-chart-canvas {
+    height: 100%;
+  }
+
   .map-modal-canvas {
     aspect-ratio: 8 / 5;
     max-height: 70vh;
