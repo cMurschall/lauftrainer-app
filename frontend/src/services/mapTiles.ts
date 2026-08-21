@@ -64,12 +64,14 @@ export function routeCoordinatesFromRecords(
 
 /** GPS points plus optional HR/speed for colored route overlays. */
 export function routePointsFromRecords(
-  records: Array<{
-    latitude?: number
-    longitude?: number
-    heartRateBpm?: number
-    speedKmh?: number
-  }> | undefined,
+  records:
+    | Array<{
+        latitude?: number
+        longitude?: number
+        heartRateBpm?: number
+        speedKmh?: number
+      }>
+    | undefined,
 ): RoutePoint[] {
   if (!records?.length) return []
   const points: RoutePoint[] = []
@@ -155,10 +157,7 @@ function metricAt(point: RoutePoint, mode: RouteColorMode): number | undefined {
   return undefined
 }
 
-export function routeMetricRange(
-  points: RoutePoint[],
-  mode: RouteColorMode,
-): { min: number; max: number } | undefined {
+export function routeMetricRange(points: RoutePoint[], mode: RouteColorMode): { min: number; max: number } | undefined {
   if (mode === 'solid') return undefined
   let min = Number.POSITIVE_INFINITY
   let max = Number.NEGATIVE_INFINITY
@@ -497,8 +496,7 @@ export function coloredRouteGeoJson(points: RoutePoint[], mode: RouteColorMode):
     return { type: 'FeatureCollection', features: [] }
   }
   const caps = routeColorCapabilities(points)
-  const effectiveMode =
-    mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
+  const effectiveMode = mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
   if (effectiveMode === 'solid') {
     return routeGeoJson(points.map((point) => [point.longitude, point.latitude]))
   }
@@ -509,8 +507,7 @@ export function coloredRouteGeoJson(points: RoutePoint[], mode: RouteColorMode):
     const b = points[index + 1]
     const valueA = metricAt(a, effectiveMode)
     const valueB = metricAt(b, effectiveMode)
-    const value =
-      valueA !== undefined && valueB !== undefined ? (valueA + valueB) / 2 : (valueA ?? valueB)
+    const value = valueA !== undefined && valueB !== undefined ? (valueA + valueB) / 2 : (valueA ?? valueB)
     features.push({
       type: 'Feature',
       properties: { color: colorForMetric(value, range) },
@@ -526,11 +523,7 @@ export function coloredRouteGeoJson(points: RoutePoint[], mode: RouteColorMode):
   return { type: 'FeatureCollection', features }
 }
 
-export function upsertRouteLayer(
-  map: MapLibreMap,
-  points: RoutePoint[],
-  mode: RouteColorMode = 'solid',
-): void {
+export function upsertRouteLayer(map: MapLibreMap, points: RoutePoint[], mode: RouteColorMode = 'solid'): void {
   const data = coloredRouteGeoJson(points, mode)
   const existing = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined
   if (existing) {

@@ -102,12 +102,9 @@ function pointsKey(points: RoutePoint[]): string {
 }
 
 function mapInstanceKey(): string {
-  return [
-    pointsKey(props.points),
-    props.showBasemap ? '1' : '0',
-    props.interactive ? '1' : '0',
-    mapTheme.value,
-  ].join('|')
+  return [pointsKey(props.points), props.showBasemap ? '1' : '0', props.interactive ? '1' : '0', mapTheme.value].join(
+    '|',
+  )
 }
 
 function destroyMap() {
