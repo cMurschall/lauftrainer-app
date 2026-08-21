@@ -34,7 +34,6 @@ import PageHeader from '../components/PageHeader.vue'
 import {
   hasMapTilesUrl,
   type LonLat,
-  preferredRouteColorMode,
   type RouteColorMode,
   type RoutePoint,
   routeHasBasemapCoverage,
@@ -302,7 +301,7 @@ const modalStreamStats = computed(() => {
 const modalStreamChartMode = computed<RouteColorMode>(() => {
   const id = enlargedMapId.value
   if (!id) return 'solid'
-  return mapColorMode(id) ?? preferredRouteColorMode(workoutRoutePoints(id))
+  return mapColorMode(id) ?? 'solid'
 })
 
 const modalStreamChartSeries = computed(() => {
@@ -320,8 +319,9 @@ const streamHoverHighlight = computed(() => {
   return { longitude, latitude }
 })
 
-watch(enlargedMapId, () => {
+watch(enlargedMapId, (id) => {
   streamHoverIndex.value = null
+  if (id) setMapColorMode(id, 'solid')
 })
 
 const modalStreamChartUnits = computed(() => {
@@ -482,7 +482,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
           <WorkoutMap
             :points="workoutRoutePoints(enlargedWorkout.id)"
             :show-basemap="showBasemapFor(enlargedWorkout.id)"
-            :color-mode="mapColorMode(enlargedWorkout.id)"
+            :color-mode="mapColorMode(enlargedWorkout.id) ?? 'solid'"
             :highlight="streamHoverHighlight"
             interactive
             @place-name="(name) => enlargedWorkout && onMapPlaceName(enlargedWorkout.id, name)"
