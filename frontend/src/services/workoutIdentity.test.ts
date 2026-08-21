@@ -70,4 +70,24 @@ describe('mergeWorkouts', () => {
     expect(merged.calories).toBe(420)
     expect(merged.source).toBe('fit')
   })
+
+  it('keeps local sessionRpe when the next import/sync has none', () => {
+    const previous = workout({
+      id: 'strava-99',
+      name: 'Evening Ride',
+      sessionRpe: 7,
+      records: [{ elapsedSeconds: 0, latitude: 1, longitude: 2 }],
+    })
+    const next = workout({
+      id: 'strava-99',
+      name: 'Evening Ride',
+      source: 'strava',
+      sessionRpe: undefined,
+      records: [
+        { elapsedSeconds: 0, latitude: 1, longitude: 2, heartRateBpm: 140 },
+        { elapsedSeconds: 30, latitude: 1.1, longitude: 2.1, heartRateBpm: 145 },
+      ],
+    })
+    expect(mergeWorkouts(previous, next).sessionRpe).toBe(7)
+  })
 })
