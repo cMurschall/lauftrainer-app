@@ -54,7 +54,25 @@ describe('routePointsFromRecords', () => {
     expect(preferredRouteColorMode(points)).toBe('hr')
     const geo = coloredRouteGeoJson(points, 'hr')
     expect(geo.features).toHaveLength(1)
-    expect(String((geo.features[0].properties as { color: string }).color)).toMatch(/^#/)
+    expect(geo.features[0].geometry.type).toBe('LineString')
+  })
+})
+
+describe('routeLineGradientStops', () => {
+  it('builds a continuous gradient even when metrics are sparse', async () => {
+    const { routeLineGradientStops } = await import('./mapTiles')
+    const stops = routeLineGradientStops(
+      [
+        { longitude: 10, latitude: 54, heartRateBpm: 120 },
+        { longitude: 10.01, latitude: 54.01 },
+        { longitude: 10.02, latitude: 54.02 },
+        { longitude: 10.03, latitude: 54.03, heartRateBpm: 160 },
+      ],
+      'hr',
+    )
+    expect(stops[0]).toBe(0)
+    expect(stops[stops.length - 2]).toBe(1)
+    expect(stops.length).toBeGreaterThanOrEqual(4)
   })
 })
 

@@ -480,7 +480,7 @@ export function routeGeoJson(coords: LonLat[]): FeatureCollection {
     features: [
       {
         type: 'Feature',
-        properties: { color: ROUTE_COLOR },
+        properties: {},
         geometry: {
           type: 'LineString',
           coordinates: coords,
@@ -490,50 +490,120 @@ export function routeGeoJson(coords: LonLat[]): FeatureCollection {
   }
 }
 
-/** One colored segment per consecutive GPS pair (MapLibre `line-color: get color`). */
-export function coloredRouteGeoJson(points: RoutePoint[], mode: RouteColorMode): FeatureCollection {
-  if (points.length < 2) {
-    return { type: 'FeatureCollection', features: [] }
+/** Fill metric gaps between known samples (GPS track stays complete). */
+export function interpolateRouteMetrics(
+  points: RoutePoint[],
+  mode: RouteColorMode,
+): Array<number | undefined> {
+  const values = points.map((point) => metricAt(point, mode))
+  if (mode === 'solid') return values
+  const known: number[] = []
+  for (let index = 0; index < values.length; index += 1) {
+    if (values[index] !== undefined) known.push(index)
   }
-  const caps = routeColorCapabilities(points)
-  const effectiveMode = mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
-  if (effectiveMode === 'solid') {
-    return routeGeoJson(points.map((point) => [point.longitude, point.latitude]))
+  if (!known.length) return values
+
+  const filled = [...values]
+  const first = known[0]
+  const last = known[known.length - 1]
+  for (let index = 0; index < first; index += 1) filled[index] = filled[first]
+  for (let index = last + 1; index < filled.length; index += 1) filled[index] = filled[last]
+  for (let cursor = 0; cursor < known.length - 1; cursor += 1) {
+    const left = known[cursor]
+    const right = known[cursor + 1]
+    const leftValue = filled[left]
+    const rightValue = filled[right]
+    if (leftValue === undefined || rightValue === undefined || right - left <= 1) continue
+    for (let index = left + 1; index < right; index += 1) {
+      const t = (index - left) / (right - left)
+      filled[index] = leftValue + (rightValue - leftValue) * t
+    }
   }
-  const range = routeMetricRange(points, effectiveMode)
-  const features: FeatureCollection['features'] = []
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const a = points[index]
-    const b = points[index + 1]
-    const valueA = metricAt(a, effectiveMode)
-    const valueB = metricAt(b, effectiveMode)
-    const value = valueA !== undefined && valueB !== undefined ? (valueA + valueB) / 2 : (valueA ?? valueB)
-    features.push({
-      type: 'Feature',
-      properties: { color: colorForMetric(value, range) },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [a.longitude, a.latitude],
-          [b.longitude, b.latitude],
-        ],
-      },
-    })
-  }
-  return { type: 'FeatureCollection', features }
+  return filled
 }
 
-export function upsertRouteLayer(map: MapLibreMap, points: RoutePoint[], mode: RouteColorMode = 'solid'): void {
-  const data = coloredRouteGeoJson(points, mode)
-  const existing = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined
-  if (existing) {
-    existing.setData(data)
-    if (map.getLayer(ROUTE_LAYER)) {
-      map.setPaintProperty(ROUTE_LAYER, 'line-color', ['get', 'color'])
-    }
-    return
+function segmentLengthMeters(a: RoutePoint, b: RoutePoint): number {
+  const toRad = (degrees: number) => (degrees * Math.PI) / 180
+  const lat1 = toRad(a.latitude)
+  const lat2 = toRad(b.latitude)
+  const dLat = lat2 - lat1
+  const dLng = toRad(b.longitude - a.longitude)
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+/** MapLibre `line-gradient` stops: [progress, color, ...]. */
+export function routeLineGradientStops(
+  points: RoutePoint[],
+  mode: RouteColorMode,
+  maxStops = 64,
+): Array<number | string> {
+  const caps = routeColorCapabilities(points)
+  const effectiveMode =
+    mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
+  if (effectiveMode === 'solid' || points.length < 2) {
+    return [0, ROUTE_COLOR, 1, ROUTE_COLOR]
   }
-  map.addSource(ROUTE_SOURCE, { type: 'geojson', data })
+
+  const metrics = interpolateRouteMetrics(points, effectiveMode)
+  const knownForRange = points
+    .map((point, index) => ({ point, value: metrics[index] }))
+    .filter((entry) => entry.value !== undefined)
+  let min = Number.POSITIVE_INFINITY
+  let max = Number.NEGATIVE_INFINITY
+  for (const entry of knownForRange) {
+    min = Math.min(min, entry.value as number)
+    max = Math.max(max, entry.value as number)
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, ROUTE_COLOR, 1, ROUTE_COLOR]
+  if (max - min < 1e-6) {
+    const pad = effectiveMode === 'hr' ? 5 : 0.5
+    min -= pad
+    max += pad
+  }
+  const range = { min, max }
+
+  const distances = [0]
+  for (let index = 1; index < points.length; index += 1) {
+    distances.push(distances[index - 1] + segmentLengthMeters(points[index - 1], points[index]))
+  }
+  const total = distances[distances.length - 1] || 1
+  const sampleCount = Math.min(maxStops, points.length)
+  const stops: Array<number | string> = []
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const index =
+      sampleCount === 1 ? 0 : Math.round((sample / (sampleCount - 1)) * (points.length - 1))
+    const progress = Math.min(1, Math.max(0, distances[index] / total))
+    const color = colorForMetric(metrics[index], range)
+    if (stops.length >= 2 && stops[stops.length - 2] === progress) {
+      stops[stops.length - 1] = color
+      continue
+    }
+    stops.push(progress, color)
+  }
+  if (stops[0] !== 0) stops.unshift(0, String(stops[1] ?? ROUTE_COLOR))
+  if (stops[stops.length - 2] !== 1) stops.push(1, String(stops[stops.length - 1] ?? ROUTE_COLOR))
+  return stops
+}
+
+/** Always one continuous LineString — color via line-gradient, not per-segment features. */
+export function coloredRouteGeoJson(points: RoutePoint[], _mode: RouteColorMode = 'solid'): FeatureCollection {
+  if (points.length < 2) return { type: 'FeatureCollection', features: [] }
+  return routeGeoJson(points.map((point) => [point.longitude, point.latitude]))
+}
+
+export function upsertRouteLayer(
+  map: MapLibreMap,
+  points: RoutePoint[],
+  mode: RouteColorMode = 'solid',
+): void {
+  const data = coloredRouteGeoJson(points, mode)
+  // Recreate so lineMetrics is always enabled (required for line-gradient).
+  if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER)
+  if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE)
+
+  map.addSource(ROUTE_SOURCE, { type: 'geojson', lineMetrics: true, data })
   map.addLayer({
     id: ROUTE_LAYER,
     type: 'line',
@@ -543,9 +613,9 @@ export function upsertRouteLayer(map: MapLibreMap, points: RoutePoint[], mode: R
       'line-cap': 'round',
     },
     paint: {
-      'line-color': ['get', 'color'],
-      'line-width': 3.5,
+      'line-width': 4,
       'line-opacity': 0.95,
+      'line-gradient': ['interpolate', ['linear'], ['line-progress'], ...routeLineGradientStops(points, mode)],
     },
   })
 }

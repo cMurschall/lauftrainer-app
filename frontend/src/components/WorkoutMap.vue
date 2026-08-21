@@ -209,6 +209,15 @@ watch(resolvedColorMode, () => {
   <div class="workout-map-shell" :class="mapTheme === 'dark' ? 'is-dark' : 'is-light'">
     <div ref="containerRef" class="workout-map" role="img" aria-label="Route map" />
     <div v-if="showModeToggle" class="map-color-controls" @click.stop>
+      <div
+        class="map-color-legend"
+        :class="{ 'is-placeholder': resolvedColorMode === 'solid' || !legendRange }"
+        aria-hidden="true"
+      >
+        <span>{{ legendLow || '—' }}</span>
+        <span class="map-color-legend-bar" />
+        <span>{{ legendHigh || '—' }}{{ legendUnit ? ` ${legendUnit}` : '' }}</span>
+      </div>
       <div class="map-color-modes" role="group" :aria-label="t.mapColorMode">
         <button
           type="button"
@@ -236,11 +245,6 @@ watch(resolvedColorMode, () => {
         >
           {{ t.mapColorPace }}
         </button>
-      </div>
-      <div v-if="legendRange && resolvedColorMode !== 'solid'" class="map-color-legend">
-        <span>{{ legendLow }}</span>
-        <span class="map-color-legend-bar" aria-hidden="true" />
-        <span>{{ legendHigh }}{{ legendUnit ? ` ${legendUnit}` : '' }}</span>
       </div>
     </div>
     <a
@@ -347,10 +351,15 @@ watch(resolvedColorMode, () => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 14px;
   color: #8b949e;
   font-size: 0.62rem;
   font-weight: 550;
   letter-spacing: 0.02em;
+}
+
+.map-color-legend.is-placeholder {
+  visibility: hidden;
 }
 
 .workout-map-shell.is-light .map-color-legend {
