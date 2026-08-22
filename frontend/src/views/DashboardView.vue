@@ -252,7 +252,7 @@ function workoutRouteCoordinates(workoutId: string): LonLat[] {
 
 function workoutRoutePoints(workoutId: string): RoutePoint[] {
   const workoutObj = workouts.workouts.find((w) => w.id === workoutId)
-  return routePointsFromRecords(workoutObj?.records)
+  return routePointsFromRecords(workoutObj?.records, workoutObj?.sport)
 }
 
 const mapColorModeById = ref<Record<string, RouteColorMode>>({})
