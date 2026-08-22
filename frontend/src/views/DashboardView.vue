@@ -335,6 +335,30 @@ const modalStreamChartUnits = computed(() => {
   }
 })
 
+const modalHasHrKpis = computed(() => {
+  const workout = enlargedWorkout.value
+  const stats = modalStreamStats.value
+  return Boolean(
+    workout?.averageHeartRate ||
+      (stats?.hrMin != null && stats?.hrMax != null),
+  )
+})
+
+const modalHasProfileKpis = computed(() => {
+  const workout = enlargedWorkout.value
+  return Boolean(
+    workout?.calories ||
+      workout?.elevationGainM ||
+      workout?.ascentM ||
+      workout?.averagePowerW,
+  )
+})
+
+const modalHasAnalysisKpis = computed(() => {
+  const stats = modalStreamStats.value
+  return stats?.steadinessPct != null || stats?.decouplingPct != null
+})
+
 function displayPaceSeconds(workout: (typeof summaries.value)[number]): number | undefined {
   const stats =
     workout.id === enlargedMapId.value ? modalStreamStats.value : workoutStreamStats(workout.id)
@@ -490,62 +514,90 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
           />
         </div>
         <div class="map-modal-details">
-          <div class="activity-detail-grid">
-            <div v-if="enlargedWorkout.distanceKm" class="activity-detail-kpi">
-              <span>{{ t.totalDistance }}</span>
-              <strong>{{ formatWorkoutDistance(enlargedWorkout.distanceKm) }}</strong>
+          <section class="map-modal-kpi-section">
+            <p class="eyebrow">{{ t.mapDetailBasics }}</p>
+            <div class="activity-detail-grid map-modal-kpi-grid">
+              <div v-if="enlargedWorkout.distanceKm" class="activity-detail-kpi">
+                <span>{{ t.totalDistance }}</span>
+                <strong>{{ formatWorkoutDistance(enlargedWorkout.distanceKm) }}</strong>
+              </div>
+              <div class="activity-detail-kpi">
+                <span>{{ t.trainingTime }}</span>
+                <strong>{{ formatWorkoutDuration(enlargedWorkout.durationSeconds) }}</strong>
+              </div>
+              <div v-if="displayPaceSeconds(enlargedWorkout)" class="activity-detail-kpi">
+                <span>{{ t.paceAvg }}</span>
+                <strong>{{ formatPace(displayPaceSeconds(enlargedWorkout)) }}</strong>
+              </div>
             </div>
-            <div class="activity-detail-kpi">
-              <span>{{ t.trainingTime }}</span>
-              <strong>{{ formatWorkoutDuration(enlargedWorkout.durationSeconds) }}</strong>
+          </section>
+
+          <section v-if="modalHasHrKpis" class="map-modal-kpi-section">
+            <p class="eyebrow">{{ t.mapDetailHr }}</p>
+            <div class="activity-detail-grid map-modal-kpi-grid">
+              <div v-if="enlargedWorkout.averageHeartRate" class="activity-detail-kpi">
+                <span>{{ t.hrAvg }}</span>
+                <strong>{{ Math.round(enlargedWorkout.averageHeartRate) }} bpm</strong>
+              </div>
+              <div
+                v-if="modalStreamStats?.hrMin != null && modalStreamStats?.hrMax != null"
+                class="activity-detail-kpi"
+              >
+                <span>{{ t.hrMinMax }}</span>
+                <strong>{{ modalStreamStats.hrMin }}–{{ modalStreamStats.hrMax }} bpm</strong>
+              </div>
             </div>
-            <div v-if="displayPaceSeconds(enlargedWorkout)" class="activity-detail-kpi">
-              <span>{{ t.paceAvg }}</span>
-              <strong>{{ formatPace(displayPaceSeconds(enlargedWorkout)) }}</strong>
+          </section>
+
+          <section v-if="modalHasProfileKpis" class="map-modal-kpi-section">
+            <p class="eyebrow">{{ t.mapDetailProfile }}</p>
+            <div class="activity-detail-grid map-modal-kpi-grid">
+              <div v-if="enlargedWorkout.elevationGainM || enlargedWorkout.ascentM" class="activity-detail-kpi">
+                <span>{{ t.elevationGain }}</span>
+                <strong>{{ Math.round(enlargedWorkout.elevationGainM || enlargedWorkout.ascentM || 0) }} hm ↑</strong>
+              </div>
+              <div v-if="enlargedWorkout.averagePowerW" class="activity-detail-kpi">
+                <span>{{ t.powerAvg }}</span>
+                <strong>{{ Math.round(enlargedWorkout.averagePowerW) }} W</strong>
+              </div>
+              <div v-if="enlargedWorkout.calories" class="activity-detail-kpi">
+                <span>{{ t.calories }}</span>
+                <strong>{{ enlargedWorkout.calories }} kcal</strong>
+              </div>
             </div>
-            <div v-if="enlargedWorkout.averageHeartRate" class="activity-detail-kpi">
-              <span>Puls (Ø)</span>
-              <strong>{{ Math.round(enlargedWorkout.averageHeartRate) }} bpm</strong>
+          </section>
+
+          <section v-if="modalHasAnalysisKpis" class="map-modal-kpi-section">
+            <p class="eyebrow">{{ t.mapDetailAnalysis }}</p>
+            <div class="activity-detail-grid map-modal-kpi-grid">
+              <div v-if="modalStreamStats?.steadinessPct != null" class="activity-detail-kpi">
+                <span>{{ t.steadiness }}</span>
+                <strong>{{ modalStreamStats.steadinessPct }} %</strong>
+              </div>
+              <div
+                v-if="modalStreamStats?.decouplingPct != null"
+                class="activity-detail-kpi"
+                :title="t.decouplingHint"
+              >
+                <span>{{ t.decoupling }}</span>
+                <strong>{{ formatDecoupling(modalStreamStats.decouplingPct) }}</strong>
+              </div>
             </div>
-            <div
-              v-if="modalStreamStats?.hrMin != null && modalStreamStats?.hrMax != null"
-              class="activity-detail-kpi"
-            >
-              <span>{{ t.hrMinMax }}</span>
-              <strong>{{ modalStreamStats.hrMin }}–{{ modalStreamStats.hrMax }} bpm</strong>
+          </section>
+
+          <section class="map-modal-kpi-section map-modal-kpi-meta">
+            <p class="eyebrow">{{ t.mapDetailMeta }}</p>
+            <div class="activity-detail-grid map-modal-kpi-grid">
+              <div class="activity-detail-kpi">
+                <span>{{ t.sourceType }}</span>
+                <strong class="is-source">{{ enlargedWorkout.source }}</strong>
+              </div>
             </div>
-            <div v-if="enlargedWorkout.calories" class="activity-detail-kpi">
-              <span>Kalorien</span>
-              <strong>{{ enlargedWorkout.calories }} kcal</strong>
-            </div>
-            <div v-if="enlargedWorkout.elevationGainM || enlargedWorkout.ascentM" class="activity-detail-kpi">
-              <span>Höhenmeter</span>
-              <strong>{{ Math.round(enlargedWorkout.elevationGainM || enlargedWorkout.ascentM || 0) }} hm ↑</strong>
-            </div>
-            <div v-if="enlargedWorkout.averagePowerW" class="activity-detail-kpi">
-              <span>Leistung (Ø)</span>
-              <strong>{{ Math.round(enlargedWorkout.averagePowerW) }} W</strong>
-            </div>
-            <div v-if="modalStreamStats?.steadinessPct != null" class="activity-detail-kpi">
-              <span>{{ t.steadiness }}</span>
-              <strong>{{ modalStreamStats.steadinessPct }} %</strong>
-            </div>
-            <div
-              v-if="modalStreamStats?.decouplingPct != null"
-              class="activity-detail-kpi"
-              :title="t.decouplingHint"
-            >
-              <span>{{ t.decoupling }}</span>
-              <strong>{{ formatDecoupling(modalStreamStats.decouplingPct) }}</strong>
-            </div>
-            <div class="activity-detail-kpi">
-              <span>Quelle / Typ</span>
-              <strong class="is-source">{{ enlargedWorkout.source }}</strong>
-            </div>
-          </div>
-          <p v-if="workoutTrackDataLabel(enlargedWorkout.id)" class="activity-route-map-data muted">
-            {{ workoutTrackDataLabel(enlargedWorkout.id) }}
-          </p>
+            <p v-if="workoutTrackDataLabel(enlargedWorkout.id)" class="activity-route-map-data muted">
+              {{ workoutTrackDataLabel(enlargedWorkout.id) }}
+            </p>
+          </section>
+
           <div v-if="modalStreamChartSeries.length" class="activity-detail-charts">
             <p class="eyebrow">{{ t.streamChart }}</p>
             <div class="activity-detail-chart-wrap map-modal-chart-wrap">

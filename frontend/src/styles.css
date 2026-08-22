@@ -1930,6 +1930,24 @@
     min-width: 0;
   }
 
+  .map-modal-kpi-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .map-modal-kpi-section .eyebrow {
+    margin: 0;
+  }
+
+  .map-modal-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-modal-kpi-meta .activity-route-map-data {
+    margin: 0;
+  }
+
   .map-modal-chart-wrap {
     height: 160px;
   }
