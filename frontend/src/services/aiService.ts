@@ -152,6 +152,8 @@ export async function requestTrainingPlan(
           z2_percent: round(week.z2Pct),
           z3_percent: round(week.z3Pct),
         })),
+        latest_vo2max_mlkgmin: analysis?.vo2max.latest,
+        vo2max_trend_delta_mlkgmin: analysis?.vo2max.trendDelta,
       },
       recent_workouts: sorted.slice(0, 21).map((workout) => ({
         date: workout.date,

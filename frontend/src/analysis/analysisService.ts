@@ -8,7 +8,7 @@ import { diagnosticLog } from '../services/logger'
 import { cloneWorkoutsForAnalysis } from '../utils/workoutSummary'
 import { plain } from '../utils/clone'
 
-export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v2-multisport'
+export const ANALYSIS_ALGORITHM_VERSION = 'analysis-v3-vo2max'
 
 function stableValue(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`

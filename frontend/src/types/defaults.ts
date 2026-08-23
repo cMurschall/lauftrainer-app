@@ -5,7 +5,7 @@ export const defaultUserConfig = (): UserConfig => ({
   trainingFocus: 'base_endurance',
   preferredTrainingDays: ['monday', 'wednesday', 'friday'],
   hrZones: { z1: [90, 106], z2: [107, 124], z3: [125, 142], z4: [143, 160], z5: [161, 179] },
-  thresholds: { lthr: 160, hr_max: 186 },
+  thresholds: { lthr: 160, hr_max: 186, hr_rest: 55 },
   primarySports: ['Running'],
   // Running is the safe default. Other sports must be explicitly enabled by the athlete.
   availableSports: ['Running'],

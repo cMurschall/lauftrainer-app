@@ -54,7 +54,7 @@ const ui = useUiStore()
 const { summaries } = storeToRefs(workouts)
 const { plan, completedPlanDates } = storeToRefs(planStore)
 const { connectors } = storeToRefs(settings)
-const { analysis } = storeToRefs(analysisStore)
+const { analysis, analysisResult } = storeToRefs(analysisStore)
 const { connectorLoading } = storeToRefs(ui)
 
 const { t, locale } = useI18n()
@@ -150,6 +150,7 @@ const averageMinutes = computed(() =>
     weeks: 4,
   }),
 )
+const latestVo2max = computed(() => analysisResult.value?.vo2max.latest)
 const activityMeta = (workout: (typeof summaries.value)[number]) =>
   [
     formatWorkoutDuration(workout.durationSeconds),
@@ -638,6 +639,11 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
           }}
           h</strong
         >
+      </article>
+      <article v-if="latestVo2max != null" class="card">
+        <span>{{ t.vo2max }}</span>
+        <strong class="metric">{{ latestVo2max.toFixed(1) }}</strong>
+        <small>{{ t.vo2maxUnit }} · {{ t.vo2maxContext }}</small>
       </article>
     </section>
 

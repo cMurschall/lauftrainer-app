@@ -301,7 +301,6 @@ export function computeLoadBudget(sanitized: SanitizedInputs, profile: Record<st
   const activeLimitation = /\b(?:pain|injur|ache|schmerz|verletz|beschwerd|entzünd|reizung|rehab)/i.test(limitations)
   const recovery_week = risk === 'spike' || (tsb !== undefined && tsb <= -20) || (acwr !== undefined && acwr >= 1.5)
   const allow_quality = ctl >= 20 && !recovery_week && !activeLimitation && !lowConsistency
-  const max_quality_sessions = allow_quality ? 1 : 0
 
   const preferredDays = Array.isArray(profile.preferred_training_days)
     ? profile.preferred_training_days.map((day) => String(day).toLowerCase()).filter(Boolean)
@@ -313,6 +312,12 @@ export function computeLoadBudget(sanitized: SanitizedInputs, profile: Record<st
     Math.min(7, Math.round(frequency && frequency > 0 ? frequency : derivedFrequency)),
   )
   const max_training_sessions = recovery_week ? Math.min(3, requestedFrequency) : requestedFrequency
+  const trainingGoal = String(profile.training_goal || '').toLowerCase()
+  const max_quality_sessions = !allow_quality
+    ? 0
+    : trainingGoal === 'vo2max' && max_training_sessions >= 4
+      ? 2
+      : 1
   const max_endurance_sessions = resume_long ? Math.min(2, max_training_sessions) : max_training_sessions
   const strengthEnabled =
     Boolean(profile.strength_training) ||
@@ -549,6 +554,24 @@ export function reviewAndClampPlan(
     for (const index of qualityIndexes.slice(budget.max_quality_sessions)) {
       days[index] = softenQuality(days[index])
       repairs.push(`quality_softened:${days[index].date}`)
+    }
+  }
+
+  // After count clamp, avoid back-to-back hard days by softening the later session.
+  const remainingQuality = days
+    .map((day, index) => (isQualitySession(day) ? index : -1))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)
+  for (let i = 1; i < remainingQuality.length; i += 1) {
+    const prev = remainingQuality[i - 1]
+    const curr = remainingQuality[i]
+    const prevDate = Date.parse(`${days[prev].date}T00:00:00Z`)
+    const currDate = Date.parse(`${days[curr].date}T00:00:00Z`)
+    if (!Number.isFinite(prevDate) || !Number.isFinite(currDate)) continue
+    const dayGap = Math.round((currDate - prevDate) / 86_400_000)
+    if (dayGap <= 1) {
+      days[curr] = softenQuality(days[curr])
+      repairs.push(`quality_adjacent_softened:${days[curr].date}`)
     }
   }
 

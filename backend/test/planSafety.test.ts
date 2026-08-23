@@ -156,6 +156,80 @@ describe('computeLoadBudget', () => {
     })
     assert.equal(budget.max_training_sessions, 4)
   })
+
+  it('allows one quality session for safe non-vo2max athletes', () => {
+    const sanitized = sanitizePlanInputs({
+      metrics: {
+        weekly: [
+          { week_start: '2026-07-20', total_minutes: 120 },
+          { week_start: '2026-07-27', total_minutes: 140 },
+          { week_start: '2026-08-03', total_minutes: 130 },
+        ],
+        latest_load: { ctl: 35, atl: 30, tsb: 5, acwr: 1.0, risk: 'optimal' },
+      },
+      recent_workouts: [
+        { sport: 'running', duration_minutes: 45, distance_km: 7 },
+        { sport: 'running', duration_minutes: 50, distance_km: 8 },
+      ],
+    })
+    const budget = computeLoadBudget(sanitized, {
+      training_goal: 'performance',
+      training_frequency_per_week: 4,
+    })
+    assert.equal(budget.allow_quality, true)
+    assert.equal(budget.max_quality_sessions, 1)
+  })
+
+  it('allows two quality sessions for vo2max goal when frequency and load are safe', () => {
+    const sanitized = sanitizePlanInputs({
+      metrics: {
+        weekly: [
+          { week_start: '2026-07-20', total_minutes: 120 },
+          { week_start: '2026-07-27', total_minutes: 140 },
+          { week_start: '2026-08-03', total_minutes: 130 },
+        ],
+        latest_load: { ctl: 35, atl: 30, tsb: 5, acwr: 1.0, risk: 'optimal' },
+      },
+      recent_workouts: [
+        { sport: 'running', duration_minutes: 45, distance_km: 7 },
+        { sport: 'running', duration_minutes: 50, distance_km: 8 },
+      ],
+    })
+    const two = computeLoadBudget(sanitized, {
+      training_goal: 'vo2max',
+      training_frequency_per_week: 4,
+    })
+    assert.equal(two.allow_quality, true)
+    assert.equal(two.max_quality_sessions, 2)
+
+    const threeDays = computeLoadBudget(sanitized, {
+      training_goal: 'vo2max',
+      training_frequency_per_week: 3,
+    })
+    assert.equal(threeDays.max_quality_sessions, 1)
+  })
+
+  it('keeps vo2max quality at zero during recovery or injury limitations', () => {
+    const sanitized = sanitizePlanInputs({
+      metrics: {
+        weekly: [
+          { week_start: '2026-07-20', total_minutes: 180 },
+          { week_start: '2026-07-27', total_minutes: 200 },
+        ],
+        latest_load: { ctl: 40, atl: 70, tsb: -30, acwr: 1.65, risk: 'spike' },
+      },
+      recent_workouts: [
+        { sport: 'running', duration_minutes: 70, distance_km: 11 },
+        { sport: 'running', duration_minutes: 50, distance_km: 8 },
+      ],
+    })
+    const budget = computeLoadBudget(sanitized, {
+      training_goal: 'vo2max',
+      training_frequency_per_week: 5,
+      limitations: 'Knie-Schmerz beim Laufen',
+    })
+    assert.equal(budget.max_quality_sessions, 0)
+  })
 })
 
 describe('reviewAndClampPlan', () => {
@@ -393,5 +467,50 @@ describe('reviewAndClampPlan', () => {
     assert.equal(friday?.sport_label, 'Yoga')
     assert.equal(sunday?.session_type, 'rest')
     assert.ok(repairs.some((item) => item.startsWith('sport_whitelist:2026-08-16')))
+  })
+
+  it('softens back-to-back quality days even when two are allowed', () => {
+    const { plan, repairs } = reviewAndClampPlan(
+      planFromDays([
+        day({
+          date: '2026-08-14',
+          day: 'friday',
+          sport: 'running',
+          total_duration_minutes: 40,
+          title: 'VO2max intervals',
+          description: 'Hard vo2max repeats',
+          target_focus: 'vo2max',
+        }),
+        day({
+          date: '2026-08-15',
+          day: 'saturday',
+          sport: 'running',
+          total_duration_minutes: 40,
+          title: 'VO2max intervals',
+          description: 'Hard vo2max repeats',
+          target_focus: 'vo2max',
+        }),
+        day({ date: '2026-08-16', day: 'sunday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-17', day: 'monday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-18', day: 'tuesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-19', day: 'wednesday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+        day({ date: '2026-08-20', day: 'thursday', sport: 'other', session_type: 'rest', total_duration_minutes: 0 }),
+      ]),
+      {
+        ...baseBudget,
+        max_total_training_minutes: 120,
+        max_long_run_minutes: 50,
+        max_quality_sessions: 2,
+        allow_quality: true,
+        max_training_sessions: 4,
+        max_endurance_sessions: 4,
+      },
+      { available_sports: ['running'] },
+    )
+    const friday = plan.days.find((item) => item.date === '2026-08-14')
+    const saturday = plan.days.find((item) => item.date === '2026-08-15')
+    assert.equal(isQualitySession(friday!), true)
+    assert.equal(isQualitySession(saturday!), false)
+    assert.ok(repairs.some((item) => item.startsWith('quality_adjacent_softened:2026-08-15')))
   })
 })

@@ -1,4 +1,5 @@
 import type { ActivityRecord, Workout } from '../types/workout'
+import { isPlausibleHeartRate, isPlausibleSpeedKmh, plausibleHeartRate, plausibleSpeedKmh } from './streamPlausibility'
 
 export type WorkoutStreamStats = {
   hrMin?: number
@@ -43,9 +44,9 @@ function mean(values: number[]): number | undefined {
 }
 
 /** Pace as seconds/km from speed km/h. */
-export function paceSecondsFromSpeedKmh(speedKmh: number): number | undefined {
-  if (!Number.isFinite(speedKmh) || speedKmh <= 0.2) return undefined
-  return (3600 / speedKmh)
+export function paceSecondsFromSpeedKmh(speedKmh: number, sport?: string): number | undefined {
+  if (!isPlausibleSpeedKmh(speedKmh, sport)) return undefined
+  return 3600 / speedKmh
 }
 
 export function formatPaceMinutes(secondsPerKm: number): number {
@@ -67,6 +68,7 @@ function steadinessPctFromValues(values: number[]): number | undefined {
 export function computeDecouplingPct(
   records: ActivityRecord[],
   durationSeconds: number,
+  sport?: string,
 ): number | undefined {
   if (durationSeconds < DECOUPLE_MIN_DURATION_S) return undefined
   const paired = records
@@ -74,7 +76,9 @@ export function computeDecouplingPct(
       const hr = record.heartRateBpm
       const speed = record.speedKmh
       const t = record.elapsedSeconds
-      if (!finite(hr) || hr < 50 || !finite(speed) || speed <= 0.2 || !finite(t)) return undefined
+      if (!finite(hr) || hr < 50 || !isPlausibleHeartRate(hr) || !finite(speed) || !isPlausibleSpeedKmh(speed, sport) || !finite(t)) {
+        return undefined
+      }
       return { t, hr, speed, ef: speed / hr }
     })
     .filter((row): row is { t: number; hr: number; speed: number; ef: number } => Boolean(row))
@@ -154,7 +158,7 @@ export function resolveDisplayPaceSeconds(
     return workout.averagePaceSecondsPerKm
   }
   if (finite(streamPaceAvg) && streamPaceAvg! > 0) return streamPaceAvg
-  if (finite(workout.averageSpeedKmh) && workout.averageSpeedKmh! > 0.2) {
+  if (finite(workout.averageSpeedKmh) && isPlausibleSpeedKmh(workout.averageSpeedKmh!)) {
     return paceSecondsFromSpeedKmh(workout.averageSpeedKmh!)
   }
   if (
@@ -169,14 +173,19 @@ export function resolveDisplayPaceSeconds(
 }
 
 export function computeWorkoutStreamStats(
-  workout: Pick<Workout, 'durationSeconds' | 'records'>,
+  workout: Pick<Workout, 'durationSeconds' | 'records'> & { sport?: string },
 ): WorkoutStreamStats {
   const records = workout.records || []
-  const heartRates = records.map((r) => r.heartRateBpm).filter(finite)
-  const speeds = records.map((r) => r.speedKmh).filter((v): v is number => finite(v) && v > 0.2)
+  const sport = workout.sport
+  const heartRates = records
+    .map((record) => plausibleHeartRate(record.heartRateBpm))
+    .filter((value): value is number => value !== undefined)
+  const speeds = records
+    .map((record) => plausibleSpeedKmh(record.speedKmh, sport))
+    .filter((value): value is number => value !== undefined)
   const paces = speeds
-    .map((speed) => paceSecondsFromSpeedKmh(speed))
-    .filter((v): v is number => finite(v))
+    .map((speed) => paceSecondsFromSpeedKmh(speed, sport))
+    .filter((value): value is number => finite(value))
 
   const hrMin = heartRates.length ? Math.min(...heartRates) : undefined
   const hrMax = heartRates.length ? Math.max(...heartRates) : undefined
@@ -193,7 +202,7 @@ export function computeWorkoutStreamStats(
     speeds.length >= STEADINESS_MIN_SAMPLES &&
     (steadinessPct ?? 0) >= DECOUPLE_MIN_STEADINESS
   ) {
-    decouplingPct = computeDecouplingPct(records, workout.durationSeconds)
+    decouplingPct = computeDecouplingPct(records, workout.durationSeconds, sport)
   }
 
   const indices = downsampleIndices(records.length, CHART_MAX_POINTS)
@@ -208,8 +217,11 @@ export function computeWorkoutStreamStats(
     const elapsed = finite(record?.elapsedSeconds) ? record.elapsedSeconds : index
     chartElapsedSeconds.push(elapsed)
     chartLabels.push(minuteLabel(elapsed))
-    chartHeartRate.push(finite(record?.heartRateBpm) ? record.heartRateBpm! : null)
-    const paceSec = finite(record?.speedKmh) ? paceSecondsFromSpeedKmh(record.speedKmh!) : undefined
+    const hr = plausibleHeartRate(record?.heartRateBpm)
+    chartHeartRate.push(hr ?? null)
+    const paceSec = plausibleSpeedKmh(record?.speedKmh, sport)
+      ? paceSecondsFromSpeedKmh(record!.speedKmh!, sport)
+      : undefined
     chartPaceMinPerKm.push(paceSec !== undefined ? formatPaceMinutes(paceSec) : null)
     chartCoordinates.push(nearestChartCoordinate(records, index))
   }

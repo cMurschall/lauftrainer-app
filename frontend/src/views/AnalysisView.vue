@@ -30,6 +30,7 @@ const results = computed<AnalysisResult>(
       polarization: [],
       hrZones: [],
       efficiency: [],
+      vo2max: { points: [] },
       sports: [],
       triathlonGroups: [],
     },
@@ -77,6 +78,14 @@ const efficiencyTrend = computed(() =>
     return window.reduce((sum, item) => sum + item.efficiency, 0) / window.length
   }),
 )
+const vo2maxPoints = computed(() => results.value.vo2max.points.filter((x) => inRange(x.date)))
+const vo2maxTrend = computed(() =>
+  vo2maxPoints.value.map((_, index, values) => {
+    const window = values.slice(Math.max(0, index - 7), index + 1)
+    return window.reduce((sum, item) => sum + item.vo2max, 0) / window.length
+  }),
+)
+const latestVo2max = computed(() => results.value.vo2max.latest)
 const lastLoad = computed(() => [...load.value].at(-1))
 const tsbContext = computed(() => (lastLoad.value && lastLoad.value.tsb < 0 ? t.value.tsbFatigue : t.value.tsbFresh))
 const acwrPoints = computed(() => load.value.filter((x) => x.acwr != null && Number.isFinite(x.acwr)))
@@ -247,6 +256,11 @@ async function saveRpe(workout: Workout, value: string) {
         <span>{{ t.acwr }}</span>
         <strong class="metric">{{ lastLoad?.acwr?.toFixed(2) || '–' }}</strong>
         <small v-if="lastLoad">{{ lastLoad.risk }} · {{ t.acwrContext }}</small>
+      </article>
+      <article class="card">
+        <span>{{ t.vo2max }}</span>
+        <strong class="metric">{{ latestVo2max != null ? latestVo2max.toFixed(1) : '–' }}</strong>
+        <small>{{ t.vo2maxContext }}</small>
       </article>
       <article class="card">
         <span>{{ t.trainingTime }}</span>
@@ -452,6 +466,36 @@ async function saveRpe(workout: Workout, value: string) {
         />
         <p v-else>{{ t.noData }}</p>
         <ChartHelp :summary="t.chartHelpSummary" :paragraphs="t.helpEfficiency" />
+      </section>
+      <section class="card analysis-chart-card">
+        <p class="eyebrow">{{ t.vo2maxEstimate }}</p>
+        <MiniChart
+          v-if="vo2maxPoints.length"
+          :dynamic-y="true"
+          :non-negative="true"
+          y-unit="vo2max"
+          :labels="chartLabels(vo2maxPoints)"
+          :tooltip-labels="chartTooltipLabels(vo2maxPoints)"
+          :series="[
+            {
+              name: t.vo2max,
+              values: vo2maxPoints.map((x) => x.vo2max),
+              color: 'var(--accent)',
+              pointRadius: 3,
+              showLine: false,
+              borderWidth: 0,
+            },
+            {
+              name: t.vo2maxTrend,
+              values: vo2maxTrend,
+              color: 'var(--chart-blue)',
+              pointRadius: 0,
+              borderWidth: 3,
+            },
+          ]"
+        />
+        <p v-else>{{ t.vo2maxEmpty }}</p>
+        <ChartHelp :summary="t.chartHelpSummary" :paragraphs="t.helpVo2max" />
       </section>
       <section class="card analysis-chart-card">
         <p class="eyebrow">{{ t.fosterRpe }}</p>

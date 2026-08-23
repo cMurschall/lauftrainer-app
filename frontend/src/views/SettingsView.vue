@@ -100,6 +100,7 @@ const mapDetailsConsentOptions = computed(() => [
 const trainingGoalOptions = computed(() => [
   { label: t.value.goalBaseEndurance, value: 'base_endurance' },
   { label: t.value.goalPerformance, value: 'performance' },
+  { label: t.value.goalVo2max, value: 'vo2max' },
   { label: t.value.goalRecovery, value: 'recovery' },
   { label: t.value.goalGeneralFitness, value: 'general_fitness' },
 ])
@@ -365,6 +366,20 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
         >{{ t.lthr }}<input v-model.number="config.thresholds.lthr" type="number" @change="saveConfigAndRefresh" /><span
           class="field-help"
           >{{ t.lthrHelp }}</span
+        ></label
+      >
+      <label
+        >{{ t.hrMax
+        }}<input v-model.number="config.thresholds.hr_max" type="number" @change="saveConfigAndRefresh" /><span
+          class="field-help"
+          >{{ t.hrMaxHelp }}</span
+        ></label
+      >
+      <label
+        >{{ t.hrRest
+        }}<input v-model.number="config.thresholds.hr_rest" type="number" @change="saveConfigAndRefresh" /><span
+          class="field-help"
+          >{{ t.hrRestHelp }}</span
         ></label
       >
       <label

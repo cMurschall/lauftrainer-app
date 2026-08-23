@@ -30,7 +30,8 @@ npm run dev
 - Dateiimport: CSV (inkl. Polar-Zeitreihen), JSON, TCX, GPX, FIT (`@garmin/fitsdk`). Rohdaten verlassen den Browser beim Import nicht.
 - Dedup: SHA-256 für Dateien; zusätzliche Aktivitäts-Fingerprints nach Connector-Sync.
 - Speicherung: Custom IndexedDB (`frontend/src/db/database.ts`), nicht Dexie.
-- Analyse u. a.: Wochenvolumen, CTL/ATL/TSB, ACWR, Foster (± RPE), 3-Zonen-Polarisation, 5-HR-Zonen, Laufeffizienz.
+- Analyse u. a.: Wochenvolumen, CTL/ATL/TSB, ACWR, Foster (± RPE), 3-Zonen-Polarisation, 5-HR-Zonen, Laufeffizienz, geschätzte Lauf-VO2max (lokal aus Pace/HF).
+- Trainingsziel u. a.: Grundlagenausdauer, Leistungssteigerung, VO2max, Erholung, allgemeine Fitness.
 - Backup: JSON exportieren / wiederherstellen in den Einstellungen.
 - Navigation: Dashboard → Analysen → Einstellungen (Sidebar); Credits unter `/pricing`.
 

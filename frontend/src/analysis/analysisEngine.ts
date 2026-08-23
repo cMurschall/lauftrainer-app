@@ -1,4 +1,5 @@
 import { SPORT_CATEGORIES, type SportCategory, type UserConfig, type Workout } from '../types/workout'
+import { calculateVo2maxEstimate } from './vo2maxEstimate'
 
 export type Sport = SportCategory
 
@@ -52,6 +53,18 @@ export interface EfficiencyPoint {
   workoutId: string
 }
 
+export interface Vo2maxPoint {
+  date: string
+  vo2max: number
+  workoutId: string
+}
+
+export interface Vo2maxEstimate {
+  points: Vo2maxPoint[]
+  latest?: number
+  trendDelta?: number
+}
+
 export interface SportMetrics {
   sport: SportCategory
   workoutCount: number
@@ -76,6 +89,7 @@ export interface AnalysisResult {
   polarization: PolarizationWeek[]
   hrZones: HrZoneWeek[]
   efficiency: EfficiencyPoint[]
+  vo2max: Vo2maxEstimate
   sports: SportMetrics[]
   triathlonGroups: Array<{ id: string; workouts: string[]; disciplines: Array<{ sport: string; order?: number }> }>
 }
@@ -389,6 +403,7 @@ export function calculateAnalysis(workouts: Workout[], config: UserConfig): Anal
     polarization: calculatePolarization(workouts, config),
     hrZones: calculateHrZoneDistribution(workouts, config),
     efficiency: calculateEfficiency(workouts),
+    vo2max: calculateVo2maxEstimate(workouts, config),
     sports: calculateSportMetrics(workouts),
     triathlonGroups: calculateTriathlonGroups(workouts),
   }

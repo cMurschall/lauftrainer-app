@@ -90,6 +90,7 @@ describe('computeWorkoutStreamStats', () => {
   it('maps chart samples to nearest GPS coordinates', () => {
     const stats = computeWorkoutStreamStats({
       durationSeconds: 120,
+      sport: 'Running',
       records: [
         { elapsedSeconds: 0, heartRateBpm: 120, latitude: 54, longitude: 10 },
         { elapsedSeconds: 60, heartRateBpm: 140 },
@@ -100,6 +101,21 @@ describe('computeWorkoutStreamStats', () => {
     expect(stats.chartCoordinates[0]).toEqual([10, 54])
     expect(stats.chartCoordinates[1]).toEqual([10, 54])
     expect(stats.chartCoordinates[2]).toEqual([10.1, 54.1])
+  })
+
+  it('drops implausible HR and pace outliers from aggregates', () => {
+    const stats = computeWorkoutStreamStats({
+      durationSeconds: 300,
+      sport: 'Running',
+      records: recordsFrom([
+        { t: 0, hr: 140, speed: 11 },
+        { t: 60, hr: 300, speed: 12 },
+        { t: 120, hr: 150, speed: 80 },
+      ]),
+    })
+    expect(stats.hrMin).toBe(140)
+    expect(stats.hrMax).toBe(150)
+    expect(stats.speedSampleCount).toBe(2)
   })
 })
 

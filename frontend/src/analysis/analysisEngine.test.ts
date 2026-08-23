@@ -197,9 +197,11 @@ describe('analysis engine', () => {
         'polarization',
         'sports',
         'triathlonGroups',
+        'vo2max',
         'weekly',
       ].sort(),
     )
+    expect(result.vo2max).toEqual({ points: [] })
     expect(result.load.length).toBeGreaterThan(0)
     expect(result.weekly.length).toBeGreaterThan(0)
   })

@@ -580,6 +580,28 @@ function coachStyleBlock(style: z.infer<typeof coachStyleEnum>): string {
   ].join('\n')
 }
 
+function trainingGoalBlock(profile: Record<string, unknown>, budget: LoadBudget): string {
+  const goal = String(profile.training_goal || 'base_endurance').toLowerCase()
+  const lines = [`TRAINING_GOAL: ${goal}`]
+  if (goal === 'vo2max') {
+    lines.push(
+      `Bias this rolling week toward VO2max development when HARD_CAPS allow quality (max_quality_sessions=${budget.max_quality_sessions}).`,
+      'Prefer 1–2 VO2max interval sessions (typical: 3–5 min hard near ~95% HRmax / 3–5 km race pace, equal easy recovery jogs), with the rest easy aerobic.',
+      'Do not stack extra threshold/tempo days on top. Separate quality days by at least one easy or rest day.',
+      'If max_quality_sessions is 0, keep everything easy and rebuild consistency first.',
+    )
+  } else if (goal === 'performance') {
+    lines.push('Bias toward race-relevant quality when safe, still obeying max_quality_sessions and recovery rules.')
+  } else if (goal === 'recovery') {
+    lines.push('Prioritize recovery and easy aerobic work; avoid hard sessions even if the budget allows quality.')
+  } else if (goal === 'general_fitness') {
+    lines.push('Keep sessions varied and sustainable; favor consistency over specialized intensity.')
+  } else {
+    lines.push('Prioritize easy aerobic base building; use quality sparingly and only within HARD_CAPS.')
+  }
+  return lines.join('\n')
+}
+
 function goalContext(goals: Array<Record<string, unknown>>, planStartDate: string): string {
   const upcoming = goals
     .map((goal) => {
@@ -661,6 +683,7 @@ function createPromptEnglish(
     'If PREVIOUS_PLAN is provided, continue logically from completion status: completed sessions can progress; skipped/incomplete hard sessions should be delayed or softened; do not blindly repeat an unfinished aggressive plan.',
     'Return only valid JSON without Markdown.',
     coachStyleBlock(data.coach_style),
+    trainingGoalBlock(data.profile, budget),
   ]
   const schema =
     'JSON schema: week_summary has focus_title and goal_description; days is an array of exactly seven objects. Each day needs date, day, sport, session_type, title, description, target_focus, total_duration_minutes, and workout_steps. Optional sport_label is only for custom sports with sport "other". Each step needs step_duration, step_intensity, and step_instruction.'

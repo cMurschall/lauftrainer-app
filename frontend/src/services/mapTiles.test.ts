@@ -56,6 +56,15 @@ describe('routePointsFromRecords', () => {
     expect(geo.features).toHaveLength(1)
     expect(geo.features[0].geometry.type).toBe('LineString')
   })
+
+  it('drops implausible metrics from route points', () => {
+    expect(
+      routePointsFromRecords(
+        [{ latitude: 54.3, longitude: 10.1, heartRateBpm: 300, speedKmh: 60 }],
+        'Running',
+      ),
+    ).toEqual([{ longitude: 10.1, latitude: 54.3 }])
+  })
 })
 
 describe('routeLineGradientStops', () => {

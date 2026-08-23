@@ -10,6 +10,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { layers, namedFlavor, type Flavor } from '@protomaps/basemaps'
 import { Protocol } from 'pmtiles'
 import type { FeatureCollection } from 'geojson'
+import { plausibleHeartRate, plausibleSpeedKmh } from '../utils/streamPlausibility'
 
 // MapLibre v6: Vite must bundle the worker; otherwise Firefox blocks .vite/deps/*.mjs (empty MIME).
 setWorkerUrl(maplibreWorkerUrl)
@@ -58,8 +59,9 @@ export type RoutePoint = {
 /** Lon/lat pairs from workout records (skips points without GPS). */
 export function routeCoordinatesFromRecords(
   records: Array<{ latitude?: number; longitude?: number }> | undefined,
+  sport?: string,
 ): LonLat[] {
-  return routePointsFromRecords(records).map((point) => [point.longitude, point.latitude])
+  return routePointsFromRecords(records, sport).map((point) => [point.longitude, point.latitude])
 }
 
 /** GPS points plus optional HR/speed for colored route overlays. */
@@ -72,6 +74,7 @@ export function routePointsFromRecords(
         speedKmh?: number
       }>
     | undefined,
+  sport?: string,
 ): RoutePoint[] {
   if (!records?.length) return []
   const points: RoutePoint[] = []
@@ -79,13 +82,18 @@ export function routePointsFromRecords(
     const latitude = Number(record.latitude)
     const longitude = Number(record.longitude)
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue
-    const heartRateBpm = Number(record.heartRateBpm)
-    const speedKmh = Number(record.speedKmh)
+    const heartRateBpm = plausibleHeartRate(
+      Number.isFinite(Number(record.heartRateBpm)) ? Number(record.heartRateBpm) : undefined,
+    )
+    const speedKmh = plausibleSpeedKmh(
+      Number.isFinite(Number(record.speedKmh)) ? Number(record.speedKmh) : undefined,
+      sport,
+    )
     points.push({
       longitude,
       latitude,
-      ...(Number.isFinite(heartRateBpm) ? { heartRateBpm } : {}),
-      ...(Number.isFinite(speedKmh) ? { speedKmh } : {}),
+      ...(heartRateBpm !== undefined ? { heartRateBpm } : {}),
+      ...(speedKmh !== undefined ? { speedKmh } : {}),
     })
   }
   return points
