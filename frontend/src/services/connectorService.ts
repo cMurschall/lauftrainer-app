@@ -87,7 +87,7 @@ export async function syncActiveConnectors(
     }),
   })
   const result = (await response.json()) as {
-    results?: { connector: ConnectorId; workouts?: Workout[]; error?: string }[]
+    results?: { connector: ConnectorId; workouts?: Workout[]; error?: string; partial?: boolean }[]
     detail?: string
   }
   if (!response.ok) throw new Error(result.detail || 'Synchronisierung fehlgeschlagen.')
