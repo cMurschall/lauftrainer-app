@@ -19,7 +19,7 @@ import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useUiStore } from '../stores/ui'
 import { useAnalysisStore } from '../stores/analysis'
-import { clearLocalData, downloadBackup, restoreBackup } from '../stores/dataLifecycle'
+import { clearLocalData, downloadBackup, restoreBackup, syncConnectors } from '../stores/dataLifecycle'
 import { defaultClearDataSelection, hasClearDataSelection, type ClearDataSelection } from '../db/database'
 import { shouldWarnPolarStravaOverlap } from '../utils/dashboardUi'
 import {
@@ -39,7 +39,7 @@ const analysis = useAnalysisStore()
 const { theme, connectors, goals, config, coachStyle, mapDetailsConsent } = storeToRefs(settings)
 const { summaries } = storeToRefs(workouts)
 const { plan } = storeToRefs(planStore)
-const { importProgress } = storeToRefs(ui)
+const { importProgress, connectorLoading } = storeToRefs(ui)
 
 const { locale, t } = useI18n()
 const showGoalForm = ref(false)
@@ -138,6 +138,9 @@ const extraSportOptions = computed(() => {
     }))
 })
 const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
+const hasActiveConnectedConnector = computed(() =>
+  connectors.value.some((connector) => connector.active && connector.connected),
+)
 const showDeletePanel = ref(false)
 const deleteSelection = ref<ClearDataSelection>(defaultClearDataSelection())
 const canDeleteSelection = computed(() => hasClearDataSelection(deleteSelection.value))
@@ -629,6 +632,7 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
   </section>
   <section id="connectors" class="card settings-section">
     <p class="eyebrow">{{ t.connectors }}</p>
+    <p class="field-help settings-help">{{ t.connectorSyncHelp }}</p>
     <p
       v-if="showPolarStravaOverlapWarning"
       class="notice notice-warning"
@@ -670,6 +674,15 @@ async function setConnectorActive(id: ConnectorId, active: boolean) {
         </div>
       </article>
     </div>
+    <button
+      :disabled="!hasActiveConnectedConnector || connectorLoading"
+      class="button primary connector-sync-button"
+      type="button"
+      data-testid="sync-connectors-button"
+      @click="syncConnectors()"
+    >
+      {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
+    </button>
   </section>
   <section class="card settings-section">
     <p class="eyebrow">{{ t.dataSettings }}</p>

@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import TrainingView from './TrainingView.vue'
 import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
+import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import type { Workout } from '../types/workout'
 
@@ -56,6 +57,7 @@ async function mountTraining() {
     routes: [
       { path: '/training', name: 'training', component: TrainingView },
       { path: '/pricing', name: 'pricing', component: { template: '<div />' } },
+      { path: '/settings', name: 'settings', component: { template: '<div />' } },
     ],
   })
   await router.push('/training')
@@ -119,5 +121,30 @@ describe('TrainingView UX', () => {
     const button = wrapper.get('[data-testid="create-plan-button"]')
     expect(button.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toMatch(/1 credit|1 Credit/)
+  })
+
+  it('shows workout blocker hint and sync CTA when connected but no local workouts', async () => {
+    const wrapper = await mountTraining()
+    const settings = useSettingsStore()
+    settings.connectors = [
+      { id: 'polar', name: 'Polar', active: true, connected: false },
+      { id: 'strava', name: 'Strava', active: true, connected: true },
+    ]
+    await wrapper.vm.$nextTick()
+    const button = wrapper.get('[data-testid="create-plan-button"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toMatch(/at least one workout|Mindestens ein Training/i)
+    expect(wrapper.find('[data-testid="training-sync-button"]').exists()).toBe(true)
+  })
+
+  it('shows connect CTA when no workouts and no connected source', async () => {
+    const wrapper = await mountTraining()
+    useSettingsStore().connectors = [
+      { id: 'polar', name: 'Polar', active: true, connected: false },
+      { id: 'strava', name: 'Strava', active: true, connected: false },
+    ]
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
+    expect(wrapper.find('[data-testid="training-sync-button"]').exists()).toBe(false)
   })
 })

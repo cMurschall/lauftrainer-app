@@ -79,8 +79,10 @@ export async function clearAllData() {
   return clearLocalData(defaultClearDataSelection())
 }
 
-export async function syncConnectors() {
+export async function syncConnectors(options?: { notify?: 'auto' | 'manual' }) {
+  const notifyMode = options?.notify ?? 'manual'
   const ui = useUiStore()
+  if (ui.connectorLoading) return
   const workouts = useWorkoutStore()
   const settings = useSettingsStore()
   const analysis = useAnalysisStore()
@@ -88,6 +90,7 @@ export async function syncConnectors() {
   ui.connectorLoading = true
   try {
     const active = settings.connectors.filter((item) => item.active && item.connected).map((item) => item.id)
+    if (!active.length) return
     const results = await syncActiveConnectors(active)
     const batch = []
     const errors: string[] = []
@@ -111,12 +114,15 @@ export async function syncConnectors() {
         count + result.workouts.filter((workout) => !workout.durationSeconds && !workout.distanceKm).length,
       0,
     )
-    ui.notify(
-      errors.length
-        ? `${batch.length} Training(s) gespeichert. ${errors.join(' ')}`
-        : `${batch.length} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`,
-      errors.length ? 'error' : 'success',
-    )
+    const shouldNotify = notifyMode === 'manual' || errors.length > 0 || batch.length > 0
+    if (shouldNotify) {
+      ui.notify(
+        errors.length
+          ? `${batch.length} Training(s) gespeichert. ${errors.join(' ')}`
+          : `${batch.length} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`,
+        errors.length ? 'error' : 'success',
+      )
+    }
   } catch (error) {
     ui.notify(error instanceof Error ? error.message : t.value.syncFailed, 'error')
   } finally {

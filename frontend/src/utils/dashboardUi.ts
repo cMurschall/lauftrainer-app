@@ -2,6 +2,23 @@ export function isTrainingPlanLocalMode(mode = import.meta.env.VITE_TRAINING_PLA
   return ['mock', 'local'].includes(String(mode || ''))
 }
 
+export type CreatePlanBlocker = 'workouts' | 'consent' | 'credits'
+
+export function createPlanBlockers(input: {
+  consent: boolean
+  workoutCount: number
+  loading: boolean
+  credits: number
+  localMode: boolean
+}): CreatePlanBlocker[] {
+  if (input.loading) return []
+  const blockers: CreatePlanBlocker[] = []
+  if (input.workoutCount < 1) blockers.push('workouts')
+  if (!input.consent) blockers.push('consent')
+  if (!input.localMode && input.credits < 1) blockers.push('credits')
+  return blockers
+}
+
 export function canCreatePlan(input: {
   consent: boolean
   workoutCount: number
@@ -9,9 +26,8 @@ export function canCreatePlan(input: {
   credits: number
   localMode: boolean
 }): boolean {
-  if (input.loading || !input.consent || input.workoutCount < 1) return false
-  if (!input.localMode && input.credits < 1) return false
-  return true
+  if (input.loading) return false
+  return createPlanBlockers(input).length === 0
 }
 
 export type ConnectorBannerKind = 'sync' | 'empty' | 'localData'

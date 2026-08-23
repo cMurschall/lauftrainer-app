@@ -18,12 +18,9 @@ import { useWorkoutStore } from '../stores/workouts'
 import { usePlanStore } from '../stores/plan'
 import { useSettingsStore } from '../stores/settings'
 import { useAnalysisStore } from '../stores/analysis'
-import { useUiStore } from '../stores/ui'
-import { syncConnectors } from '../stores/dataLifecycle'
 import {
   averageWeeklyMinutes,
   connectorBannerKind,
-  shouldWarnPolarStravaOverlap,
   sportKind,
   weeklyTrend,
   type WeeklyTrendEntry,
@@ -49,13 +46,11 @@ const workouts = useWorkoutStore()
 const planStore = usePlanStore()
 const settings = useSettingsStore()
 const analysisStore = useAnalysisStore()
-const ui = useUiStore()
 
 const { summaries } = storeToRefs(workouts)
 const { plan, completedPlanDates } = storeToRefs(planStore)
 const { connectors } = storeToRefs(settings)
 const { analysis, analysisResult } = storeToRefs(analysisStore)
-const { connectorLoading } = storeToRefs(ui)
 
 const { t, locale } = useI18n()
 const showWorkoutDebug = import.meta.env.DEV && localStorage.getItem('lauftrainer-debug') === '1'
@@ -137,7 +132,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', closeEnlargedMapOnEscape)
 })
 watch([sortedActivities, locale], () => nextTick(scheduleActivityFit))
-const showPolarStravaOverlapWarning = computed(() => shouldWarnPolarStravaOverlap(connectors.value))
 const currentWeekStart = computed(() => isoWeekStart(localDateKey()))
 const trendWeeks = computed(() =>
   weeklyTrend({ weekly: analysis.value.weekly, currentWeekStart: currentWeekStart.value, limit: 6 }),
@@ -649,33 +643,15 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
 
     <section v-if="!summaries.length" class="hero dashboard-empty-hero">
       <span class="hero-orb" aria-hidden="true">◉</span>
-      <p>{{ t.heroText }}</p>
+      <p>{{ activeConnectedConnectors.length ? t.heroConnectedNoData : t.heroText }}</p>
       <div class="empty-actions">
-        <RouterLink class="button primary" to="/settings#connectors">{{ t.connectTrainingSource }}</RouterLink>
+        <RouterLink class="button primary" to="/settings#connectors">
+          {{ activeConnectedConnectors.length ? t.syncInSettings : t.connectTrainingSource }}
+        </RouterLink>
       </div>
     </section>
 
-    <section v-if="bannerKind === 'sync'" class="card connector-card">
-      <div class="card-heading">
-        <div>
-          <p class="eyebrow">{{ t.connectors }}</p>
-          <h3>{{ t.syncAllConnectors }}</h3>
-        </div>
-        <span class="connection-dot"></span>
-      </div>
-      <p
-        v-if="showPolarStravaOverlapWarning"
-        class="notice notice-warning"
-        role="status"
-        data-banner="polarStravaOverlap"
-      >
-        {{ t.polarStravaOverlapWarning }}
-      </p>
-      <button :disabled="connectorLoading" class="button primary" type="button" @click="syncConnectors">
-        {{ connectorLoading ? t.syncingConnectors : t.syncConnectors }}
-      </button>
-    </section>
-    <p v-else-if="bannerKind === 'localData'" class="connector-empty-banner muted" :data-banner="bannerKind">
+    <p v-if="bannerKind === 'localData'" class="connector-empty-banner muted" :data-banner="bannerKind">
       <span>{{ t.noSyncSourceWithData }}</span>
       <RouterLink class="button secondary connector-connect-button" to="/settings#connectors">
         {{ t.connectTrainingSource }}

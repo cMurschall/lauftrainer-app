@@ -16,6 +16,7 @@ import { useWorkoutStore } from './stores/workouts'
 import { useSettingsStore } from './stores/settings'
 import { usePlanStore } from './stores/plan'
 import { useAnalysisStore } from './stores/analysis'
+import { syncConnectors } from './stores/dataLifecycle'
 
 const ui = useUiStore()
 const workouts = useWorkoutStore()
@@ -81,6 +82,9 @@ onMounted(async () => {
   await analysis.refreshAnalysis()
   await checkBackend()
   await settings.refreshConnectors()
+  if (settings.connectors.some((item) => item.active && item.connected)) {
+    void syncConnectors({ notify: 'auto' })
+  }
 })
 </script>
 <template>

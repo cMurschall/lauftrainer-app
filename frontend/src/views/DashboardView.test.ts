@@ -70,6 +70,20 @@ describe('DashboardView UX', () => {
     expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
   })
 
+  it('shows connected-source empty copy when no workouts but Strava is active', async () => {
+    const wrapper = await mountDashboard()
+    useWorkoutStore().workouts = []
+    useSettingsStore().connectors = [
+      { id: 'polar', name: 'Polar', active: true, connected: false },
+      { id: 'strava', name: 'Strava', active: true, connected: true },
+    ]
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.dashboard-empty-hero').exists()).toBe(true)
+    expect(wrapper.text()).toMatch(/automatically|automatisch/)
+    expect(wrapper.text()).toMatch(/Sync in Settings|In Einstellungen synchronisieren/)
+    expect(wrapper.find('.connector-card').exists()).toBe(false)
+  })
+
   it("shows today's workout widget when today has a planned workout", async () => {
     const wrapper = await mountDashboard()
     const workouts = useWorkoutStore()

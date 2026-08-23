@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   averageWeeklyMinutes,
   canCreatePlan,
+  createPlanBlockers,
   connectorBannerKind,
   createPlanButtonMode,
   isTrainingPlanLocalMode,
@@ -31,6 +32,15 @@ describe('dashboardUi helpers', () => {
     expect(canCreatePlan({ consent: true, workoutCount: 2, loading: true, credits: 5, localMode: false })).toBe(false)
     expect(canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 0, localMode: false })).toBe(false)
     expect(canCreatePlan({ consent: true, workoutCount: 2, loading: false, credits: 1, localMode: false })).toBe(true)
+  })
+
+  it('lists all create-plan blockers in priority order', () => {
+    expect(
+      createPlanBlockers({ consent: false, workoutCount: 0, loading: false, credits: 0, localMode: false }),
+    ).toEqual(['workouts', 'consent', 'credits'])
+    expect(createPlanBlockers({ consent: true, workoutCount: 2, loading: true, credits: 5, localMode: false })).toEqual(
+      [],
+    )
   })
 
   it('classifies connector banners', () => {
