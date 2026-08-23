@@ -297,6 +297,7 @@ const translations = {
     polarStravaOverlapWarning:
       'Polar und Strava sind gleichzeitig aktiv. Wenn Polar nach Strava synchronisiert, können dieselben Einheiten doppelt landen — die Deduplizierung erkennt das nicht immer. Am besten eine Quelle wählen und die andere deaktivieren oder trennen.',
     syncFailed: 'Synchronisierung fehlgeschlagen.',
+    syncPartialHint: 'Weitere Strava-Trainings oder Pulsdetails: erneut „Jetzt synchronisieren“ in den Einstellungen.',
     importSuccess: (count: number) => `${count} Datei(en) lokal verarbeitet.`,
     importFailed: 'Import fehlgeschlagen.',
     planSaved: 'Trainingsplan lokal gespeichert.',
@@ -700,6 +701,7 @@ const translations = {
     polarStravaOverlapWarning:
       'Polar and Strava are both active. If Polar syncs to Strava, the same sessions can appear twice — deduplication is not always reliable. Prefer one source and deactivate or disconnect the other.',
     syncFailed: 'Synchronization failed.',
+    syncPartialHint: 'More Strava workouts or HR stream details: tap Sync now in Settings again.',
     importSuccess: (count: number) => `${count} file(s) processed locally.`,
     importFailed: 'Import failed.',
     planSaved: 'Training plan saved locally.',

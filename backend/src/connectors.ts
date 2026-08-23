@@ -44,10 +44,15 @@ export async function listStatus(request: Request, env: Env) {
 }
 
 export async function syncAll(request: Request, env: Env) {
-  const body = (await request.json().catch(() => ({}))) as { active?: string[] }
+  const body = (await request.json().catch(() => ({}))) as {
+    active?: string[]
+    syncMode?: 'auto' | 'full'
+    stravaAfter?: string
+  }
   const active = new Set(body.active || [])
+  const syncMode = body.syncMode === 'auto' ? 'auto' : 'full'
   const sessions = sessionMap(request)
-  const results: { connector: string; workouts: unknown[]; error?: string }[] = []
+  const results: { connector: string; workouts: unknown[]; error?: string; partial?: boolean }[] = []
   if (active.has('polar')) {
     const headers = new Headers(request.headers)
     headers.set('X-Polar-Session', sessions.polar || '')
@@ -69,11 +74,19 @@ export async function syncAll(request: Request, env: Env) {
   }
   if (active.has('strava')) {
     try {
-      const response = await stravaSync(headerOnlyRequest(request, new Headers(request.headers)), env)
-      const result = (await response.json()) as { workouts?: unknown[]; detail?: string }
+      const response = await stravaSync(headerOnlyRequest(request, new Headers(request.headers)), env, {
+        syncMode,
+        afterDate: body.stravaAfter,
+      })
+      const result = (await response.json()) as {
+        workouts?: unknown[]
+        detail?: string
+        syncMeta?: { partial?: boolean }
+      }
       results.push({
         connector: 'strava',
         workouts: result.workouts || [],
+        partial: result.syncMeta?.partial,
         ...(response.ok ? {} : { error: result.detail || 'Strava-Sync fehlgeschlagen.' }),
       })
     } catch (error) {

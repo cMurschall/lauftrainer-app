@@ -9,6 +9,20 @@ type StravaToken = { access_token: string; refresh_token?: string; expires_at?: 
 
 const STREAM_KEYS = 'time,latlng,distance,altitude,velocity_smooth,heartrate,watts'
 
+/** Stay below Cloudflare Worker subrequest limits (50 free / 1000 paid). */
+const STRAVA_SYNC_LIMITS = {
+  auto: { maxPages: 1, maxStreamEnrichments: 12 },
+  full: { maxPages: 2, maxStreamEnrichments: 40 },
+} as const
+
+type StravaSyncMode = keyof typeof STRAVA_SYNC_LIMITS
+
+export type StravaSyncOptions = {
+  syncMode?: StravaSyncMode
+  /** ISO start date of the newest locally stored Strava workout — fetches only newer activities. */
+  afterDate?: string
+}
+
 function redirectUri(request: Request, env: Env) {
   return env.STRAVA_REDIRECT_URI || `${new URL(request.url).origin}/api/connectors/strava/callback`
 }
@@ -188,7 +202,14 @@ async function fetchActivityStreams(activityId: string, accessToken: string): Pr
   }
 }
 
-export async function sync(request: Request, env: Env): Promise<Response> {
+function afterEpochSeconds(iso?: string): number | undefined {
+  if (!iso) return undefined
+  const ms = Date.parse(iso)
+  if (!Number.isFinite(ms)) return undefined
+  return Math.floor(ms / 1000)
+}
+
+export async function sync(request: Request, env: Env, options?: StravaSyncOptions): Promise<Response> {
   const access = await token(request, env)
   if (!access)
     return json(
@@ -200,9 +221,14 @@ export async function sync(request: Request, env: Env): Promise<Response> {
       request,
       env,
     )
+  const syncMode: StravaSyncMode = options?.syncMode === 'auto' ? 'auto' : 'full'
+  const limits = STRAVA_SYNC_LIMITS[syncMode]
+  const after = afterEpochSeconds(options?.afterDate)
   const activities: Record<string, unknown>[] = []
-  for (let page = 1; page <= 5; page += 1) {
-    const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}`, {
+  for (let page = 1; page <= limits.maxPages; page += 1) {
+    const params = new URLSearchParams({ per_page: '200', page: String(page) })
+    if (after) params.set('after', String(after))
+    const response = await fetch(`https://www.strava.com/api/v3/athlete/activities?${params}`, {
       headers: { Authorization: `Bearer ${access.access_token}`, Accept: 'application/json' },
     })
     if (!response.ok)
@@ -210,17 +236,19 @@ export async function sync(request: Request, env: Env): Promise<Response> {
     const batch = (await response.json()) as unknown[]
     activities.push(...(batch as Record<string, unknown>[]))
     if (batch.length < 200) break
+    if (after) break
   }
 
-  // Stop stream enrichment after the first rate-limit so remaining activities keep polyline GPS.
+  let streamBudget = limits.maxStreamEnrichments
   let streamsRateLimited = false
   const workouts = await mapPool(activities, 3, async (activity) => {
     const durationSeconds = number(activity.moving_time) ?? number(activity.elapsed_time) ?? 0
     const fallback = recordsFromPolyline(activityPolyline(activity), durationSeconds)
     const activityId = String(activity.id || '')
-    if (!activityId || streamsRateLimited) {
+    if (!activityId || streamBudget <= 0 || streamsRateLimited) {
       return workoutFromActivity(activity, fallback)
     }
+    streamBudget -= 1
     const streamRecords = await fetchActivityStreams(activityId, access.access_token)
     if (streamRecords === undefined) {
       streamsRateLimited = true
@@ -230,5 +258,24 @@ export async function sync(request: Request, env: Env): Promise<Response> {
     return workoutFromActivity(activity, records)
   })
 
-  return json({ workouts, count: workouts.length }, 200, request, env)
+  const hitPageCap = activities.length >= limits.maxPages * 200
+  const streamsEnriched = limits.maxStreamEnrichments - streamBudget
+  const hitStreamCap = streamsEnriched < activities.length
+  const partial = hitPageCap || hitStreamCap || streamsRateLimited
+
+  return json(
+    {
+      workouts,
+      count: workouts.length,
+      syncMeta: {
+        syncMode,
+        activitiesFetched: activities.length,
+        streamsEnriched,
+        partial,
+      },
+    },
+    200,
+    request,
+    env,
+  )
 }

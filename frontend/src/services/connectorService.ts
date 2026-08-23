@@ -66,17 +66,25 @@ export async function connectorStatus(): Promise<ConnectorSettings[]> {
   return ((await response.json()) as { connectors: ConnectorSettings[] }).connectors
 }
 
-export async function syncActiveConnectors(active: ConnectorId[]): Promise<
+export async function syncActiveConnectors(
+  active: ConnectorId[],
+  options?: { syncMode?: 'auto' | 'full'; stravaAfter?: string },
+): Promise<
   {
     connector: ConnectorId
     workouts: Workout[]
     error?: string
+    partial?: boolean
   }[]
 > {
   const response = await fetch(`${API_ROOT}/api/connectors/sync`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ active }),
+    body: JSON.stringify({
+      active,
+      syncMode: options?.syncMode || 'full',
+      stravaAfter: options?.stravaAfter,
+    }),
   })
   const result = (await response.json()) as {
     results?: { connector: ConnectorId; workouts?: Workout[]; error?: string }[]
@@ -87,5 +95,6 @@ export async function syncActiveConnectors(active: ConnectorId[]): Promise<
     connector: item.connector,
     workouts: item.workouts || [],
     error: item.error,
+    partial: item.partial,
   }))
 }

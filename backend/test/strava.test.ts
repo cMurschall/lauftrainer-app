@@ -182,4 +182,61 @@ describe('strava oauth and sync', () => {
     const payload = (await sync.json()) as { workouts: Array<{ records: unknown[] }> }
     assert.equal(payload.workouts[0].records.length, 3)
   })
+
+  it('caps per-activity stream fetches to stay within worker subrequest limits', async () => {
+    const kv = new MemoryKV()
+    const session = '55555555-5555-4555-8555-555555555555'
+    await kv.put(
+      `strava-session:${session}`,
+      JSON.stringify({
+        access_token: 'strava-token',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    )
+
+    let streamFetches = 0
+    const activities = Array.from({ length: 50 }, (_, index) => ({
+      id: 1000 + index,
+      sport_type: 'Run',
+      start_date: `2026-08-${String(index + 1).padStart(2, '0')}T08:00:00Z`,
+      moving_time: 1800,
+      distance: 5000,
+      map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
+    }))
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/athlete/activities')) {
+        return new Response(JSON.stringify(activities), { status: 200 })
+      }
+      if (url.includes('/streams')) {
+        streamFetches += 1
+        return new Response(
+          JSON.stringify({
+            time: { data: [0, 60] },
+            heartrate: { data: [120, 130] },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response('unexpected', { status: 500 })
+    }) as typeof fetch
+
+    const sync = await strava.sync(
+      new Request('http://worker.test/api/connectors/strava/sync', {
+        headers: { 'X-Connector-Sessions': JSON.stringify({ strava: session }) },
+      }),
+      env(kv),
+      { syncMode: 'full' },
+    )
+    assert.equal(sync.status, 200)
+    const payload = (await sync.json()) as {
+      count: number
+      syncMeta?: { streamsEnriched?: number; partial?: boolean }
+    }
+    assert.equal(payload.count, 50)
+    assert.equal(streamFetches, 40)
+    assert.equal(payload.syncMeta?.streamsEnriched, 40)
+    assert.equal(payload.syncMeta?.partial, true)
+  })
 })
