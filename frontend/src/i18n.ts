@@ -196,9 +196,11 @@ const translations = {
     addSport: 'Hinzufügen',
     performanceNotes: 'Leistungswerte und Bestzeiten',
     limitations: 'Verletzungen und Einschränkungen',
-    planContext: 'Hinweise für diesen Plan (optional)',
+    planContextToggle:
+      'Ich möchte der KI für diese Woche spezifische Anweisungen oder Informationen geben',
+    planContext: 'Hinweise für diese 7 Tage',
     planContextHelp:
-      'Optional: Reise, Zeitknappheit oder Wünsche nur für diese 7 Tage. Bleibt nicht dauerhaft gespeichert.',
+      'Nur für diesen Plan — z. B. Reise, Zeitknappheit oder konkrete Wünsche. Wird nicht dauerhaft gespeichert.',
     planContextPlaceholder: 'z. B. keine langen Läufe sonntags, Knie derzeit empfindlich, max. 45 Minuten …',
     createPlanConfirm: 'Plan erstellen',
     monday: 'Montag',
@@ -601,8 +603,10 @@ const translations = {
     addSport: 'Add',
     performanceNotes: 'Performance and personal bests',
     limitations: 'Injuries and limitations',
-    planContext: 'Notes for this plan (optional)',
-    planContextHelp: 'Optional: travel, time limits, or wishes for these 7 days only. Not stored permanently.',
+    planContextToggle: 'I want to give the AI specific instructions or information for this week',
+    planContext: 'Notes for these 7 days',
+    planContextHelp:
+      'For this plan only — e.g. travel, time limits, or specific wishes. Not stored permanently.',
     planContextPlaceholder: 'e.g. no long runs on Sundays, knee sensitive right now, max 45 minutes …',
     createPlanConfirm: 'Create plan',
     monday: 'Monday',

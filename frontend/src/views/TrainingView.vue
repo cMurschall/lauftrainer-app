@@ -121,12 +121,14 @@ const planDayKey = (day: TrainingPlanDay, index: number) => day.date || `${day.d
 const isPlanDayCompleted = (day: TrainingPlanDay) => Boolean(day.date && completedPlanDates.value.includes(day.date))
 
 const planNotesDraft = ref('')
+const planContextEnabled = ref(false)
 
 async function submitPlan() {
   if (!createEnabled.value) return
   if (hasPlan.value && !window.confirm(t.value.confirmReplacePlan)) return
-  const notes = planNotesDraft.value
+  const notes = planContextEnabled.value ? planNotesDraft.value : ''
   planNotesDraft.value = ''
+  planContextEnabled.value = false
   await planStore.createPlan(notes)
 }
 </script>
@@ -208,13 +210,23 @@ async function submitPlan() {
         <input :checked="consent" type="checkbox" @change="ui.consent = ($event.target as HTMLInputElement).checked" />
         {{ t.consent }}
       </label>
-      <div class="plan-notes">
+      <label class="consent plan-context-toggle">
+        <input
+          :checked="planContextEnabled"
+          type="checkbox"
+          data-testid="plan-context-toggle"
+          @change="planContextEnabled = ($event.target as HTMLInputElement).checked"
+        />
+        {{ t.planContextToggle }}
+      </label>
+      <div v-if="planContextEnabled" class="plan-notes">
         <label class="plan-notes-label" for="plan-notes-input">{{ t.planContext }}</label>
         <p class="field-help">{{ t.planContextHelp }}</p>
         <textarea
           id="plan-notes-input"
           v-model="planNotesDraft"
           rows="3"
+          data-testid="plan-notes-input"
           :placeholder="t.planContextPlaceholder"
         ></textarea>
       </div>

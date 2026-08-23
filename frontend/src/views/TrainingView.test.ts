@@ -147,4 +147,12 @@ describe('TrainingView UX', () => {
     expect(wrapper.text()).toMatch(/Connect training source|Trainingsquelle verbinden/)
     expect(wrapper.find('[data-testid="training-sync-button"]').exists()).toBe(false)
   })
+
+  it('hides plan notes until the user opts in', async () => {
+    const wrapper = await mountTraining()
+    expect(wrapper.find('[data-testid="plan-notes-input"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="plan-context-toggle"]').setValue(true)
+    expect(wrapper.find('[data-testid="plan-notes-input"]').exists()).toBe(true)
+    expect(wrapper.text()).toMatch(/7 days|7 Tage/)
+  })
 })
