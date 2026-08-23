@@ -48,7 +48,10 @@ describe('recordsFromStravaStreams', () => {
 
   it('prefers stream metrics over polyline fallback', () => {
     assert.equal(
-      streamRecordsAreRicher([{ elapsedSeconds: 0, heartRateBpm: 140 }], [{ elapsedSeconds: 0, latitude: 1, longitude: 2 }]),
+      streamRecordsAreRicher(
+        [{ elapsedSeconds: 0, heartRateBpm: 140 }],
+        [{ elapsedSeconds: 0, latitude: 1, longitude: 2 }],
+      ),
       true,
     )
     assert.equal(streamRecordsAreRicher([], [{ elapsedSeconds: 0, latitude: 1, longitude: 2 }]), false)

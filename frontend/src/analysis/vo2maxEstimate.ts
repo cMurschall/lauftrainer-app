@@ -98,11 +98,7 @@ function sampleSpeedKmh(
  * Estimate VO2max for one running workout from HR + speed samples (%HRR method).
  * Returns undefined when the stream is too short, sparse, or physiologically implausible.
  */
-export function estimateWorkoutVo2max(
-  workout: Workout,
-  hrRest: number,
-  hrMax: number,
-): number | undefined {
+export function estimateWorkoutVo2max(workout: Workout, hrRest: number, hrMax: number): number | undefined {
   if (!isRunning(workout.sport)) return undefined
   if (workout.durationSeconds < MIN_DURATION_SECONDS) return undefined
   if (!(hrMax > hrRest) || hrRest < 30 || hrMax > 230) return undefined

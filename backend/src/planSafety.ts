@@ -313,11 +313,7 @@ export function computeLoadBudget(sanitized: SanitizedInputs, profile: Record<st
   )
   const max_training_sessions = recovery_week ? Math.min(3, requestedFrequency) : requestedFrequency
   const trainingGoal = String(profile.training_goal || '').toLowerCase()
-  const max_quality_sessions = !allow_quality
-    ? 0
-    : trainingGoal === 'vo2max' && max_training_sessions >= 4
-      ? 2
-      : 1
+  const max_quality_sessions = !allow_quality ? 0 : trainingGoal === 'vo2max' && max_training_sessions >= 4 ? 2 : 1
   const max_endurance_sessions = resume_long ? Math.min(2, max_training_sessions) : max_training_sessions
   const strengthEnabled =
     Boolean(profile.strength_training) ||

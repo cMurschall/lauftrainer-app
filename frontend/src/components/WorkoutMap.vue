@@ -84,9 +84,7 @@ const legendUnit = computed(() => {
   return ''
 })
 
-const showModeToggle = computed(
-  () => props.colorControls && (capabilities.value.hr || capabilities.value.pace),
-)
+const showModeToggle = computed(() => props.colorControls && (capabilities.value.hr || capabilities.value.pace))
 
 /** Tiny custom credit in the card preview; MapLibre control only in the enlarged modal. */
 const showPreviewAttribution = computed(() => props.showBasemap && !props.interactive)

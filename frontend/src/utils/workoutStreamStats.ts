@@ -76,7 +76,14 @@ export function computeDecouplingPct(
       const hr = record.heartRateBpm
       const speed = record.speedKmh
       const t = record.elapsedSeconds
-      if (!finite(hr) || hr < 50 || !isPlausibleHeartRate(hr) || !finite(speed) || !isPlausibleSpeedKmh(speed, sport) || !finite(t)) {
+      if (
+        !finite(hr) ||
+        hr < 50 ||
+        !isPlausibleHeartRate(hr) ||
+        !finite(speed) ||
+        !isPlausibleSpeedKmh(speed, sport) ||
+        !finite(t)
+      ) {
         return undefined
       }
       return { t, hr, speed, ef: speed / hr }
@@ -98,7 +105,7 @@ export function computeDecouplingPct(
   if (ef1 === undefined || ef2 === undefined || ef1 <= 0) return undefined
   // Rising HR relative to speed ⇒ falling EF ⇒ positive decoupling when inverted:
   // (Ef1 - Ef2) / Ef1 so + means classic cardiac drift.
-  return Math.round((((ef1 - ef2) / ef1) * 100) * 10) / 10
+  return Math.round(((ef1 - ef2) / ef1) * 100 * 10) / 10
 }
 
 function downsampleIndices(length: number, maxPoints: number): number[] {
@@ -130,10 +137,7 @@ function recordHasGps(record: ActivityRecord | undefined): record is ActivityRec
 }
 
 /** Nearest GPS sample for a chart downsample index (walk outward). */
-export function nearestChartCoordinate(
-  records: ActivityRecord[],
-  index: number,
-): [number, number] | null {
+export function nearestChartCoordinate(records: ActivityRecord[], index: number): [number, number] | null {
   if (!records.length) return null
   const clamped = Math.min(Math.max(0, index), records.length - 1)
   for (let distance = 0; distance < records.length; distance += 1) {

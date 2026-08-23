@@ -8,12 +8,7 @@ import { usePlanStore } from '../stores/plan'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { syncConnectors } from '../stores/dataLifecycle'
-import {
-  canCreatePlan,
-  createPlanBlockers,
-  createPlanButtonMode,
-  isTrainingPlanLocalMode,
-} from '../utils/dashboardUi'
+import { canCreatePlan, createPlanBlockers, createPlanButtonMode, isTrainingPlanLocalMode } from '../utils/dashboardUi'
 import PageHeader from '../components/PageHeader.vue'
 
 const workouts = useWorkoutStore()

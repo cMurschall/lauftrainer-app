@@ -59,10 +59,7 @@ describe('routePointsFromRecords', () => {
 
   it('drops implausible metrics from route points', () => {
     expect(
-      routePointsFromRecords(
-        [{ latitude: 54.3, longitude: 10.1, heartRateBpm: 300, speedKmh: 60 }],
-        'Running',
-      ),
+      routePointsFromRecords([{ latitude: 54.3, longitude: 10.1, heartRateBpm: 300, speedKmh: 60 }], 'Running'),
     ).toEqual([{ longitude: 10.1, latitude: 54.3 }])
   })
 })

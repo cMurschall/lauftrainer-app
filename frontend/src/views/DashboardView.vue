@@ -333,20 +333,12 @@ const modalStreamChartUnits = computed(() => {
 const modalHasHrKpis = computed(() => {
   const workout = enlargedWorkout.value
   const stats = modalStreamStats.value
-  return Boolean(
-    workout?.averageHeartRate ||
-      (stats?.hrMin != null && stats?.hrMax != null),
-  )
+  return Boolean(workout?.averageHeartRate || (stats?.hrMin != null && stats?.hrMax != null))
 })
 
 const modalHasProfileKpis = computed(() => {
   const workout = enlargedWorkout.value
-  return Boolean(
-    workout?.calories ||
-      workout?.elevationGainM ||
-      workout?.ascentM ||
-      workout?.averagePowerW,
-  )
+  return Boolean(workout?.calories || workout?.elevationGainM || workout?.ascentM || workout?.averagePowerW)
 })
 
 const modalHasAnalysisKpis = computed(() => {
@@ -355,8 +347,7 @@ const modalHasAnalysisKpis = computed(() => {
 })
 
 function displayPaceSeconds(workout: (typeof summaries.value)[number]): number | undefined {
-  const stats =
-    workout.id === enlargedMapId.value ? modalStreamStats.value : workoutStreamStats(workout.id)
+  const stats = workout.id === enlargedMapId.value ? modalStreamStats.value : workoutStreamStats(workout.id)
   return resolveDisplayPaceSeconds(workout, stats?.paceAvgSecondsPerKm)
 }
 
@@ -569,11 +560,7 @@ async function updateWorkoutRpe(workoutSummary: (typeof summaries.value)[number]
                 <span>{{ t.steadiness }}</span>
                 <strong>{{ modalStreamStats.steadinessPct }} %</strong>
               </div>
-              <div
-                v-if="modalStreamStats?.decouplingPct != null"
-                class="activity-detail-kpi"
-                :title="t.decouplingHint"
-              >
+              <div v-if="modalStreamStats?.decouplingPct != null" class="activity-detail-kpi" :title="t.decouplingHint">
                 <span>{{ t.decoupling }}</span>
                 <strong>{{ formatDecoupling(modalStreamStats.decouplingPct) }}</strong>
               </div>

@@ -64,10 +64,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
   )
 }
 
-async function token(
-  request: Request,
-  env: Env,
-): Promise<{ access_token: string; x_user_id?: string } | undefined> {
+async function token(request: Request, env: Env): Promise<{ access_token: string; x_user_id?: string } | undefined> {
   let sessionId = request.headers.get('X-Polar-Session')
   try {
     const map = JSON.parse(request.headers.get('X-Connector-Sessions') || '{}') as Record<string, string>
@@ -100,7 +97,10 @@ function seconds(value: unknown) {
 type PolarSampleSeries = { rateSeconds: number; values: Array<number | undefined> }
 
 /** Polar AccessLink sample-type keys → ActivityRecord fields. */
-const POLAR_SAMPLE_TYPES: Record<string, keyof Pick<ActivityRecord, 'heartRateBpm' | 'speedKmh' | 'altitudeM' | 'powerW' | 'distanceM'>> = {
+const POLAR_SAMPLE_TYPES: Record<
+  string,
+  keyof Pick<ActivityRecord, 'heartRateBpm' | 'speedKmh' | 'altitudeM' | 'powerW' | 'distanceM'>
+> = {
   '0': 'heartRateBpm',
   '1': 'speedKmh',
   '3': 'altitudeM',
@@ -155,12 +155,7 @@ export function recordsFromPolarRoute(item: Record<string, unknown>, workoutDura
       const altitudeM = sampleValueAt(series.altitudeM, elapsedSeconds)
       const powerW = sampleValueAt(series.powerW, elapsedSeconds)
       const distanceM = sampleValueAt(series.distanceM, elapsedSeconds)
-      if (
-        heartRateBpm === undefined &&
-        speedKmh === undefined &&
-        powerW === undefined &&
-        distanceM === undefined
-      ) {
+      if (heartRateBpm === undefined && speedKmh === undefined && powerW === undefined && distanceM === undefined) {
         continue
       }
       records.push({

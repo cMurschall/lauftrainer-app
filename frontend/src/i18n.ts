@@ -519,8 +519,7 @@ const translations = {
     noSyncSourceWithData: 'Local workouts are available. Connect a source for automatic sync.',
     needConsent: 'Please consent to AI processing first.',
     needCredits: 'At least 1 credit is required to create a plan.',
-    needWorkouts:
-      'At least one workout must be stored locally. Sync Strava/Polar or import files in Settings.',
+    needWorkouts: 'At least one workout must be stored locally. Sync Strava/Polar or import files in Settings.',
     needWorkoutsImportHint: 'Alternatively: import FIT, TCX, GPX, or CSV in Settings.',
     yourWeek: 'Your week',
     todayWorkout: 'Today',
@@ -571,8 +570,7 @@ const translations = {
     vo2maxUnit: 'ml/kg/min',
     vo2maxContext: 'Estimate from pace and heart rate',
     vo2maxTrend: 'Trend (rolling median)',
-    vo2maxEmpty:
-      'No estimate yet. Needs runs ≥ 20 min with heart-rate and speed streams (e.g. FIT/TCX/Polar CSV).',
+    vo2maxEmpty: 'No estimate yet. Needs runs ≥ 20 min with heart-rate and speed streams (e.g. FIT/TCX/Polar CSV).',
     helpVo2max: [
       'Local estimate from running pace and heart rate (ACSM + heart-rate reserve) — not a lab measurement.',
       'The trend across recent valid runs shows the rough direction of change.',
@@ -603,8 +601,7 @@ const translations = {
     performanceNotes: 'Performance and personal bests',
     limitations: 'Injuries and limitations',
     planContext: 'Notes for this plan (optional)',
-    planContextHelp:
-      'Optional: travel, time limits, or wishes for these 7 days only. Not stored permanently.',
+    planContextHelp: 'Optional: travel, time limits, or wishes for these 7 days only. Not stored permanently.',
     planContextPlaceholder: 'e.g. no long runs on Sundays, knee sensitive right now, max 45 minutes …',
     createPlanConfirm: 'Create plan',
     monday: 'Monday',

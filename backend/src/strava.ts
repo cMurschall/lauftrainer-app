@@ -174,10 +174,7 @@ function workoutFromActivity(activity: Record<string, unknown>, records: Activit
   }
 }
 
-async function fetchActivityStreams(
-  activityId: string,
-  accessToken: string,
-): Promise<ActivityRecord[] | undefined> {
+async function fetchActivityStreams(activityId: string, accessToken: string): Promise<ActivityRecord[] | undefined> {
   const response = await fetch(
     `https://www.strava.com/api/v3/activities/${encodeURIComponent(activityId)}/streams?keys=${STREAM_KEYS}&key_by_type=true`,
     { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },

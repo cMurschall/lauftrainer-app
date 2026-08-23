@@ -59,7 +59,14 @@ describe('vo2maxEstimate', () => {
 
   it('rejects short runs, cycling, and sparse streams', () => {
     expect(
-      estimateWorkoutVo2max(runWorkout({ durationSeconds: 600, records: recordsAtSteadyPace({ durationSeconds: 600, speedKmh: 12, hr: 145 }) }), 55, 186),
+      estimateWorkoutVo2max(
+        runWorkout({
+          durationSeconds: 600,
+          records: recordsAtSteadyPace({ durationSeconds: 600, speedKmh: 12, hr: 145 }),
+        }),
+        55,
+        186,
+      ),
     ).toBeUndefined()
     expect(estimateWorkoutVo2max(runWorkout({ sport: 'Cycling' }), 55, 186)).toBeUndefined()
     expect(estimateWorkoutVo2max(runWorkout({ records: [] }), 55, 186)).toBeUndefined()
@@ -98,7 +105,10 @@ describe('vo2maxEstimate', () => {
   it('returns empty result when no valid runs exist', () => {
     expect(
       calculateVo2maxEstimate([
-        runWorkout({ sport: 'Cycling', records: recordsAtSteadyPace({ durationSeconds: 2400, speedKmh: 25, hr: 145 }) }),
+        runWorkout({
+          sport: 'Cycling',
+          records: recordsAtSteadyPace({ durationSeconds: 2400, speedKmh: 25, hr: 145 }),
+        }),
       ]),
     ).toEqual({ points: [] })
   })

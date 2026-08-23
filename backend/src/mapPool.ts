@@ -13,9 +13,7 @@ export async function mapPool<T, R>(
       results[index] = await worker(items[index], index)
     }
   }
-  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), Math.max(1, items.length)) }, () =>
-    run(),
-  )
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), Math.max(1, items.length)) }, () => run())
   await Promise.all(runners)
   return results
 }

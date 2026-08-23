@@ -7,9 +7,7 @@ import {
   resolveDisplayPaceSeconds,
 } from './workoutStreamStats'
 
-function recordsFrom(
-  rows: Array<{ t: number; hr?: number; speed?: number }>,
-): ActivityRecord[] {
+function recordsFrom(rows: Array<{ t: number; hr?: number; speed?: number }>): ActivityRecord[] {
   return rows.map((row) => ({
     elapsedSeconds: row.t,
     ...(row.hr !== undefined ? { heartRateBpm: row.hr } : {}),
@@ -127,9 +125,7 @@ describe('computeDecouplingPct', () => {
 
 describe('resolveDisplayPaceSeconds', () => {
   it('prefers workout pace then stream then speed then distance', () => {
-    expect(
-      resolveDisplayPaceSeconds({ averagePaceSecondsPerKm: 310, durationSeconds: 1000 }, 320),
-    ).toBe(310)
+    expect(resolveDisplayPaceSeconds({ averagePaceSecondsPerKm: 310, durationSeconds: 1000 }, 320)).toBe(310)
     expect(resolveDisplayPaceSeconds({ durationSeconds: 1000, averageSpeedKmh: 12 }, 320)).toBe(320)
     expect(resolveDisplayPaceSeconds({ durationSeconds: 1000, averageSpeedKmh: 12 })).toBe(300)
     expect(resolveDisplayPaceSeconds({ durationSeconds: 1800, distanceKm: 5 })).toBe(360)

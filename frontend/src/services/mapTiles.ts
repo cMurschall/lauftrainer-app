@@ -501,10 +501,7 @@ export function routeGeoJson(coords: LonLat[]): FeatureCollection {
 }
 
 /** Fill metric gaps between known samples (GPS track stays complete). */
-export function interpolateRouteMetrics(
-  points: RoutePoint[],
-  mode: RouteColorMode,
-): Array<number | undefined> {
+export function interpolateRouteMetrics(points: RoutePoint[], mode: RouteColorMode): Array<number | undefined> {
   const values = points.map((point) => metricAt(point, mode))
   if (mode === 'solid') return values
   const known: number[] = []
@@ -538,8 +535,7 @@ function segmentLengthMeters(a: RoutePoint, b: RoutePoint): number {
   const lat2 = toRad(b.latitude)
   const dLat = lat2 - lat1
   const dLng = toRad(b.longitude - a.longitude)
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
   return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
@@ -550,8 +546,7 @@ export function routeLineGradientStops(
   maxStops = 64,
 ): Array<number | string> {
   const caps = routeColorCapabilities(points)
-  const effectiveMode =
-    mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
+  const effectiveMode = mode === 'hr' && !caps.hr ? 'solid' : mode === 'pace' && !caps.pace ? 'solid' : mode
   if (effectiveMode === 'solid' || points.length < 2) {
     return [0, ROUTE_COLOR, 1, ROUTE_COLOR]
   }
@@ -582,8 +577,7 @@ export function routeLineGradientStops(
   const sampleCount = Math.min(maxStops, points.length)
   const stops: Array<number | string> = []
   for (let sample = 0; sample < sampleCount; sample += 1) {
-    const index =
-      sampleCount === 1 ? 0 : Math.round((sample / (sampleCount - 1)) * (points.length - 1))
+    const index = sampleCount === 1 ? 0 : Math.round((sample / (sampleCount - 1)) * (points.length - 1))
     const progress = Math.min(1, Math.max(0, distances[index] / total))
     const color = colorForMetric(metrics[index], range)
     if (stops.length >= 2 && stops[stops.length - 2] === progress) {
@@ -648,11 +642,7 @@ export function setRouteHighlight(map: MapLibreMap, point: RouteHighlightPoint |
   })
 }
 
-export function upsertRouteLayer(
-  map: MapLibreMap,
-  points: RoutePoint[],
-  mode: RouteColorMode = 'solid',
-): void {
+export function upsertRouteLayer(map: MapLibreMap, points: RoutePoint[], mode: RouteColorMode = 'solid'): void {
   const data = coloredRouteGeoJson(points, mode)
   // Recreate so lineMetrics is always enabled (required for line-gradient).
   // Highlight is re-applied by WorkoutMap after paint.

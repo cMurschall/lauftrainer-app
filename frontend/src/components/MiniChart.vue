@@ -167,7 +167,8 @@ function formatChartValue(value: number | null, unit = props.yUnit): string {
 }
 
 function axisRange(values: number[]): { min?: number; max?: number } {
-  if (!props.dynamicY) return { min: props.includeZero || !values.length ? 0 : undefined, max: props.yUnit === '%' ? 100 : undefined }
+  if (!props.dynamicY)
+    return { min: props.includeZero || !values.length ? 0 : undefined, max: props.yUnit === '%' ? 100 : undefined }
   if (!values.length) return { min: props.nonNegative ? 0 : undefined, max: undefined }
   const lo = Math.min(...values)
   const hi = Math.max(...values)
@@ -182,9 +183,7 @@ function axisRange(values: number[]): { min?: number; max?: number } {
   return { min, max }
 }
 
-const hasRightAxis = computed(
-  () => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'),
-)
+const hasRightAxis = computed(() => Boolean(props.rightYUnit) || props.series.some((item) => item.axis === 'right'))
 
 const isMixed = computed(() => props.series.some((item) => (item.type || props.type) !== props.type))
 
