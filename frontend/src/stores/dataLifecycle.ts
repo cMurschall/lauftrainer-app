@@ -91,9 +91,19 @@ export async function syncConnectors(options?: { notify?: 'auto' | 'manual' }) {
   try {
     const active = settings.connectors.filter((item) => item.active && item.connected).map((item) => item.id)
     if (!active.length) return
-    const results = await syncActiveConnectors(active)
+    const syncMode = notifyMode === 'auto' ? 'auto' : 'full'
+    const stravaAfter =
+      syncMode === 'auto'
+        ? [...workouts.summaries]
+            .filter((workout) => workout.source === 'strava')
+            .map((workout) => workout.date)
+            .sort()
+            .reverse()[0]
+        : undefined
+    const results = await syncActiveConnectors(active, { syncMode, stravaAfter })
     const batch = []
     const errors: string[] = []
+    let partialSync = false
     for (const result of results) {
       for (const workout of result.workouts) {
         batch.push(plain(workout))
@@ -105,6 +115,7 @@ export async function syncConnectors(options?: { notify?: 'auto' | 'manual' }) {
         })
       }
       if (result.error) errors.push(`${result.connector}: ${result.error}`)
+      if (result.partial) partialSync = true
     }
     await workouts.putMany(batch)
     await workouts.reloadDeduplicated()
@@ -116,10 +127,11 @@ export async function syncConnectors(options?: { notify?: 'auto' | 'manual' }) {
     )
     const shouldNotify = notifyMode === 'manual' || errors.length > 0 || batch.length > 0
     if (shouldNotify) {
+      const partialNote = partialSync ? ` ${t.value.syncPartialHint}` : ''
       ui.notify(
         errors.length
-          ? `${batch.length} Training(s) gespeichert. ${errors.join(' ')}`
-          : `${batch.length} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}`,
+          ? `${batch.length} Training(s) gespeichert. ${errors.join(' ')}${partialNote}`
+          : `${batch.length} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}${partialNote}`,
         errors.length ? 'error' : 'success',
       )
     }
