@@ -117,21 +117,28 @@ export async function syncConnectors(options?: { notify?: 'auto' | 'manual' }) {
       if (result.error) errors.push(`${result.connector}: ${result.error}`)
       if (result.partial) partialSync = true
     }
+    const knownIds = new Set(workouts.workouts.map((workout) => workout.id))
+    const freshWorkouts = batch.filter((workout) => !knownIds.has(workout.id))
+    const countBefore = workouts.workouts.length
     await workouts.putMany(batch)
     await workouts.reloadDeduplicated()
     await analysis.refreshAnalysis()
-    const emptyMetrics = results.reduce(
-      (count, result) =>
-        count + result.workouts.filter((workout) => !workout.durationSeconds && !workout.distanceKm).length,
-      0,
-    )
-    const shouldNotify = notifyMode === 'manual' || errors.length > 0 || batch.length > 0
+    // Dedup can drop a freshly synced workout that already exists under another source id.
+    const added = Math.max(0, Math.min(freshWorkouts.length, workouts.workouts.length - countBefore))
+    const emptyMetrics = freshWorkouts.filter(
+      (workout) => !workout.durationSeconds && !workout.distanceKm,
+    ).length
+    const shouldNotify = notifyMode === 'manual' || errors.length > 0 || added > 0
     if (shouldNotify) {
       const partialNote = partialSync ? ` ${t.value.syncPartialHint}` : ''
+      const summary = added
+        ? t.value.syncNewWorkouts(added, batch.length)
+        : t.value.syncNoNewWorkouts(batch.length)
+      const emptyNote = added && emptyMetrics ? ` ${t.value.syncEmptyMetrics(emptyMetrics)}` : ''
       ui.notify(
         errors.length
-          ? `${batch.length} Training(s) gespeichert. ${errors.join(' ')}${partialNote}`
-          : `${batch.length} Training(s) lokal gespeichert.${emptyMetrics ? ` ${emptyMetrics} ohne Dauer oder Distanz.` : ''}${partialNote}`,
+          ? `${summary} ${errors.join(' ')}${partialNote}`
+          : `${summary}${emptyNote}${partialNote}`,
         errors.length ? 'error' : 'success',
       )
     }
